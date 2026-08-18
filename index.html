@@ -1,0 +1,36 @@
+<!doctype html>
+<html><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10ZEN login</title>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#2b2523;}</style>
+</head>
+<body>
+<p id="msg">Loading...</p>
+<script>
+  var GAS_URL = "https://script.google.com/macros/s/AKfycbyyNv6cs2CRWaNxuglrzJexiZH6qzglQT46AZIJT3IJI9QoGSy4kY1A9n5XXDDealOq/exec";
+  var LIFF_ID = "2011158053-N7nKgExB";
+  var params = new URLSearchParams(window.location.search);
+  var refParam = params.get('ref') || '';
+  var actionParam = params.get('action') || '';
+
+  liff.init({ liffId: LIFF_ID }).then(function() {
+    if (!liff.isLoggedIn()) {
+      liff.login({ redirectUri: window.location.href });
+      return;
+    }
+    liff.getProfile().then(function(profile) {
+      var target = GAS_URL
+        + "?lineUserId=" + encodeURIComponent(profile.userId)
+        + "&lineName=" + encodeURIComponent(profile.displayName)
+        + "&ref=" + encodeURIComponent(refParam)
+        + "&action=" + encodeURIComponent(actionParam);
+      window.location.href = target;
+    }).catch(function() {
+      document.getElementById('msg').innerText = "Failed to get LINE profile.";
+    });
+  }).catch(function(e) {
+    document.getElementById('msg').innerText = "Please open in LINE app.";
+  });
+</script>
+</body></html>
