@@ -465,6 +465,8 @@
         const GAS_URL = "https://script.google.com/macros/s/AKfycbynMwwsxSc6OdAGc4fZPLDJYMAgFkqXageiO_pB29HRuo2eP1XAiA7mH6zheXUMvSMd/exec";
         // LINEログイン用のLIFF ID
         const LIFF_ID = "2011158053-N7nKgExB";
+        // 30秒体質チェック(Tally)のフォームURL
+        const TALLY_FORM_URL = "https://tally.so/r/440keB";
 
         // GASと安全に通信するためのJSONP呼び出し(CORSの制約を受けない方式)
         function callGasApi(params, callback) {
@@ -537,6 +539,7 @@
             var urlParams = new URLSearchParams(window.location.search);
             var refParam = urlParams.get('ref') || '';
             var actionParam = urlParams.get('action') || '';
+            var flowParam = urlParams.get('flow') || '';
 
             if (refParam) {
                 document.getElementById('inputRefCode').value = refParam;
@@ -560,9 +563,16 @@
                     }, function(res) {
                         if (res && res.error) {
                             document.getElementById('noticeArea').innerText = res.error;
-                        } else {
-                            updateUI(res);
+                            return;
                         }
+                        if (flowParam === 'quiz') {
+                            // 体質チェック経由:ポイント付与が完了したら、そのままTallyの体質チェックへ転送する
+                            document.getElementById('noticeArea').innerText = "体質チェックへ移動します...";
+                            var tallyUrl = TALLY_FORM_URL + "?line_user_id=" + encodeURIComponent(profile.userId);
+                            window.location.href = tallyUrl;
+                            return;
+                        }
+                        updateUI(res);
                     });
                 }).catch(function() {
                     document.getElementById('noticeArea').innerText = "LINEの情報を取得できませんでした。LINEアプリ内で開いてください。";
