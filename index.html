@@ -353,7 +353,7 @@
                         <span>WEBご予約</span>
                         <svg class="btn-icon" viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H9M17 7V15"/></svg>
                     </a>
-                    <a href="https://tally.so/r/440keB" target="_blank" class="back-btn" onclick="event.stopPropagation()">
+                    <a href="https://tally.so/r/440keB" id="constitutionCheckLink" target="_blank" class="back-btn" onclick="event.stopPropagation()">
                         <span>30秒体質チェック</span>
                         <svg class="btn-icon" viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H9M17 7V15"/></svg>
                     </a>
@@ -459,6 +459,7 @@
 
     <script>
         let currentUser = null;
+        let currentLineUserId = null;
         const LOGO_SRC = "https://lh3.googleusercontent.com/d/17avDvcjFLV_e1nw6Sl6VCEhxqeE-QIe7";
 
         // GASのウェブアプリURL(裏側のAPIとして呼び出す)
@@ -554,6 +555,7 @@
                     return;
                 }
                 liff.getProfile().then(function(profile) {
+                    currentLineUserId = profile.userId;
                     callGasApi({
                         api: 'lineEntry',
                         lineUserId: profile.userId,
@@ -597,6 +599,11 @@
         function updateUI(user) {
             currentUser = user;
             document.getElementById('noticeArea').innerText = user.message || "";
+
+            var checkLink = document.getElementById('constitutionCheckLink');
+            if (checkLink && currentLineUserId) {
+                checkLink.href = TALLY_FORM_URL + "?line_user_id=" + encodeURIComponent(currentLineUserId);
+            }
             
             if(user.message) {
                 setTimeout(function() {
