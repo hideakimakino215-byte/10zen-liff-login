@@ -1,36 +1,681 @@
-<!doctype html>
-<html><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>10ZEN login</title>
-<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#2b2523;}</style>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>10ZEN</title>
+    
+    <!-- iPhone/Android ホーム画面アプリ化設定 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="10ZEN">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#2b2523">
+    
+    <!-- 【iOS完全対応】10ZEN PNGアプリアイコン直接内蔵 -->
+    <link rel="apple-touch-icon" href="data:image/png;base64,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">
+    <link rel="apple-touch-icon" sizes="180x180" href="data:image/png;base64,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">
+    <link rel="icon" type="image/png" href="data:image/png;base64,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">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { width: 100%; margin: 0; padding: 0; }
+        body { 
+            font-family: 'Zen Maru Gothic', sans-serif; 
+            background: #eef1f4; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            min-height: 100vh; 
+            padding: env(safe-area-inset-top, 24px) 14px env(safe-area-inset-bottom, 40px) 14px; 
+        }
+        
+        #registerArea { 
+            background: white; 
+            padding: 30px 20px; 
+            border-radius: 20px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.06); 
+            width: 92vw; 
+            max-width: 420px; 
+            text-align: center; 
+            margin-top: 30px; 
+        }
+        .ref-badge-top {
+            display: inline-block;
+            background: #fef3c7;
+            color: #b45309;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 6px 14px;
+            border-radius: 20px;
+            margin-bottom: 12px;
+            border: 1px solid #fde68a;
+        }
+        input { 
+            font-family: 'Zen Maru Gothic', sans-serif; 
+            padding: 14px; 
+            width: 100%; 
+            border-radius: 12px; 
+            border: 1px solid #e2e8f0; 
+            margin-bottom: 15px; 
+            font-size: 16px; 
+            outline: none;
+        }
+        button.btn-action { 
+            font-family: 'Zen Maru Gothic', sans-serif; 
+            width: 100%; 
+            padding: 14px; 
+            border-radius: 12px; 
+            border: none; 
+            background: #2b2523; 
+            color: white; 
+            font-weight: 700; 
+            font-size: 16px; 
+            cursor: pointer; 
+        }
+
+        /* 3Dカード構造 */
+        .card-container { 
+            width: 94vw; 
+            max-width: 480px; 
+            height: 61vw;
+            max-height: 310px;
+            min-height: 235px;
+            perspective: 1000px; 
+            -webkit-perspective: 1000px;
+            display: none; 
+            cursor: pointer; 
+            margin: 0 auto;
+        }
+        .card-inner { 
+            width: 100%; 
+            height: 100%; 
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); 
+            transform-style: preserve-3d; 
+            -webkit-transform-style: preserve-3d;
+            position: relative; 
+        }
+        .card-container.flipped .card-inner { 
+            transform: rotateY(180deg); 
+            -webkit-transform: rotateY(180deg);
+        }
+        
+        .card-front, .card-back { 
+            width: 100%; 
+            height: 100%; 
+            position: absolute; 
+            top: 0;
+            left: 0;
+            backface-visibility: hidden; 
+            -webkit-backface-visibility: hidden;
+            border-radius: 22px; 
+            padding: 18px 22px; 
+            box-shadow: 0 14px 32px rgba(0, 0, 0, 0.12); 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: space-between; 
+            overflow: hidden; 
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
+        }
+        
+        .card-front {
+            background: #FAFAFA;
+            color: #333333;
+            border: 1px solid rgba(0,0,0,0.06);
+            z-index: 2;
+            transform: rotateY(0deg);
+            -webkit-transform: rotateY(0deg);
+        }
+
+        /* ランク別背景カラー */
+        .card-front.rank-white_opal, .card-front.rank-white { background: linear-gradient(135deg, #FFFFFF 0%, #FAFAFA 100%) !important; color: #333333 !important; }
+        .card-front.rank-amber, .card-front.rank-blonde { background: linear-gradient(135deg, #D97706 0%, #B45309 100%) !important; color: #FFFFFF !important; }
+        .card-front.rank-emerald, .card-front.rank-silver { background: linear-gradient(135deg, #047857 0%, #064E3B 100%) !important; color: #ECFDF5 !important; }
+        .card-front.rank-ruby, .card-front.rank-platinum { background: linear-gradient(135deg, #9D174D 0%, #831843 100%) !important; color: #FDF2F8 !important; }
+        .card-front.rank-onyx, .card-front.rank-black { background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%) !important; color: #E2E8F0 !important; }
+        
+        .herb-bg { position: absolute; pointer-events: none; opacity: 0.12; z-index: 0; }
+        .herb-top-right { top: -15px; right: -15px; width: 160px; height: 160px; transform: rotate(15deg); }
+        .herb-bottom-left { bottom: -20px; left: -20px; width: 150px; height: 150px; transform: rotate(-35deg); }
+        .rank-amber .herb-bg, .rank-emerald .herb-bg, .rank-ruby .herb-bg, .rank-onyx .herb-bg { filter: invert(1); opacity: 0.16; }
+
+        .logo-box { text-align: left; position: relative; z-index: 1; }
+        .transparent-logo-canvas { height: 54px; max-width: 220px; display: block; }
+        .rank-amber .transparent-logo-canvas, .rank-emerald .transparent-logo-canvas, .rank-ruby .transparent-logo-canvas, .rank-onyx .transparent-logo-canvas { filter: invert(1) brightness(2); }
+
+        .bottom-info { display: flex; justify-content: space-between; align-items: flex-end; position: relative; z-index: 1; }
+        .points-box { text-align: left; }
+        .pt-number { font-size: 38px; font-weight: 700; line-height: 1; }
+        .yen-value { font-size: 12px; opacity: 0.88; margin-top: 4px; font-weight: 500; }
+        .expire-date { font-size: 10px; opacity: 0.75; margin-top: 3px; font-weight: 500; }
+
+        .user-box { text-align: right; }
+        .user-name { font-size: 19px; font-weight: 700; margin-bottom: 4px; }
+        .rank-badge { 
+            display: inline-block;
+            font-size: 10px; 
+            font-weight: 700; 
+            letter-spacing: 0.8px; 
+            text-transform: uppercase; 
+            background: rgba(0,0,0,0.08); 
+            padding: 4px 9px; 
+            border-radius: 14px;
+            cursor: pointer;
+        }
+        .rank-amber .rank-badge, .rank-emerald .rank-badge, .rank-ruby .rank-badge, .rank-onyx .rank-badge { background: rgba(255,255,255,0.2); color: #FFFFFF; }
+        .rank-onyx .rank-badge { color: #D4AF37 !important; border: 1px solid rgba(212, 175, 55, 0.4); }
+
+        /* 裏面レイアウト */
+        .card-back { 
+            transform: rotateY(180deg); 
+            -webkit-transform: rotateY(180deg);
+            background: #ffffff; 
+            color: #2b2523; 
+            border: 1px solid #e8e8e8;
+            text-align: center; 
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            z-index: 1;
+            position: relative;
+        }
+        .back-header { text-align: center; display: flex; flex-direction: column; align-items: center; position: relative; z-index: 1; }
+        .back-info-text { font-size: 11px; color: #444; font-weight: 500; line-height: 1.5; margin-top: 2px; }
+        .back-tel { color: #2b2523; text-decoration: underline; font-weight: 700; }
+        
+        .back-map-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            color: #2b2523;
+            text-decoration: none;
+            font-size: 10.5px;
+            font-weight: 600;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 4px 10px;
+            border-radius: 8px;
+            margin-top: 4px;
+        }
+        .back-map-link:active {
+            background: #edf2f7;
+        }
+
+        .back-btn-group { display: flex; justify-content: center; gap: 10px; margin: 4px 0; position: relative; z-index: 1; }
+        .back-btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+            background: #2b2523; color: #fff; text-decoration: none; padding: 8px 14px;
+            border-radius: 25px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+            box-shadow: 0 3px 10px rgba(43, 37, 35, 0.14);
+        }
+        .btn-icon { width: 11px; height: 11px; stroke: #fceabb; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+        .back-footer { font-size: 10px; color: #888; position: relative; z-index: 1; }
+
+        /* プログレスバー */
+        .progress-card {
+            width: 94vw; max-width: 480px;
+            background: white; border-radius: 16px; padding: 15px 20px;
+            margin-top: 14px; box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+            display: none;
+        }
+        .progress-header { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: #4a5568; margin-bottom: 8px; }
+        .progress-bar-bg { width: 100%; height: 8px; background: #edf2f7; border-radius: 10px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #B45309, #D4AF37); width: 0%; border-radius: 10px; transition: width 0.8s ease; }
+
+        /* アクションボタン */
+        .action-container {
+            width: 94vw; max-width: 480px;
+            display: none; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+            margin-top: 12px;
+        }
+        .sub-btn {
+            background: white; border: 1px solid #e2e8f0; border-radius: 14px;
+            padding: 12px 6px; font-size: 12px; font-weight: 700; color: #2b2523;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.03); font-family: 'Zen Maru Gothic', sans-serif;
+            letter-spacing: 0.3px; text-align: center;
+        }
+
+        /* LINE専用ボタン */
+        .btn-line {
+            background: #06C755 !important;
+            color: white !important;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .btn-copy {
+            background: #f1f5f9 !important;
+            color: #334155 !important;
+            font-size: 14px !important;
+            padding: 11px !important;
+        }
+
+        /* モーダル */
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 9999;
+            align-items: center; justify-content: center; padding: 20px;
+        }
+        .modal-content {
+            background: white; border-radius: 20px; padding: 24px;
+            width: 100%; max-width: 380px; max-height: 85vh; overflow-y: auto;
+            position: relative;
+        }
+        .modal-close { position: absolute; top: 16px; right: 16px; font-size: 20px; font-weight: bold; cursor: pointer; color: #aaa; }
+        .benefit-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px dashed #edf2f7; font-size: 13px; }
+        .benefit-rank { font-weight: 700; min-width: 95px; font-size: 11px; border-radius: 6px; padding: 3px 6px; text-align: center; }
+
+        #specialTicket { display: none; margin-top: 14px; background: #0F172A; color: #D4AF37; border: 1px solid #D4AF37; padding: 14px; border-radius: 12px; width: 94vw; max-width: 480px; text-align: center; font-weight: bold; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.4); }
+        #noticeArea { margin-bottom: 10px; font-weight: bold; color: #e67e22; text-align: center; min-height: 20px; font-size: 14px; }
+    </style>
 </head>
 <body>
-<p id="msg">Loading...</p>
-<script>
-  var GAS_URL = "https://script.google.com/macros/s/AKfycbynMwwsxSc6OdAGc4fZPLDJYMAgFkqXageiO_pB29HRuo2eP1XAiA7mH6zheXUMvSMd/exec";
-  var LIFF_ID = "2011158053-N7nKgExB";
-  var params = new URLSearchParams(window.location.search);
-  var refParam = params.get('ref') || '';
-  var actionParam = params.get('action') || '';
 
-  liff.init({ liffId: LIFF_ID }).then(function() {
-    if (!liff.isLoggedIn()) {
-      liff.login({ redirectUri: window.location.href });
-      return;
-    }
-    liff.getProfile().then(function(profile) {
-      var target = GAS_URL
-        + "?lineUserId=" + encodeURIComponent(profile.userId)
-        + "&lineName=" + encodeURIComponent(profile.displayName)
-        + "&ref=" + encodeURIComponent(refParam)
-        + "&action=" + encodeURIComponent(actionParam);
-      window.location.href = target;
-    }).catch(function() {
-      document.getElementById('msg').innerText = "Failed to get LINE profile.";
-    });
-  }).catch(function(e) {
-    document.getElementById('msg').innerText = "Please open in LINE app.";
-  });
-</script>
-</body></html>
+    <!-- 登録フォーム(LIFF失敗時などのバックアップ表示。通常は使われません) -->
+    <div id="registerArea" style="display: none;">
+        <div id="refBadge" class="ref-badge-top" style="display: none;">🎁 お友達紹介特典（100pt）適用中</div>
+        <h3 style="margin-top:0; color:#2b2523;">10ZEN デジタル会員証</h3>
+        <p style="font-size: 13px; color: #666;" id="registerDesc">お名前を入力して会員証を発行してください</p>
+        <input type="text" id="inputName" placeholder="お名前 (ニックネーム可)">
+        <input type="hidden" id="inputRefCode">
+        <button class="btn-action" onclick="register()">会員証を発行する</button>
+    </div>
+
+    <div id="noticeArea"></div>
+
+    <!-- 3D会員証カード -->
+    <div class="card-container" id="cardContainer" onclick="this.classList.toggle('flipped')">
+        <div class="card-inner">
+            
+            <!-- 表面 -->
+            <div class="card-front" id="cardFront">
+                <svg class="herb-bg herb-top-right" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M50 90 Q 55 45 85 15" /><path d="M55 45 Q 75 40 80 25 Q 65 30 55 45" fill="currentColor" fill-opacity="0.15" />
+                    <circle cx="85" cy="15" r="3" fill="currentColor" /><circle cx="75" cy="8" r="2.5" fill="currentColor" />
+                </svg>
+                <svg class="herb-bg herb-bottom-left" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M90 50 Q 45 55 15 85" /><circle cx="15" cy="85" r="3" fill="currentColor" />
+                </svg>
+
+                <div class="logo-box">
+                    <canvas id="frontLogoCanvas" class="transparent-logo-canvas"></canvas>
+                </div>
+                
+                <div class="bottom-info">
+                    <div class="points-box">
+                        <div class="pt-number"><span id="userPoints">0</span> pt</div>
+                        <div class="yen-value" id="yenValue">0円相当としてご利用可能</div>
+                        <div class="expire-date" id="expireDate">有効期限: ----年--月--日</div>
+                    </div>
+                    
+                    <div class="user-box">
+                        <div class="user-name" id="userName">様</div>
+                        <div class="rank-badge" id="userRank" onclick="openBenefitModal(event)">WHITE OPAL ⓘ</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 裏面 -->
+            <div class="card-back">
+                <svg class="herb-bg herb-top-right" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M50 90 Q 55 45 85 15" /><circle cx="85" cy="15" r="3" fill="currentColor" />
+                </svg>
+                <svg class="herb-bg herb-bottom-left" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M90 50 Q 45 55 15 85" /><circle cx="15" cy="85" r="3" fill="currentColor" />
+                </svg>
+
+                <div class="back-header">
+                    <canvas id="backLogoCanvas" class="transparent-logo-canvas" style="height: 38px;"></canvas>
+                    <div class="back-info-text">
+                        営業時間: 11:00〜21:00 (L.O 20:30)<br>
+                        TEL: <a href="tel:0364505834" class="back-tel" onclick="event.stopPropagation()">03-6450-5834</a>
+                    </div>
+                    <!-- 住所＆Googleマップリンク -->
+                    <a href="https://maps.google.com/?q=東京都港区南青山5丁目10-19+青山真洋ビル地下1階" target="_blank" class="back-map-link" onclick="event.stopPropagation()">
+                        <span>📍 東京都港区南青山5-10-19 青山真洋ビルB1F</span>
+                    </a>
+                </div>
+
+                <div class="back-btn-group">
+                    <a href="https://booking.ebica.jp/webrsv/search/e014032801/23809" target="_blank" class="back-btn" onclick="event.stopPropagation()">
+                        <span>WEBご予約</span>
+                        <svg class="btn-icon" viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H9M17 7V15"/></svg>
+                    </a>
+                    <a href="https://tally.so/r/440keB" target="_blank" class="back-btn" onclick="event.stopPropagation()">
+                        <span>30秒体質チェック</span>
+                        <svg class="btn-icon" viewBox="0 0 24 24"><path d="M7 17L17 7M17 7H9M17 7V15"/></svg>
+                    </a>
+                </div>
+
+                <div class="back-footer">（タップで表面に戻る）</div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ランクアップ進捗バー -->
+    <div class="progress-card" id="progressCard">
+        <div class="progress-header">
+            <span id="nextRankText">次のランクまで あと 0 pt</span>
+            <span id="nextRankPercent">0%</span>
+        </div>
+        <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="progressBarFill"></div>
+        </div>
+    </div>
+
+    <!-- サブアクション -->
+    <div class="action-container" id="actionContainer">
+        <button class="sub-btn" onclick="openUsePointModal()">ポイントを使う</button>
+        <button class="sub-btn" onclick="openBenefitModal(event)">会員ランク特典</button>
+        <button class="sub-btn" onclick="openReferralModal()">お友達を紹介</button>
+    </div>
+
+    <!-- Onyx 限定チケット -->
+    <div id="specialTicket">
+        ONYX 会員特別ご招待券<br>
+        <span style="font-size: 12px; font-weight: normal; color:#E2E8F0;">新メニュー先行試食会 ＆ 特別優待をご用意しております</span>
+    </div>
+
+    <!-- 【モーダル】特典一覧 -->
+    <div class="modal" id="benefitModal" onclick="closeModal('benefitModal')">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <span class="modal-close" onclick="closeModal('benefitModal')">&times;</span>
+            <h3 style="margin-top:0; font-size:16px;">10ZEN 会員ランク特典</h3>
+            <div class="benefit-row">
+                <div class="benefit-rank" style="background:#FAFAFA; color:#333; border:1px solid #ddd;">WHITE OPAL</div>
+                <div>100pt = 10円としてお会計時にいつでも利用可能</div>
+            </div>
+            <div class="benefit-row">
+                <div class="benefit-rank" style="background:#B45309; color:#fff;">AMBER</div>
+                <div>10,000pt達成：季節の薬膳茶を1杯プレゼント</div>
+            </div>
+            <div class="benefit-row">
+                <div class="benefit-rank" style="background:#064E3B; color:#ECFDF5;">EMERALD</div>
+                <div>50,000pt達成：限定薬膳スイーツご提供</div>
+            </div>
+            <div class="benefit-row">
+                <div class="benefit-rank" style="background:#831843; color:#FDF2F8;">RUBY</div>
+                <div>100,000pt達成：お会計5%OFF ＆ 特別席優先案内</div>
+            </div>
+            <div class="benefit-row" style="border-bottom:none;">
+                <div class="benefit-rank" style="background:#0F172A; color:#D4AF37; border:1px solid #D4AF37;">ONYX</div>
+                <div>200,000pt達成：新メニュー特別試食会ご招待 ＆ 特別優待</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 【モーダル】お友達紹介 -->
+    <div class="modal" id="referralModal" onclick="closeModal('referralModal')">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <span class="modal-close" onclick="closeModal('referralModal')">&times;</span>
+            <h3 style="margin-top:0; font-size:16px;">お友達紹介特典</h3>
+            <p style="font-size:13px; color:#444; line-height:1.6; margin-bottom: 18px;">
+                LINEで紹介リンクを送るだけ！<br>
+                お友達がリンクを開いて登録すると、<br>
+                <b>お友達とあなたの双方に 100 pt</b> プレゼントされます。
+            </p>
+
+            <button class="btn-action btn-line" onclick="openDirectLine()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                    <path d="M12 2C6.48 2 2 5.82 2 10.53c0 2.92 1.74 5.5 4.41 7.02-.19.68-.7 2.45-.8 2.82-.13.46.17.45.36.33.15-.1 2.08-1.42 2.92-2 .69.1 1.4.16 2.11.16 5.52 0 10-3.82 10-8.53S17.52 2 12 2z"/>
+                </svg>
+                <span>LINEでお友達に送る</span>
+            </button>
+
+            <button class="btn-action btn-copy" onclick="copyReferralLink()">紹介リンクをコピーする</button>
+        </div>
+    </div>
+
+    <!-- 【モーダル】ポイント利用 -->
+    <div class="modal" id="usePointModal" onclick="closeModal('usePointModal')">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <span class="modal-close" onclick="closeModal('usePointModal')">&times;</span>
+            <h3 style="margin-top:0; font-size:16px;">ポイントを利用する</h3>
+            <p style="font-size:12px; color:#666;">スタッフにお見せの上、操作してください</p>
+            <div style="margin-bottom:12px;">
+                <label style="font-size:12px; font-weight:bold;">利用ポイント数 (100pt単位)</label>
+                <input type="number" id="usePtInput" placeholder="例: 1000" step="100" min="100">
+            </div>
+            <div style="margin-bottom:15px;">
+                <label style="font-size:12px; font-weight:bold; color:#c53030;">店舗スタッフ用 PINコード</label>
+                <input type="password" id="staffPinInput" placeholder="4桁のPINを入力" maxlength="4">
+            </div>
+            <button class="btn-action" onclick="executeUsePoints()">スタッフ確認・利用確定</button>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        const LOGO_SRC = "https://lh3.googleusercontent.com/d/17avDvcjFLV_e1nw6Sl6VCEhxqeE-QIe7";
+
+        // GASのウェブアプリURL(裏側のAPIとして呼び出す)
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbynMwwsxSc6OdAGc4fZPLDJYMAgFkqXageiO_pB29HRuo2eP1XAiA7mH6zheXUMvSMd/exec";
+        // LINEログイン用のLIFF ID
+        const LIFF_ID = "2011158053-N7nKgExB";
+
+        // GASと安全に通信するためのJSONP呼び出し(CORSの制約を受けない方式)
+        function callGasApi(params, callback) {
+            var cbName = 'jsonp_cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+            window[cbName] = function(data) {
+                delete window[cbName];
+                if (script.parentNode) script.parentNode.removeChild(script);
+                callback(data);
+            };
+            var qs = Object.keys(params).map(function(k) {
+                return encodeURIComponent(k) + '=' + encodeURIComponent(params[k] == null ? '' : params[k]);
+            }).join('&');
+            var script = document.createElement('script');
+            script.src = GAS_URL + '?' + qs + '&callback=' + cbName;
+            script.onerror = function() {
+                delete window[cbName];
+                callback({ error: '通信エラーが発生しました。電波の良い場所でもう一度お試しください。' });
+            };
+            document.body.appendChild(script);
+        }
+
+        function renderTransparentLogo() {
+            var img = new Image();
+            img.crossOrigin = "Anonymous";
+            img.onload = function() {
+                ['frontLogoCanvas', 'backLogoCanvas'].forEach(function(canvasId) {
+                    var canvas = document.getElementById(canvasId);
+                    if (!canvas) return;
+                    
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    var ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+
+                    try {
+                        var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        var data = imgData.data;
+                        for (var i = 0; i < data.length; i += 4) {
+                            var r = data[i], g = data[i+1], b = data[i+2];
+                            if (r > 215 && g > 215 && b > 215) {
+                                data[i+3] = 0;
+                            }
+                        }
+                        ctx.putImageData(imgData, 0, 0);
+                    } catch(e) {}
+                });
+            };
+            img.src = LOGO_SRC;
+        }
+
+        const RANK_DISPLAY_NAMES = {
+            'white_opal': 'WHITE OPAL',
+            'white': 'WHITE OPAL',
+            'amber': 'AMBER',
+            'blonde': 'AMBER',
+            'emerald': 'EMERALD',
+            'silver': 'EMERALD',
+            'ruby': 'RUBY',
+            'platinum': 'RUBY',
+            'onyx': 'ONYX',
+            'black': 'ONYX'
+        };
+
+        window.onload = function() {
+            renderTransparentLogo();
+            initLiffAndLoad();
+        };
+
+        function initLiffAndLoad() {
+            var urlParams = new URLSearchParams(window.location.search);
+            var refParam = urlParams.get('ref') || '';
+            var actionParam = urlParams.get('action') || '';
+
+            if (refParam) {
+                document.getElementById('inputRefCode').value = refParam;
+                document.getElementById('refBadge').style.display = 'inline-block';
+            }
+
+            document.getElementById('noticeArea').innerText = "読み込み中...";
+
+            liff.init({ liffId: LIFF_ID }).then(function() {
+                if (!liff.isLoggedIn()) {
+                    liff.login({ redirectUri: window.location.href });
+                    return;
+                }
+                liff.getProfile().then(function(profile) {
+                    callGasApi({
+                        api: 'lineEntry',
+                        lineUserId: profile.userId,
+                        lineName: profile.displayName,
+                        ref: refParam,
+                        action: actionParam
+                    }, function(res) {
+                        if (res && res.error) {
+                            document.getElementById('noticeArea').innerText = res.error;
+                        } else {
+                            updateUI(res);
+                        }
+                    });
+                }).catch(function() {
+                    document.getElementById('noticeArea').innerText = "LINEの情報を取得できませんでした。LINEアプリ内で開いてください。";
+                });
+            }).catch(function(e) {
+                document.getElementById('noticeArea').innerText = "LINEアプリ内で開いてください。";
+            });
+        }
+
+        function register() {
+            var name = document.getElementById('inputName').value.trim();
+            var refCode = document.getElementById('inputRefCode').value.trim();
+            if(!name) return alert("お名前を入力してください");
+            document.getElementById('registerArea').style.display = 'none';
+            document.getElementById('noticeArea').innerText = "発行中...";
+
+            callGasApi({ api: 'registerNewUser', displayName: name, refCode: refCode }, function(user) {
+                updateUI(user);
+            });
+        }
+
+        function updateUI(user) {
+            currentUser = user;
+            document.getElementById('noticeArea').innerText = user.message || "";
+            
+            if(user.message) {
+                setTimeout(function() {
+                    document.getElementById('noticeArea').innerText = "";
+                }, 3500);
+            }
+
+            document.getElementById('cardContainer').style.display = 'block';
+            document.getElementById('progressCard').style.display = 'block';
+            document.getElementById('actionContainer').style.display = 'grid';
+
+            var normalizedRank = (user.rank || 'white_opal').toLowerCase();
+            document.getElementById('cardFront').className = 'card-front rank-' + normalizedRank;
+            
+            var displayRankName = RANK_DISPLAY_NAMES[normalizedRank] || 'WHITE OPAL';
+            document.getElementById('userName').innerText = user.displayName + ' 様';
+            document.getElementById('userRank').innerText = displayRankName + ' MEMBER ⓘ';
+            document.getElementById('userPoints').innerText = user.currentPoints.toLocaleString();
+            
+            var yen = Math.floor(user.currentPoints / 10);
+            document.getElementById('yenValue').innerText = yen.toLocaleString() + "円相当としてご利用可能";
+            document.getElementById('expireDate').innerText = "有効期限: " + (user.expireDateStr || "最終来店から1年間");
+
+            // プログレスバー
+            var pInfo = user.nextRankInfo;
+            if (pInfo.nextRank === 'MAX') {
+                document.getElementById('nextRankText').innerText = "最高ランク（ONYX）到達中！";
+                document.getElementById('nextRankPercent').innerText = "100%";
+                document.getElementById('progressBarFill').style.width = "100%";
+            } else {
+                document.getElementById('nextRankText').innerText = pInfo.nextRank + " まで あと " + pInfo.remainingPt.toLocaleString() + " pt";
+                document.getElementById('nextRankPercent').innerText = pInfo.percent + "%";
+                document.getElementById('progressBarFill').style.width = pInfo.percent + "%";
+            }
+
+            if (normalizedRank === 'onyx' || normalizedRank === 'black') {
+                document.getElementById('specialTicket').style.display = 'block';
+            } else {
+                document.getElementById('specialTicket').style.display = 'none';
+            }
+        }
+
+        function getCleanReferralUrl() {
+            var base = window.location.href.split('?')[0];
+            return base + "?ref=" + currentUser.userId;
+        }
+
+        function openDirectLine() {
+            if (!currentUser) return;
+            var refUrl = getCleanReferralUrl();
+            var message = "薬膳レストラン 10ZEN のデジタル会員証です。\n以下のリンクから登録すると 100 pt（来店ボーナス相当）がプレゼントされます！\n" + refUrl;
+            var lineUrl = "https://line.me/R/msg/text/?" + encodeURIComponent(message);
+            window.open(lineUrl, '_blank');
+        }
+
+        function copyReferralLink() {
+            if (!currentUser) return;
+            var refUrl = getCleanReferralUrl();
+            var message = "薬膳レストラン 10ZEN のデジタル会員証です。\n以下のリンクから登録すると 100 pt（来店ボーナス相当）がプレゼントされます！\n" + refUrl;
+            
+            navigator.clipboard.writeText(message).then(function() {
+                alert("紹介メッセージとURLをコピーしました！\nLINEやメールに貼り付けてお送りください。");
+            }).catch(function() {
+                prompt("以下の紹介URLをコピーしてお送りください：", refUrl);
+            });
+        }
+
+        function executeUsePoints() {
+            var pt = parseInt(document.getElementById('usePtInput').value);
+            var pin = document.getElementById('staffPinInput').value;
+            if (!pt || pt <= 0) return alert("利用ポイントを正しく入力してください");
+            if (!pin) return alert("スタッフPINコードを入力してください");
+
+            callGasApi({ api: 'usePoints', userId: currentUser.userId, amount: pt, pin: pin }, function(res) {
+                if (res.success) {
+                    closeModal('usePointModal');
+                    document.getElementById('usePtInput').value = "";
+                    document.getElementById('staffPinInput').value = "";
+                    updateUI(res.user);
+                } else {
+                    alert(res.error);
+                }
+            });
+        }
+
+        function openBenefitModal(e) { e.stopPropagation(); document.getElementById('benefitModal').style.display = 'flex'; }
+        function openUsePointModal() { document.getElementById('usePointModal').style.display = 'flex'; }
+        function openReferralModal() { document.getElementById('referralModal').style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    </script>
+</body>
+</html>
