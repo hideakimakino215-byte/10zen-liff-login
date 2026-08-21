@@ -233,7 +233,7 @@
         /* アクションボタン */
         .action-container {
             width: 94vw; max-width: 480px;
-            display: none; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+            display: none; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px;
             margin-top: 12px;
         }
         .sub-btn {
@@ -381,6 +381,7 @@
         <button class="sub-btn" onclick="openUsePointModal()">ポイントを使う</button>
         <button class="sub-btn" onclick="openBenefitModal(event)">会員ランク特典</button>
         <button class="sub-btn" onclick="openReferralModal()">お友達を紹介</button>
+        <button class="sub-btn" id="appleWalletBtn" onclick="addToAppleWallet()">Apple Walletに追加</button>
     </div>
 
     <!-- Onyx 限定チケット -->
@@ -693,6 +694,41 @@
         function openUsePointModal() { document.getElementById('usePointModal').style.display = 'flex'; }
         function openReferralModal() { document.getElementById('referralModal').style.display = 'flex'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        function addToAppleWallet() {
+            if (!currentUser || !currentLineUserId) return;
+            var btn = document.getElementById('appleWalletBtn');
+            var originalText = btn.innerText;
+            btn.innerText = "作成中...";
+            btn.disabled = true;
+
+            fetch("https://ynqnhjvrzqdrfmvmudir.supabase.co/functions/v1/apple-wallet", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    lineUserId: currentLineUserId,
+                    displayName: currentUser.displayName,
+                    points: currentUser.currentPoints,
+                    rank: currentUser.rank,
+                    expireDateStr: currentUser.expireDateStr
+                })
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                btn.innerText = originalText;
+                btn.disabled = false;
+                if (data.error) {
+                    alert("Apple Walletへの追加に失敗しました: " + data.error);
+                    return;
+                }
+                window.location.href = data.shareUrl;
+            })
+            .catch(function() {
+                btn.innerText = originalText;
+                btn.disabled = false;
+                alert("通信エラーが発生しました。もう一度お試しください。");
+            });
+        }
     </script>
 </body>
 </html>
