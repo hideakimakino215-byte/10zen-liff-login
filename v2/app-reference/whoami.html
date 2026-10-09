@@ -1,0 +1,21 @@
+<!doctype html>
+<!-- 試験者の LINE ユーザーID(U から始まる33文字)を、本人の画面にだけ表示する補助ページ。試験(許可リスト)の登録に使う。サーバーには何も送らない。 -->
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
+<title>10ZEN 試験者ID</title></head>
+<body>
+<main id="app"><p id="msg">読み込み中…</p></main>
+<script src="config.js"></script>
+<script src="vendor/liff.js"></script>
+<script type="module">
+const cfg = window.APP_CONFIG, app = document.getElementById("app");
+const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+(async () => {
+  try { await window.liff.init({ liffId: cfg.liffId }); } catch (_e) { return app.replaceChildren(el("p", "LINE アプリで開いてください", { id: "msg" })); }
+  if (!window.liff.isLoggedIn()) { window.liff.login(); return; }
+  const prof = await window.liff.getProfile();
+  const id = el("code", prof.userId, { id: "uid" }), btn = el("button", "コピー", { id: "copy" }), st = el("p", "", { id: "copied" });
+  btn.onclick = async () => { try { await navigator.clipboard.writeText(prof.userId); st.textContent = "コピーしました"; } catch (_e) { st.textContent = "コピーできませんでした。上のIDを長押しして選択してください"; } };
+  app.replaceChildren(el("h1", "あなたの LINE ユーザーID"), id, btn, st, el("p", "このIDは試験の登録に使います。他の人には送らないでください(開発担当にだけ伝えます)。"));
+})();
+</script>
+</body></html>

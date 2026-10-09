@@ -1,0 +1,66 @@
+<!doctype html>
+<!-- 参照実装(見た目は最小限)。最終UIはこのファイルを差し替える。業務処理は ../app-core のクライアントと画面状態(screens.mjs)に集約されている。
+     UI が守ること: 画面は cardScreen/checkinScreen/redeemScreen が返す screen 名で分岐し、表示は view の項目をそのまま使う。値の未取得は『—』。 -->
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
+<title>10ZEN 会員証</title></head>
+<body>
+<main id="app" aria-live="polite"><p id="loading">読み込み中…</p></main>
+<script src="config.js"></script>
+<script src="vendor/liff.js"></script>
+<script type="module">
+import { createMemberClient, qrTokenFromLocation } from "../app-core/member-client.mjs";
+import { cardScreen, checkinScreen, redeemScreen, redeemWatch } from "../app-core/screens.mjs";
+const cfg = window.APP_CONFIG, app = document.getElementById("app");
+const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+const show = (...nodes) => { app.replaceChildren(...nodes); };
+let client, prevView = null, poll = null, notice = null;
+
+function cardNodes(view) {
+  const n = [];
+  if (notice) { n.push(el("p", notice, { id: "notice", role: "status" })); }
+  n.push(el("h1", view.displayName, { id: "name" }), el("p", `会員番号 ${view.memberNo}`, { id: "memberNo" }), el("p", view.rankLabel, { id: "rank" }),
+    el("p", view.pointsText, { id: "points" }), el("p", view.yenText, { id: "yen" }),
+    el("p", `${view.next.remainingText}${view.next.label ? "(" + view.next.label + ")" : ""}`, { id: "next" }));
+  if (view.lifetimeNote) n.push(el("p", view.lifetimeNote, { id: "lifetimeNote" }));
+  if (view.expiresText) n.push(el("p", `有効期限 ${view.expiresText}`, { id: "expires" }));
+  if (view.lastRedeem) n.push(el("p", view.lastRedeem.message, { id: "lastRedeem" }));
+  if (view.pending) {
+    const p = view.pending;
+    n.push(el("p", `使用の申請中: ${p.points}pt(${p.yen}円分)`, { id: "pendingInfo" }), el("p", p.codeText, { id: "pendingCode" }), el("p", `あと ${p.secondsLeft} 秒`, { id: "pendingLeft" }));
+    const c = el("button", "申請を取り消す", { id: "cancel" }); c.onclick = async () => { await client.redeemCancel(); load(); }; n.push(c);
+  } else if (view.canRedeem) {
+    const i = el("input", undefined, { id: "amount", type: "number", inputmode: "numeric", min: String(view.redeemUnit), step: String(view.redeemUnit), placeholder: `${view.redeemUnit}pt 単位` });
+    const b = el("button", "ポイントを使う", { id: "redeem" });
+    b.onclick = async () => { const s = redeemScreen(await client.redeemRequest(Number(i.value)), Date.now()); if (s.error) { notice = s.error; } else { notice = s.notice || null; } load(); };
+    n.push(i, b);
+  }
+  return n;
+}
+async function load() {
+  clearTimeout(poll);
+  const s = cardScreen(await client.me(), Date.now());
+  if (s.screen === "card") {
+    const w = redeemWatch(prevView, s.view); if (w.change === "confirmed" || w.change === "cancelled" || w.change === "expired") notice = w.message || notice;
+    prevView = s.view; show(...cardNodes(s.view));
+    if (s.view.pending) poll = setTimeout(load, 3000);
+  } else if (s.screen === "register") {
+    const b = el("button", "会員登録する", { id: "register" }); b.onclick = async () => { const prof = await window.liff.getProfile?.().catch?.(() => null); await client.register({ displayName: prof?.displayName }); load(); };
+    show(el("p", s.message, { id: "msg" }), b);
+  } else if (s.screen === "needs_login") { show(el("p", s.message, { id: "msg" })); window.liff.login?.(); }
+  else { const b = el("button", "もう一度試す", { id: "retry" }); b.onclick = load; show(el("p", s.message, { id: "msg" }), ...(s.retry ? [b] : [])); }
+}
+(async () => {
+  try { await window.liff.init({ liffId: cfg.liffId }); } catch (_e) { return show(el("p", "LINE アプリで開いてください", { id: "msg" })); }
+  if (!window.liff.isLoggedIn()) { window.liff.login(); return; }
+  client = createMemberClient({ endpoint: cfg.memberApi, getIdToken: async () => window.liff.getIDToken() });
+  const qr = qrTokenFromLocation(location.search);
+  if (qr) {                                    // 店頭QRから開いた: 来店を記録してから会員証を出す
+    const r = await client.checkin(qr);
+    if (r.kind === "not_registered") { const prof = await window.liff.getProfile?.().catch?.(() => null); await client.register({ displayName: prof?.displayName }); const r2 = await client.checkin(qr); const s2 = checkinScreen(r2); notice = s2.message; }
+    else { const s = checkinScreen(r); notice = s.message; }
+    history.replaceState(null, "", location.pathname);     // 再読み込みで同じQRを再送しない(送っても付与は1回)
+  }
+  load();
+})();
+</script>
+</body></html>
