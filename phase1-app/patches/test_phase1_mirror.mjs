@@ -76,5 +76,16 @@ try {
   const v0 = cust(A).visit_count; chk(A, "2026-09-13T03:00:00Z"); assert.equal(cust(A).visit_count, v0);
   pg.exec(`update app_settings set value='true' where key='mirror_to_customers';`);
   ok("設定 mirror_to_customers=false で customers への反映を止められる");
+  // 登録日を来店扱いにしない設定(方針で決定): 自宅での登録は customers の来店回数・最終来店日を作らない・変えない。最初の実際の来店で作られる
+  pg.exec(`update app_settings set value='false' where key='register_counts_as_visit';`);
+  const mf0 = Number(pg.exec(`select count(*) from audit_log where action='mirror_failed';`));
+  const E = sub("e"); reg(E, "自宅で登録", "2026-09-20T03:00:00Z");
+  assert.equal(cust(E), null); assert.equal(Number(pg.exec(`select count(*) from customers c where c.line_user_id=${q(E)};`)), 0);
+  assert.equal(Number(pg.exec(`select count(*) from audit_log where action='mirror_failed';`)), mf0);   // 失敗の記録も増えない
+  // 既存会員(来店済み)の登録関連は影響しない。登録だけでは last_visited_at も動かない
+  const lv = pg.exec(`select last_visited_at from customers c where c.line_user_id=${q(A)};`);
+  reg(sub("f"), "別の人", "2026-09-20T04:00:00Z"); assert.equal(pg.exec(`select last_visited_at from customers c where c.line_user_id=${q(A)};`), lv);
+  chk(E, "2026-09-21T03:00:00Z"); c = cust(E); assert.deepEqual([c.visit_count, c.points], [1, 200]);   // 登録ボーナス100+来店100。来店回数は店頭での1回目から
+  ok("登録日を来店扱いにしない設定: 自宅での登録は customers を作らず来店回数・最終来店日を変えない。最初の店頭QRの来店で来店回数1・ポイント(登録100+来店100)が反映される");
   console.log(`\n${n} mirror tests passed`);
 } finally { pg.stop(); }

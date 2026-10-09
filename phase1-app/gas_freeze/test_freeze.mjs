@@ -16,6 +16,8 @@ const insertions = [["function doGet(e) {", "var fg_ = freezeGuardGet_(e); if (f
   ["function registerNewUser(displayName, refCode) {", "freezeGuard_();"], ["function processUser(userId, action) {", "freezeGuard_();"],
   ["function usePoints(userId, useAmount, inputPin) {", "freezeGuard_();"], ["function getAdminDashboardData() {", "freezeGuard_();"]];
 for (const [sig, add] of insertions) { assert.equal(code.split(sig).length - 1, 1, "入口が1つだけ見つかる: " + sig); code = code.replace(sig, sig + "\n  " + add); }
+const callSites = code.split(/(?<![A-Za-z_])notifyNexto\(lineUserId, /).length - 1 - 1;   // 定義(function notifyNexto(lineUserId, ...)を除く呼び出し
+assert.equal(callSites, 2, "コード.gs の notifyNexto 呼び出しは2か所: " + callSites);
 // 構文の検証(HTML 以外の部分)
 const js = code.slice(0, code.search(/<!DOCTYPE|<html/i) > 0 ? code.search(/<!DOCTYPE|<html/i) : code.length);
 new vm.Script(js + "\n" + fs.readFileSync(new URL("./freeze.gs", import.meta.url), "utf8"));
@@ -24,8 +26,9 @@ for (const [sig, add] of insertions) { const i = js.indexOf(sig); assert.ok(js.s
 ok("6つの入口(doGet / lineEntry / registerNewUser / processUser / usePoints / getAdminDashboardData)すべてで、凍結ガードが関数の先頭にある");
 
 // 挙動: ガードの単体
-const props = {}; const triggers = [{ f: "dailyBackup" }, { f: "nightlyThing" }, { f: "replayNextoFailures" }]; const deleted = []; let lockOk = true; const sheets = { NextoFailures: [["a"], ["x", "", "k", "", "", "", "", "", ""], ["x", "", "k2", "", "", "", "", "", "t"]] };
+const who = { email: "me@example.test" }; const props = {}; const triggers = [{ f: "dailyBackup" }, { f: "nightlyThing" }, { f: "replayNextoFailures" }]; const deleted = []; let lockOk = true; const sheets = { NextoFailures: [["a"], ["x", "", "k", "", "", "", "", "", ""], ["x", "", "k2", "", "", "", "", "", "t"]] };
 const ctx = { console, JSON, Date, Error, String, isNaN, parseInt,
+  Session: { getEffectiveUser: () => ({ getEmail: () => "me@example.test" }), getActiveUser: () => ({ getEmail: () => who.email }) },
   PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props[k] ?? null, setProperty: (k, v) => { props[k] = v; }, deleteProperty: (k) => { delete props[k]; } }) },
   ContentService: { MimeType: { JAVASCRIPT: "js" }, createTextOutput: (t) => ({ t, setMimeType(m) { this.m = m; return this; } }) },
   HtmlService: { createHtmlOutput: (h) => ({ h }) },
@@ -54,4 +57,12 @@ const s1 = run("snapshotUsers()"), s2 = run("snapshotUsers()"); assert.equal(s1.
 assert.ok(!JSON.stringify(s1).includes("試験") && !JSON.stringify(s1).includes("Uxxxx"));
 USERS[1][3] = 10100; assert.notEqual(run("snapshotUsers()").hash, s1.hash);
 ok("最終値の確定(snapshotUsers): 値と型だけを出し(氏名・LINE ID は出さない)、変化が無ければハッシュが同じ・1件でも変わればハッシュが変わる。日付書式の累計は『読めない(null)』として扱い推測しない");
+// 所有者以外(匿名・他のユーザー)は公開関数を呼べない。凍結の解除は ALLOW_UNFREEZE を手で設定したときだけ
+for (const email of ["", "other@example.test"]) { who.email = email;
+  for (const fn of ["freezeOn()", "drainStatus()", "snapshotUsers()", "abortCutoverUnfreeze()"]) assert.throws(() => run(fn), /権限がありません/, fn + " / " + email); }
+who.email = "me@example.test"; assert.equal(props.FROZEN, "1");
+assert.throws(() => run("abortCutoverUnfreeze()"), /ALLOW_UNFREEZE/); assert.equal(props.FROZEN, "1");
+assert.equal(typeof run("typeof freezeOff"), "string"); assert.equal(run("typeof freezeOff"), "undefined");
+props.ALLOW_UNFREEZE = "1"; run("abortCutoverUnfreeze()"); assert.equal(props.FROZEN, undefined); assert.equal(props.ALLOW_UNFREEZE, undefined);
+ok("凍結の操作は所有者のみ(匿名・他のユーザーは全関数で拒否)。freezeOff は廃止し、解除は ALLOW_UNFREEZE=1 を手で設定したときだけ(外部から呼んでも書込みは再開しない)");
 console.log(`\n${n} freeze tests passed`);

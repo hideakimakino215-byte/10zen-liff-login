@@ -11,11 +11,12 @@
 | `app-core` | 見た目に依存しないクライアントと画面の状態(UI はこれを使う) |
 | `app-reference` | 参照実装の画面(`card.html` お客様 / `staff.html` スタッフ / `qr.html` 店頭タブレット専用)。見た目は最小限。最終UIはここを差し替える |
 | `gas_backup` | 毎日のバックアップ(Google Apps Script)とそのテスト |
-| `gas_freeze` | 切替日に旧GASの書込みを止める部品とそのテスト |
+| `gas_freeze` | 切替日に旧GASの書込みを止める部品(所有者のみ実行可)と、公開関数の確認テスト |
+| `gas_sync` | GAS から Supabase への同期(v6: `notifyNexto_` に改名、手動実行の関数は所有者のみ) |
 | `patches`, `db/000`, `db/003` | テスト用の部品(使い捨て PostgreSQL ハーネス、JWT/LINE のスタブ、既存スキーマの再現)と、DB のテスト |
 
 ## 実行
 `bash run_tests.sh`(root の Linux。Node 22、PostgreSQL 16、e2e のみ Playwright+Chromium。npm の依存パッケージはなし)。使い捨ての PostgreSQL を起動して実行し、本番には接続しない。
 `gas_freeze/test_freeze.mjs` は、GAS ソースの写し(共通PINを含むため同梱しない)が無い環境では SKIP になる。
-期待される件数: db 33 / controls 16 / mirror 7 / audit 5 / member-api 19 / app-core 10 / e2e 8 / backup 4 / freeze 6(SKIP 可)。
+期待される件数: db 33 / controls 19 / mirror 8 / audit 5 / member-api 19 / app-core 10 / e2e 8 / backup 6 / surface 3 / freeze 7(SKIP 可)。1つでも失敗・件数不足があれば `run_tests.sh` は終了コード1で終わる。
 構成・API・UI 契約・切替/切戻し・運用は別の非公開資料(`audit_docs/`)にある。

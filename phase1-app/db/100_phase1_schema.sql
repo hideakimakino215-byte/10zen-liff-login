@@ -227,10 +227,21 @@ language sql immutable as $$ select (p_at at time zone 'Asia/Tokyo')::date $$;
 
 create function public._state() returns text language sql stable security definer set search_path = public as $$ select state from public.system_state $$;
 
+-- 書込みの入口で『状態のロック』を共有で取る(トランザクション終了まで保持。アドバイザリロック 7105001)。set_system_state / reconcile_balances は同じロックを排他で取るので、
+--  ①凍結の操作は『すでに状態を確認して処理中の書込み』が終わるまで待つ ②凍結の操作が待っている間に来た新しい書込みは、操作の完了後(=新しい状態)で判定される(待ち行列は公平なので、書込みが続いても凍結が飢えない)。
+--  デッドロックを避けるため、書込みの関数は会員行・申請行のロックより『前に』必ずこれを呼ぶ。
+create function public._lock_state() returns text language plpgsql volatile security definer set search_path = public as $$
+declare st text;
+begin
+  perform pg_advisory_xact_lock_shared(7105001);
+  select state into st from public.system_state;       -- ロック取得後の文なので、確定済みの最新の状態が見える
+  return st;
+end $$;
+
 -- 顧客向け関数の入口: 状態に応じて「使う issuer(名前空間)」を決める。frozen=停止、test=許可リストのみ(別名前空間)、open=本番。
 create function public._gate(p_issuer text, p_subject text) returns text
-language plpgsql stable security definer set search_path = public as $$
-declare st text := public._state();
+language plpgsql volatile security definer set search_path = public as $$
+declare st text := public._lock_state();
 begin
   if st = 'open' then return p_issuer; end if;
   if st = 'test' and exists (select 1 from public.test_allowlist where issuer = p_issuer and subject = p_subject) then return 'test:' || p_issuer; end if;
@@ -238,11 +249,12 @@ begin
 end $$;
 
 -- スタッフの書込み: open なら本番会員のみ、test なら試験会員のみ、frozen は不可(試験データで本番に触れず、本番データで試験に触れない)
-create function public._require_write(p_is_test boolean) returns void
+create function public._require_write(p_is_test boolean, p_repair boolean default false) returns void
 language plpgsql stable security definer set search_path = public as $$
 declare st text := public._state();
 begin
   if st = 'open' and not p_is_test then return; end if;
+  if st = 'frozen' and p_repair and not p_is_test then return; end if;     -- 凍結中の復旧: 店長の調整・使用の取り消しだけ(理由必須・監査記録つき。顧客の操作は通らない)
   if st = 'test' and p_is_test then return; end if;
   raise exception 'maintenance' using errcode = '55000';
 end $$;
@@ -409,7 +421,10 @@ begin
   if coalesce((select value from public.app_settings where key = 'register_counts_as_visit'), 'true') = 'true' then
     insert into public.visits(member_id, visit_on, source) values (mid, on_date, 'register') on conflict (member_id, visit_on) do nothing;
   end if;
-  perform public._mirror(mid, on_date, p_now);
+  -- 登録日を来店扱いにしない設定(false)のときは、既存 customers(来店回数・最終来店日)に何も反映しない。最初の実際の来店で customers が作られる
+  if coalesce((select value from public.app_settings where key = 'register_counts_as_visit'), 'true') = 'true' then
+    perform public._mirror(mid, on_date, p_now);
+  end if;
   return jsonb_build_object('status', 'created', 'member', public._snapshot(mid, p_now));
 end $$;
 
@@ -501,7 +516,7 @@ create function public.import_opening_balance(p_member_no text, p_display_name t
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare mid uuid; ident public.member_identities; existing uuid;
 begin
-  if public._state() <> 'frozen' then raise exception 'import_requires_frozen' using errcode = '55000'; end if;   -- 取込みは凍結中のみ(新旧が同時に書ける区間を作らない)
+  if public._lock_state() <> 'frozen' then raise exception 'import_requires_frozen' using errcode = '55000'; end if;   -- 取込みは凍結中のみ(新旧が同時に書ける区間を作らない)
   if p_balance < 0 then raise exception 'invalid_balance' using errcode = '22023'; end if;
   if p_member_no !~ '^user[0-9]{5,}$' then raise exception 'invalid_member_no' using errcode = '22023'; end if;
   update public.system_state set reconciled = false, reconciled_at = null;     -- 取込みのたびに照合をやり直す
@@ -671,6 +686,7 @@ language plpgsql security definer set search_path = public as $$
 declare r public.redeem_requests; m public.members; lid bigint; yen integer := public._setting_int('yen_per_100pt', 10);
 begin
   perform public._require_role('staff');
+  perform public._lock_state();
   select * into r from public.redeem_requests where id = p_request_id for update;          -- 同じ申請の同時確定を直列化
   if not found then return jsonb_build_object('status', 'not_found'); end if;
   if r.status = 'confirmed' then return jsonb_build_object('status', 'already_confirmed', 'points', r.points, 'yen', r.points * yen / 100); end if;
@@ -697,6 +713,7 @@ language plpgsql security definer set search_path = public as $$
 declare r public.redeem_requests;
 begin
   perform public._require_role('staff');
+  perform public._lock_state();
   select * into r from public.redeem_requests where id = p_request_id for update;
   if not found then return jsonb_build_object('status', 'not_found'); end if;
   if r.status <> 'pending' then return jsonb_build_object('status', r.status); end if;
@@ -712,15 +729,16 @@ language plpgsql security definer set search_path = public as $$
 declare m public.members; lid bigint;
 begin
   perform public._require_role('manager');
+  perform public._lock_state();
   if coalesce(btrim(p_reason), '') = '' or char_length(p_reason) > 200 then raise exception 'reason_required' using errcode = '22023'; end if;
   if p_points is null or p_points = 0 or abs(p_points) > 1000000 then raise exception 'invalid_points' using errcode = '22023'; end if;
   if coalesce(p_idempotency_key, '') !~ '^[A-Za-z0-9:_-]{8,100}$' then raise exception 'invalid_key' using errcode = '22023'; end if;
   select * into m from public.members where id = p_member_id for update;
   if not found then return jsonb_build_object('status', 'not_found'); end if;
-  perform public._require_write(m.is_test);
+  perform public._require_write(m.is_test, true);
   if m.balance + p_points < 0 then return jsonb_build_object('status', 'insufficient_balance', 'points', m.balance); end if;
   lid := public._grant(m.id, 'adjust', 'manual', p_points, 'adjust:' || p_idempotency_key, 'manager', null, now(), auth.uid(), btrim(p_reason));
-  perform public._audit(auth.uid(), 'adjust', m.id, jsonb_build_object('points', p_points, 'reason', left(btrim(p_reason), 200), 'duplicate', lid is null));
+  perform public._audit(auth.uid(), 'adjust', m.id, jsonb_build_object('points', p_points, 'reason', left(btrim(p_reason), 200), 'duplicate', lid is null, 'state', public._state()));
   perform public._mirror(m.id, null, null);
   return jsonb_build_object('status', case when lid is null then 'duplicate' else 'ok' end);
 end $$;
@@ -730,13 +748,14 @@ language plpgsql security definer set search_path = public as $$
 declare r public.redeem_requests; lid bigint;
 begin
   perform public._require_role('manager');
+  perform public._lock_state();
   if coalesce(btrim(p_reason), '') = '' or char_length(p_reason) > 200 then raise exception 'reason_required' using errcode = '22023'; end if;
   select * into r from public.redeem_requests where id = p_request_id for update;
   if not found then return jsonb_build_object('status', 'not_found'); end if;
   if r.status <> 'confirmed' then return jsonb_build_object('status', 'not_confirmed'); end if;
-  perform public._require_write((select is_test from public.members where id = r.member_id));
+  perform public._require_write((select is_test from public.members where id = r.member_id), true);
   lid := public._grant(r.member_id, 'adjust', 'reverse_redeem', r.points, 'reverse:' || r.id, 'manager', r.id::text, now(), auth.uid(), btrim(p_reason));
-  perform public._audit(auth.uid(), 'reverse_redeem', r.member_id, jsonb_build_object('request', r.id, 'points', r.points, 'duplicate', lid is null));
+  perform public._audit(auth.uid(), 'reverse_redeem', r.member_id, jsonb_build_object('request', r.id, 'points', r.points, 'duplicate', lid is null, 'state', public._state()));
   perform public._mirror(r.member_id, null, null);
   return jsonb_build_object('status', case when lid is null then 'already_reversed' else 'reversed' end);
 end $$;
@@ -747,6 +766,7 @@ create function public.reconcile_balances(p_expected jsonb) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare mism jsonb; missing jsonb; extra jsonb; bad integer; ok boolean;
 begin
+  perform pg_advisory_xact_lock(7105001);                              -- 処理中の書込みが終わってから照合する(照合中に残高が動かない)
   if jsonb_typeof(p_expected) <> 'array' then raise exception 'invalid_expected' using errcode = '22023'; end if;
   with e as (select x ->> 'member_no' as member_no, (x ->> 'balance')::int as balance from jsonb_array_elements(p_expected) x),
        m as (select member_no, balance from public.members where not is_test)
@@ -795,8 +815,10 @@ end $$;
 --  open へ進む条件: 照合一致(reconciled)・未決定の方針なし・旧システムの書込み停止の確認(p_attest = 'legacy_writes_stopped')。
 create function public.set_system_state(p_to text, p_attest text default null) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare cur text := public._state(); und text; ss public.system_state;
+declare cur text; und text; ss public.system_state;
 begin
+  perform pg_advisory_xact_lock(7105001);                              -- 処理中の書込み(共有ロック保持)が終わるまで待つ。以後の書込みは新しい状態で判定される
+  select state into cur from public.system_state;
   if p_to not in ('frozen','test','open') then raise exception 'invalid_state' using errcode = '22023'; end if;
   if p_to = cur then return jsonb_build_object('status', 'unchanged', 'state', cur); end if;
   if not ((cur = 'frozen' and p_to in ('test','open')) or (cur in ('test','open') and p_to = 'frozen')) then
@@ -813,6 +835,8 @@ begin
     reconciled = case when p_to = 'frozen' then false else reconciled end,
     reconciled_at = case when p_to = 'frozen' then null else reconciled_at end;
   perform public._audit(null, 'set_state', null, jsonb_build_object('from', cur, 'to', p_to, 'attest', left(coalesce(p_attest, ''), 60)));
+  -- 凍結中の復旧(調整など)は既存 customers に反映されていないので、open に戻すとき本番会員の現在値を反映し直す(open でのみ動く _mirror)
+  if p_to = 'open' then perform public._mirror(id, null, null) from public.members where not is_test; end if;
   return jsonb_build_object('status', 'ok', 'state', p_to);
 end $$;
 
@@ -924,7 +948,7 @@ begin
   end loop;
   -- 新しい関数: 既定の実行権限を外す(既存の関数には触れない)
   for r in select p.oid::regprocedure as sig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-           where n.nspname = 'public' and p.proname = any(array['_gate','_mirror','_require_write','_state','next_test_member_no','reconcile_balances','decide_policy','set_system_state','allow_test_identity','export_backup','record_backup','restore_backup','cutover_report','_audit','_effective_lifetime','_grant','_jst_date','_require_role','_rule_points','_setting_int','_snapshot','_staff_role','_throttle','app_checkin','app_me','app_redeem_cancel','app_redeem_request','app_register','confirm_lifetime_base','import_opening_balance','manager_adjust','manager_reverse_redeem','next_member_no','point_ledger_immutable','rank_for','staff_cancel_redeem','staff_confirm_redeem','staff_dashboard','staff_list_members','staff_lookup_redeem','staff_member_detail','staff_today_visits','staff_whoami','verify_balances']) loop
+           where n.nspname = 'public' and p.proname = any(array['_gate','_lock_state','_mirror','_require_write','_state','next_test_member_no','reconcile_balances','decide_policy','set_system_state','allow_test_identity','export_backup','record_backup','restore_backup','cutover_report','_audit','_effective_lifetime','_grant','_jst_date','_require_role','_rule_points','_setting_int','_snapshot','_staff_role','_throttle','app_checkin','app_me','app_redeem_cancel','app_redeem_request','app_register','confirm_lifetime_base','import_opening_balance','manager_adjust','manager_reverse_redeem','next_member_no','point_ledger_immutable','rank_for','staff_cancel_redeem','staff_confirm_redeem','staff_dashboard','staff_list_members','staff_lookup_redeem','staff_member_detail','staff_today_visits','staff_whoami','verify_balances']) loop
     execute format('revoke execute on function %s from public, anon, authenticated, service_role', r.sig);
   end loop;
 end $$;

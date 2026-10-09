@@ -128,8 +128,10 @@ try {
   fails(() => AS(U.staff, `select public.staff_confirm_redeem('${tid}');`), /maintenance/);
   const lst2 = j(AS(U.staff, `select public.staff_list_members(null, 50, 0);`)); assert.equal(lst2.total, 3);
   const nb = reg(sub("n"), "新規の本番会員", "2026-12-02T03:00:00Z"); assert.equal(nb.status, "created"); assert.match(nb.member.memberNo, /^user\d{5}$/);
-  assert.equal(Number(val(`select count(*) from customers where line_user_id=${q(sub("n"))};`)), 1);   // open では従来どおり customers に反映
-  ok("open: 試験会員には誰も到達できず(照会は未登録扱い・スタッフの確認も不可)、本番会員は従来どおり customers へ反映される");
+  // 登録日を来店扱いにしない(方針 register_counts_as_visit=false)ので、自宅での登録は既存 customers(来店回数・最終来店日)を作らない・変えない
+  assert.equal(Number(val(`select count(*) from customers where line_user_id=${q(sub("n"))};`)), 0);
+  assert.equal(Number(val(`select count(*) from audit_log where action='mirror_failed';`)), 0);
+  ok("open: 試験会員には誰も到達できず(照会は未登録扱い・スタッフの確認も不可)、本番会員の登録は(登録日を来店扱いにしない方針のとき)customers を作らない");
   assert.equal(setState("frozen").state, "frozen"); assert.equal(val(`select reconciled from system_state;`), "f");
   fails(() => reg(sub("z")), /maintenance/);
   fails(() => setState("open", q("legacy_writes_stopped")), /not_reconciled/);
@@ -152,6 +154,27 @@ try {
   assert.equal(chk(B, "2026-12-03T03:00:00Z").status, "counted");              // JST 12:00
   SVC(`update app_settings set value='0' where key='checkin_open_hour'; update app_settings set value='24' where key='checkin_close_hour';`);
   ok("営業時間外(設定した時間帯の外)のQRは来店として扱わない(境界: 08:59 / 21:00 は拒否、12:00 は付与)");
+
+  assert.equal(Number(val(`select visit_count from customers where line_user_id=${q(B)};`)), 1);   // 実際の店頭QRの来店で初めて customers が作られ、来店回数は1
+  ok("登録日を来店扱いにしない設定: 登録だけでは customers に来店回数・最終来店日が作られず、最初の店頭QRの来店で1になる");
+
+  // ---- 5b. 凍結中の復旧: 店長の調整だけが通り(理由必須・監査記録つき)、顧客の操作は通らない。open に戻すと customers も追従 ----
+  setState("frozen");
+  const m4 = val(`select id from members where member_no='user00004';`);
+  fails(() => AS(U.staff, `select public.manager_adjust('${m4}', 50, '凍結中の訂正', 'repair-key-0001');`), /forbidden/);
+  fails(() => reg(sub("z")), /maintenance/); fails(() => me(B), /maintenance/);
+  fails(() => AS(U.mgr, `select public.manager_adjust('${m4}', 50, '', 'repair-key-0002');`), /reason_required/);
+  assert.equal(j(AS(U.mgr, `select public.manager_adjust('${m4}', 50, '集計ミスの訂正(復旧作業)', 'repair-key-0003');`)).status, "ok");
+  assert.equal(j(AS(U.mgr, `select public.manager_adjust('${m4}', 50, '集計ミスの訂正(復旧作業)', 'repair-key-0003');`)).status, "duplicate");
+  const au = JSON.parse(val(`select meta from audit_log where action='adjust' order by id desc limit 1;`)); assert.equal(au.state, "frozen"); assert.match(au.reason, /復旧/);
+  const bal4 = Number(val(`select balance from members where member_no='user00004';`));
+  assert.equal(Number(val(`select points from customers where line_user_id=${q(B)};`)), bal4 - 50);   // 凍結中は customers に反映されない
+  fails(() => setState("open", q("legacy_writes_stopped")), /not_reconciled/);
+  const cur = JSON.parse(val(`select json_agg(json_build_object('member_no', member_no, 'balance', balance)) from members where not is_test;`));
+  assert.equal(recon(cur).ok, true);
+  setState("open", q("legacy_writes_stopped"));
+  assert.equal(Number(val(`select points from customers where line_user_id=${q(B)};`)), bal4);         // open に戻すと customers も追従
+  ok("凍結中の復旧: 店長の理由つき調整だけが通り(スタッフ・顧客は拒否・冪等・監査記録に state=frozen)、照合してから open に戻すと customers のポイントも追従する");
 
   // ---- 6. kiosk(店頭QR表示専用) ----
   assert.deepEqual(j(AS(U.kiosk, `select public.staff_whoami();`)), { active: true, role: "kiosk", displayName: "店頭タブレット" });
@@ -204,6 +227,46 @@ try {
   fails(() => AS(U.mgr, `select * from public.system_state;`), /permission denied/);
   fails(() => AS(U.mgr, `select * from public.backup_runs;`), /permission denied/);
   ok("切替・照合・方針・許可リスト・バックアップ/復元は service_role 専用(店長でも匿名でも呼べない。状態・バックアップ履歴の表も直接は読めない)");
+  // ---- 9. 凍結と処理中の書込みの同期(別接続の並列) ----
+  { assert.equal(state(), "open");
+    const mem = []; for (let i = 0; i < 12; i++) { const sj = sub(String.fromCharCode(97 + i) + "q"); reg(sj, "並列" + i, "2026-12-08T03:00:00Z"); mem.push(sj); }
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const D1 = "2026-12-10T03:00:00Z";   // 登録の翌々日(来店が付く日)
+    const t0 = Date.now();
+    // A: 状態を確認して書込み中(2秒保持)。F: その最中に凍結を要求。D: F が待っている間に来た新しい書込み
+    const A = pg.runAsync(`set role service_role;\nbegin;\nselect public.app_checkin(${q(ISS)}, ${q(mem[0])}, null::bigint, ${q(D1)}::timestamptz);\nselect pg_sleep(2);\ncommit;`);
+    await sleep(700);
+    const F = pg.runAsync(`set role service_role;\nselect public.set_system_state('frozen');`).then((r) => ({ ...r, at: Date.now() - t0 }));
+    await sleep(500);
+    const Dr = pg.runAsync(`set role service_role;\nselect public.app_checkin(${q(ISS)}, ${q(mem[1])}, null::bigint, ${q(D1)}::timestamptz);`).then((r) => ({ ...r, at: Date.now() - t0 }));
+    const [ra, rf, rd] = await Promise.all([A, F, Dr]);
+    assert.equal(ra.status, 0, ra.stderr); assert.equal(rf.status, 0, rf.stderr);
+    assert.ok(rf.at >= 1800, "凍結は先行する書込みの完了を待つ: " + rf.at + "ms");        // A は約2.7秒で終わる
+    assert.notEqual(rd.status, 0); assert.match(rd.stderr, /maintenance/);                     // 凍結を待っていた間に来た書込みは、凍結後の状態で拒否
+    assert.equal(val(`select count(*) from point_ledger l join members m on m.id=l.member_id join member_identities i on i.member_id=m.id where i.subject=${q(mem[0])} and l.rule_code='visit';`), "1");   // 先行した書込みは完了している
+    assert.equal(val(`select count(*) from point_ledger l join member_identities i on i.member_id=l.member_id where i.subject=${q(mem[1])} and l.rule_code='visit';`), "0");   // 凍結後の書込みは1件もない
+    assert.equal(state(), "frozen");
+    // 凍結後にスタッフの書込み(店長の調整)と顧客の書込みを同時に投げても、顧客側は通らない
+    // 同時多発: 開き直して、10件の来店と凍結・再開を同時に投げる。デッドロックや不整合が出ない(各結果は成功か maintenance のどちらか)
+    recon(JSON.parse(val(`select json_agg(json_build_object('member_no', member_no, 'balance', balance)) from members where not is_test;`)));
+    setState("open", q("legacy_writes_stopped"));
+    const D2 = "2026-12-11T03:00:00Z";
+    const jobs = mem.slice(2).map((sj) => pg.runAsync(`set role service_role;\nselect public.app_checkin(${q(ISS)}, ${q(sj)}, null::bigint, ${q(D2)}::timestamptz);`));
+    jobs.push(pg.runAsync(`set role service_role;\nselect public.set_system_state('frozen');`));
+    const rs = await Promise.all(jobs);
+    for (const r of rs) assert.ok(r.status === 0 || /maintenance/.test(r.stderr), "deadlock などの想定外の失敗: " + r.stderr);
+    assert.ok(!rs.some((r) => /deadlock/i.test(r.stderr)));
+    assert.equal(state(), "frozen");
+    const done = Number(val(`select count(*) from visits where visit_on='2026-12-11' and source='store_qr';`)), refused = rs.slice(0, -1).filter((r) => r.status !== 0).length;
+    assert.equal(done + refused, mem.length - 2);                                              // 成功した分だけ記録され、拒否された分は記録がない
+    assert.equal(Number(val(`select count(*) from public.verify_balances();`)), 0);
+    // 凍結が完了した後に始まる書込みは、1件も記録されない
+    const after = await pg.runAsync(`set role service_role;\nselect public.app_checkin(${q(ISS)}, ${q(mem[11])}, null::bigint, '2026-12-12T03:00:00Z'::timestamptz);`);
+    assert.match(after.stderr, /maintenance/);
+    recon(JSON.parse(val(`select json_agg(json_build_object('member_no', member_no, 'balance', balance)) from members where not is_test;`)));
+    setState("open", q("legacy_writes_stopped")); }
+  ok("凍結と処理中の書込みの同期(別接続): 凍結操作は先行して処理中の書込みの完了を待ち、待っている間に来た書込みと凍結後の書込みは1件も記録されない。来店10件と凍結の同時投入でもデッドロックなし・残高=台帳");
+
   { // 全関数の実行権限の総点検: 新しい関数すべてについて、匿名は実行不可。ログイン済み(authenticated)が実行できるのはスタッフ向けの関数だけ
     const rows = JSON.parse(val(`select json_agg(json_build_object('f', p.proname, 'anon', has_function_privilege('anon', p.oid, 'execute'), 'auth', has_function_privilege('authenticated', p.oid, 'execute'), 'svc', has_function_privilege('service_role', p.oid, 'execute'))) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.prokind = 'f' and p.proname not in ('assign_experiment_group','maybe_fail','record_membership_checkin','sync_membership_points') and p.proname not like '%membership%' and p.proname not in ('legacy_fn');`));

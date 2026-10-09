@@ -22,7 +22,15 @@ function postBackup_(url, token, body) {
   var res = UrlFetchApp.fetch(url, { method: "post", contentType: "application/json", headers: { Authorization: "Bearer " + token }, payload: JSON.stringify(body), muteHttpExceptions: true });
   return { code: res.getResponseCode(), text: res.getContentText() };
 }
+// トリガーが呼ぶ入口。末尾が _ でない関数は誰でも画面から呼べるため、実行は6時間に1回までに制限する(呼ばれても Drive に1ファイル増える程度)。所有者が確認用に今すぐ実行するときは dailyBackupNow()。
 function dailyBackup() {
+  var props = PropertiesService.getScriptProperties(), last = Number(props.getProperty("BACKUP_LAST_ATTEMPT") || 0);
+  if (Date.now() - last < 6 * 3600 * 1000) return { ok: true, skipped: true };
+  props.setProperty("BACKUP_LAST_ATTEMPT", String(Date.now()));
+  return dailyBackup_();
+}
+function dailyBackupNow() { assertOwner_(); return dailyBackup_(); }
+function dailyBackup_() {
   var props = PropertiesService.getScriptProperties();
   var secret = props.getProperty("CHECKIN_SECRET"), url = props.getProperty("BACKUP_URL");
   var notify = props.getProperty("BACKUP_NOTIFY") || Session.getEffectiveUser().getEmail();
@@ -40,12 +48,18 @@ function dailyBackup() {
     var stamp = Utilities.formatDate(new Date(), "Asia/Tokyo", "yyyyMMdd_HHmm");
     var file = backupFolder_().createFile("10zen_backup_" + stamp + ".json", data.payload, "application/json");
     if (file.getSize() < data.payload.length) throw new Error("保存したファイルのサイズが不足しています");
-    postBackup_(url, token, { action: "record", ok: true, sha256: data.sha256, counts: data.counts, note: file.getName() });
-    return { ok: true, file: file.getName(), counts: data.counts };
+    var rec = postBackup_(url, token, { action: "record", ok: true, sha256: data.sha256, counts: data.counts, note: file.getName() });
+    var recorded = false; try { recorded = rec.code === 200 && JSON.parse(rec.text).status === "recorded"; } catch (_e) {}
+    if (!recorded) {   // 保存はできたが DB に成功を記録できなかった。店長画面は『バックアップが古い』のままになるので、区別して通知する
+      MailApp.sendEmail(notify, "【10ZEN】バックアップは保存しましたが、記録に失敗しました", "ファイル " + file.getName() + " は保存済みです。DB への記録がHTTP " + rec.code + " で失敗しました。店長画面の『バックアップ』表示が古いままになります。dailyBackupNow を実行して確認してください。");
+      return { ok: true, recorded: false, file: file.getName(), recordCode: rec.code };
+    }
+    return { ok: true, recorded: true, file: file.getName(), counts: data.counts };
   } catch (e) {
     var msg = String(e && e.message ? e.message : e);
-    try { if (token) postBackup_(url, token, { action: "record", ok: false, note: msg.slice(0, 200) }); } catch (_e) {}
-    MailApp.sendEmail(notify, "【10ZEN】会員DBのバックアップに失敗しました", msg + "\n\n数分後に dailyBackup を手動で実行して確認してください。解決しない場合は開発担当へ連絡してください。");
+    var failRecorded = false;
+    try { if (token) { var fr = postBackup_(url, token, { action: "record", ok: false, note: msg.slice(0, 200) }); failRecorded = fr.code === 200; } } catch (_e) {}
+    MailApp.sendEmail(notify, "【10ZEN】会員DBのバックアップに失敗しました", msg + (failRecorded ? "" : "\n(失敗の記録もDBに残せませんでした)") + "\n\ndailyBackupNow を手動で実行して確認してください。解決しない場合は開発担当へ連絡してください。");
     return { ok: false, error: msg };
   }
 }

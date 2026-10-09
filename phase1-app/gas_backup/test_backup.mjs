@@ -20,13 +20,13 @@ try {
   pg.loadFile("100_phase1_schema.sql");
   pg.exec(`update system_state set state='frozen'; select public.import_opening_balance('user00001','試験','2011158053','U${"1".repeat(32)}',10000,null,null,'t','2026-10-09T00:00:00Z');`);
 
-  const files = []; const mails = []; let corrupt = false, down = false;
+  const who = { email: "me@example.test" }; const files = []; const mails = []; let corrupt = false, down = false;
   const props = { CHECKIN_SECRET: SECRET, BACKUP_URL: "https://edge.test/backup-export", BACKUP_NOTIFY: "owner@example.test" };
   const sb = rpcOver(pg);
   const ctx = {
     console, JSON, String, Date, Error,
-    PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props[k] ?? null }) },
-    Session: { getEffectiveUser: () => ({ getEmail: () => "me@example.test" }) },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props[k] ?? null, setProperty: (k, v) => { props[k] = v; }, deleteProperty: (k) => { delete props[k]; } }) },
+    Session: { getEffectiveUser: () => ({ getEmail: () => "me@example.test" }), getActiveUser: () => ({ getEmail: () => who.email }) },
     Utilities: {
       DigestAlgorithm: { SHA_256: "SHA256" }, Charset: { UTF_8: "utf8" },
       computeHmacSha256Signature: (v, k) => [...crypto.createHmac("sha256", k).update(v).digest()].map((x) => (x > 127 ? x - 256 : x)),
@@ -41,6 +41,7 @@ try {
   const cache = new Map();   // GAS の fetch は同期。ハンドラー(非同期)の実応答を先に作って渡す
   const run = vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(new URL("./backup.gs", import.meta.url), "utf8"), run);
+  vm.runInContext(fs.readFileSync(new URL("../gas_freeze/freeze.gs", import.meta.url), "utf8"), run);   // assertOwner_ を共有
   // ハンドラー(実物)を呼ぶブリッジ
   const bridge = async (body, auth) => {
     const res = await handle(new Request("https://edge.test/backup-export", { method: "POST", headers: { authorization: auth }, body: JSON.stringify(body) }), { supabase: sb, secret: SECRET, nowMs: () => Date.now() });
@@ -58,7 +59,7 @@ try {
     const pending = [];
     cache.set("export", () => exportRes);
     cache.set("record", (b, a) => { pending.push([b, a]); return { getResponseCode: () => 200, getContentText: () => '{"status":"recorded"}' }; });
-    const out = vm.runInContext("dailyBackup()", run);
+    const out = vm.runInContext("dailyBackupNow()", run);
     for (const [b, a] of pending) await bridge(b, a);
     return out;
   };
@@ -80,11 +81,27 @@ try {
   const keep = props.CHECKIN_SECRET; props.CHECKIN_SECRET = "x".repeat(64);
   const exportBad = { getResponseCode: () => 401, getContentText: () => '{"error":"unauthorized"}' };
   cache.set("export", () => exportBad); cache.set("record", () => ({ getResponseCode: () => 401, getContentText: () => "{}" }));
-  r = vm.runInContext("dailyBackup()", run); assert.equal(r.ok, false); assert.match(r.error, /HTTP 401/); assert.equal(mails.length, 2);
-  props.CHECKIN_SECRET = keep; delete props.BACKUP_URL; r = vm.runInContext("dailyBackup()", run); assert.equal(r.ok, false); assert.match(r.error, /未設定/); assert.equal(mails.length, 3);
-  props.BACKUP_URL = "https://edge.test/backup-export"; down = true; r = vm.runInContext("dailyBackup()", run); down = false; assert.equal(r.ok, false); assert.equal(mails.length, 4);
+  r = vm.runInContext("dailyBackupNow()", run); assert.equal(r.ok, false); assert.match(r.error, /HTTP 401/); assert.equal(mails.length, 2);
+  props.CHECKIN_SECRET = keep; delete props.BACKUP_URL; r = vm.runInContext("dailyBackupNow()", run); assert.equal(r.ok, false); assert.match(r.error, /未設定/); assert.equal(mails.length, 3);
+  props.BACKUP_URL = "https://edge.test/backup-export"; down = true; r = vm.runInContext("dailyBackupNow()", run); down = false; assert.equal(r.ok, false); assert.equal(mails.length, 4);
   ok("認証の不一致(401)・設定漏れ・通信不可のいずれでも、保存せずメールで通知する(黙って失敗しない)");
   assert.equal(files.length, 1);
+
+  // 5) DBへの成功記録がHTTP 500のとき: 保存は成功だが、区別してメールで通知する(黙って成功にしない)
+  { const before = mails.length; const exportRes = await bridge({ action: "export" }, "Bearer " + token);
+    cache.set("export", () => exportRes); cache.set("record", () => ({ getResponseCode: () => 500, getContentText: () => '{"error":"server_error"}' }));
+    const out = vm.runInContext("dailyBackupNow()", run); const nf = files.length;
+    assert.equal(out.ok, true); assert.equal(out.recorded, false); assert.equal(out.recordCode, 500); assert.equal(mails.length, before + 1); assert.match(mails[mails.length - 1].subj, /記録に失敗/);
+    assert.equal(nf, files.length); }
+  ok("DBへの成功記録が失敗(HTTP 500)したとき: 保存済みであることと記録失敗を区別してメールで通知し、結果にも recorded:false を返す(成功と偽らない)");
+  // 6) トリガーの入口 dailyBackup は6時間に1回まで。所有者以外は dailyBackupNow を呼べない
+  { const exportRes = await bridge({ action: "export" }, "Bearer " + token); const n0 = files.length; delete props.BACKUP_LAST_ATTEMPT;
+    cache.set("export", () => exportRes); cache.set("record", () => ({ getResponseCode: () => 200, getContentText: () => '{"status":"recorded"}' }));
+    assert.equal(vm.runInContext("dailyBackup()", run).ok, true); assert.equal(files.length, n0 + 1);
+    assert.equal(vm.runInContext("dailyBackup()", run).skipped, true); assert.equal(files.length, n0 + 1);
+    who.email = ""; assert.throws(() => vm.runInContext("dailyBackupNow()", run), /権限がありません/);
+    who.email = "other@example.test"; assert.throws(() => vm.runInContext("dailyBackupNow()", run), /権限がありません/); who.email = "me@example.test"; }
+  ok("画面から呼べる入口 dailyBackup は6時間に1回まで(連打しても保存は1回)。所有者以外(匿名・他のユーザー)は dailyBackupNow を実行できない");
   // 4) 保存したバックアップから復元できる(空のDBへ)
   pg.createDb("t2");
   pg.execIn("t2", `create role dummy nologin; create schema auth; create table auth.users(id uuid primary key);
