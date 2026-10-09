@@ -1,4 +1,5 @@
-# コード.gs への追加(6か所・各1〜2行。既存の処理は変更しない)
+# コード.gs への最終編集(A3 手順4。追加6行+改名2か所+キャンペーン停止1行。既存の処理は変更しない)
+機械的な適用・検証: `apply_edits.mjs`(一致箇所がちょうど1つでなければ適用しない)と `test_codegs_edits.mjs`(配信中コード.gs の抜粋の写し `fixtures/codegs_excerpt.txt` で6項目を検証)。実画面の編集は下の表と同じ内容。
 凍結が未設定(`FROZEN` プロパティなし)の間は、従来どおり動きます。`freezeOn()` を実行した瞬間から、下の入口がすべて『メンテナンス中』になります(再デプロイ不要)。
 
 | 関数 | 関数の1行目の直後に追加する行 | 理由 |
@@ -9,7 +10,8 @@
 | `processUser(...)` | `freezeGuard_();` | 来店・ポイント付与の本体(Apps Script では末尾が `_` でない関数は画面から直接呼べるため、本体にも入れる) |
 | `usePoints(...)` | `freezeGuard_();` | ポイント利用 |
 | `getAdminDashboardData()` | `freezeGuard_();` | 管理ダッシュボードの読み取り |
-| `notifyNexto(`(呼び出し2か所:`lineEntry` と `registerNewUser` の中) | `notifyNexto_(` に改名(`gas_sync/notifyNexto.gs` の定義も `notifyNexto_`) | 公開関数だと画面から任意の引数で呼べ、偽の来店イベントを Supabase へ送れてしまうため(現行の配信中の版にもある問題) |
+| `notifyNexto(`(呼び出し2か所:**どちらも `lineEntry` の中**。`registerNewUser` には無い。検索は「notifyNexto(」。旧関数は `notifyNextoLegacyUnused_` に改名済みで対象外) | `notifyNexto_(` に改名(`gas_sync/notifyNexto.gs` の定義も `notifyNexto_`) | 公開関数だと画面から任意の引数で呼べ、偽の来店イベントを Supabase へ送れてしまうため(現行の配信中の版にもある問題) |
+| キャンペーン停止(旧GAS) | 定数の1行だけ変更: `const CAMPAIGN_END = new Date("2026-10-31T23:59:59+09:00");` → `const CAMPAIGN_END = new Date("2000-01-01T00:00:00+09:00");` | 期間条件 `now >= CAMPAIGN_START && now <= CAMPAIGN_END` が常に偽になり、0pt履歴も案内文も作られない。`CAMPAIGN_BONUS_PT=0` は不可(0pt履歴・案内が残る)。登録処理の本体は変更しない |
 
 ## 公開関数の一覧(末尾が `_` でない関数は、画面から誰でも呼べる)
 `gas_freeze/test_surface.mjs` が、追加するファイルの公開関数を機械的に確認する。所有者のみ(`assertOwner_()`)にしたもの: `freezeOn` `drainStatus` `snapshotUsers` `abortCutoverUnfreeze` `dailyBackupNow` `replayNextoFailures` `previewResyncToNexto` `resyncAllToNexto`。入口で6時間に1回までに制限したもの: `dailyBackup`(トリガー用)。

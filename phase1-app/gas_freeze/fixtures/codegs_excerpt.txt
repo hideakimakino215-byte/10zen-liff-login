@@ -1,0 +1,60 @@
+// 配信中のコード.gs(版79)の抜粋を元にした検証用の写し。共通PINは伏せ字。本体の処理は省略し、入口の宣言行・キャンペーン・通知呼び出しの形だけを再現する。
+const STAFF_PIN = "●●●";
+const REFERRAL_BONUS_PT = 100;
+const WELCOME_BONUS_PT = 100;
+const CAMPAIGN_START = new Date("2026-10-10T00:00:00+09:00");
+const CAMPAIGN_END = new Date("2026-10-31T23:59:59+09:00");
+const CAMPAIGN_BONUS_PT = 100;
+const NEXTO_CHECKIN_URL = "https://example.invalid/membership-checkin";
+
+function doGet(e) {
+  if (e.parameter && e.parameter.page === 'admin') { return HtmlService.createHtmlOutputFromFile('admin'); }
+  if (e.parameter && e.parameter.callback) { var cb = e.parameter.callback; var result = { error: '不明なAPIです' }; return ContentService.createTextOutput(cb + '(' + JSON.stringify(result) + ')').setMimeType(ContentService.MimeType.JAVASCRIPT); }
+  return HtmlService.createTemplateFromFile('index').evaluate();
+}
+function getRank(lifetimePoints, currentPoints) { return "white_opal"; }
+function registerNewUser(displayName, refCode) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+    var now = new Date(); var welcomeMsg = "ようこそ"; var pts = 0;
+    if (now >= CAMPAIGN_START && now <= CAMPAIGN_END) { pts += CAMPAIGN_BONUS_PT; welcomeMsg += "\nキャンペーン" + CAMPAIGN_BONUS_PT + "pt"; globalThis.__campaignHit = true; }
+    return { userId: "u", message: welcomeMsg };
+  } finally { lock.releaseLock(); }
+}
+function processUser(userId, action) {
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); return { userId: userId }; } finally { lock.releaseLock(); }
+}
+function formatUserResponse(userId) { return {}; }
+function getNextRankInfo(lifePt) { return {}; }
+function usePoints(userId, useAmount, inputPin) {
+  if (inputPin !== STAFF_PIN) {
+    return { success: false, error: "店舗PINコードが一致しません" };
+  }
+  return { success: true };
+}
+function getAdminDashboardData() {
+  try { return {}; } catch (e) { return { error: e.message }; }
+}
+// NEXTOへ来店・ポイント情報を通知する(旧版。改名済みで呼ばれない)
+function notifyNextoLegacyUnused_(lineUserId, userId, currentPoints, lifetimePoints, rank) { return null; }
+function lineEntry(lineUserId, displayName, refCode, action) {
+  var lock = LockService.getScriptLock();
+  var formattedId = null;
+  try {
+    lock.waitLock(10000);
+    var result = processUser("u1", action);
+    if (action === 'visit') {
+      // ★変更: ポイント/ランクも一緒にNEXTOへ送る
+      notifyNexto(lineUserId, result.userId, result.currentPoints, result.lifetimePoints, result.rank);
+    }
+    return result;
+  } finally { lock.releaseLock(); }
+  var newUser = registerNewUser(displayName, refCode);
+  if (newUser) {
+    // ★変更: ポイント/ランクも一緒にNEXTOへ送る
+    notifyNexto(lineUserId, newUser.userId, newUser.currentPoints, newUser.lifetimePoints, newUser.rank);
+  }
+  return newUser;
+}

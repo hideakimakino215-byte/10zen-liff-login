@@ -1,0 +1,15 @@
+-- A4(本番の試験状態)の実行手順 SQL。**承認前は実行しない。** 実行は Claude Code(Supabase MCP)が、承認後に1ブロックずつ行う。
+-- 前提: system_state=frozen、会員0名、policy_decisions 未決定6件。店長アカウントのみ登録済み(スタッフ・店頭QRアカウントは作らない)。
+-- 0) 事前確認(読み取りのみ)
+--    select state, reconciled from system_state; select count(*) from members; select key, decided from policy_decisions order by 1;
+-- 1) 制度の決定(牧野の決定の記録: 2026-10-10)。それぞれ decide_policy の1回呼び出し
+--    select public.decide_policy('redeem_unit','100','牧野 決定 2026-10-10');
+--    select public.decide_policy('referral','off','牧野 決定 2026-10-10');
+--    select public.decide_policy('register_counts_as_visit','false','牧野 決定 2026-10-10');
+--    select public.decide_policy('campaign','off','牧野 決定 2026-10-10');
+--    select public.decide_policy('lifetime','not_applicable','牧野 決定 2026-10-10');
+--    select public.decide_policy('migration_scope','none','牧野 決定 2026-10-10');
+-- 2) 来店受付時間 11〜21時(JST): app_settings の checkin_open_hour=11 / checkin_close_hour=21 (専用の設定関数は無いので、update app_settings の1文を単一の DO ブロックで実行(set_system_state 以外の system_state 直接更新はしない)。MCP が60秒で応答しない場合は、結果を推測せず DB の値を確認する)
+-- 3) 試験者の許可リスト: 牧野の LINE userId(whoami.html で本人が確認)を issuer='https://access.line.me', subject='<U…>' で登録(関数: select public.allow_test_identity('https://access.line.me','<U…>','牧野 試験用'))
+-- 4) select public.set_system_state('test');   -- frozen → test のみ可。実機試験(登録→来店→申請→確定→調整)は test: 名前空間で行われ、customers には一切反映されない
+-- 5) 実機試験の後: select public.set_system_state('frozen'); → 試験データなし(is_test の会員0)・既存 customers/interactions の md5 が不変(96e0cd95…/c404b415…/62f3793b…)を確認
