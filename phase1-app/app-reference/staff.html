@@ -1,0 +1,98 @@
+<!doctype html>
+<!-- 参照実装(見た目は最小限)。最終UIはこのファイルを差し替える。権限の判定は DB の関数側(画面の出し分けは補助)。 -->
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
+<title>10ZEN スタッフ</title></head>
+<body>
+<header><strong>10ZEN スタッフ</strong> <span id="who"></span> <button id="logout" hidden>ログアウト</button></header>
+<nav id="nav" hidden>
+  <button data-tab="redeem">ポイント使用</button> <button data-tab="members">会員</button> <button data-tab="today">本日の来店</button>
+  <button data-tab="qr">店頭QR</button> <button data-tab="dash">集計</button>
+</nav>
+<main id="app"></main>
+<script src="config.js"></script>
+<script src="vendor/supabase.js"></script>
+<script type="module">
+import { createStaffClient, redeemReduce, redeemInitial, createQrKiosk } from "../app-core/staff-client.mjs";
+const cfg = window.APP_CONFIG, app = document.getElementById("app");
+const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+const sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
+const staff = createStaffClient({ supabase: sb, qrEndpoint: cfg.staffQrApi });
+let role = null, kiosk = null;
+const show = (...n) => { if (kiosk) { kiosk.stop(); kiosk = null; } app.replaceChildren(...n); };
+
+async function start() {
+  const w = await staff.whoami();
+  if (w.kind !== "ok" || !w.data.active) return loginView(w.kind === "ok" ? "このアカウントにはスタッフ権限がありません" : null);
+  role = w.data.role; document.getElementById("who").textContent = `${w.data.displayName}(${role})`;
+  document.getElementById("nav").hidden = false; document.getElementById("logout").hidden = false; tab("redeem");
+}
+function loginView(msg) {
+  document.getElementById("nav").hidden = true; document.getElementById("logout").hidden = true;
+  const e = el("input", undefined, { id: "email", type: "email", autocomplete: "username" }), p = el("input", undefined, { id: "password", type: "password", autocomplete: "current-password" }), b = el("button", "ログイン", { id: "login" });
+  const m = el("p", msg || "", { id: "msg" });
+  b.onclick = async () => { const r = await staff.signIn(e.value, p.value); if (r.kind !== "ok") { m.textContent = "ログインできませんでした"; return; } start(); };
+  show(el("h2", "スタッフログイン"), e, p, b, m);
+}
+document.getElementById("logout").onclick = async () => { await staff.signOut(); loginView(); };
+document.getElementById("nav").onclick = (ev) => { const t = ev.target.dataset?.tab; if (t) tab(t); };
+function tab(t) { ({ redeem: redeemView, members: membersView, today: todayView, qr: qrView, dash: dashView })[t](); }
+
+function redeemView() {
+  let st = redeemInitial; const code = el("input", undefined, { id: "code", inputmode: "numeric", maxlength: "7", placeholder: "お客様のコード(6桁)" }), go = el("button", "確認", { id: "lookup" }), out = el("div", undefined, { id: "redeemOut" });
+  const render = () => {
+    out.replaceChildren();
+    const say = (t, id) => out.append(el("p", t, { id: id || "redeemMsg" }));
+    if (st.step === "confirm" || st.step === "confirming") {
+      say(`${st.member.displayName ?? "会員"}(${st.member.memberNo}) 残高 ${st.member.points}pt`, "rMember"); say(`使用 ${st.request.points}pt = ${st.request.yen}円`, "rAmount");
+      const c = el("button", "確定する", { id: "confirm" }); c.disabled = st.step === "confirming";
+      c.onclick = async () => { st = redeemReduce(st, { type: "confirm_start" }); render(); st = redeemReduce(st, { type: "confirm_result", result: await staff.confirmRedeem(st.request.id) }); render(); };
+      const x = el("button", "取消", { id: "cancelReq" }); x.onclick = async () => { await staff.cancelRedeem(st.request.id); st = redeemInitial; render(); };
+      out.append(c, x);
+    } else if (st.step === "done") say(`確定しました: ${st.points}pt(${st.yen}円分)。残高 ${st.balanceAfter ?? "—"}pt`, "rDone");
+    else if (st.step === "not_found") say("コードが見つかりません(期限切れの可能性があります)");
+    else if (st.step === "expired") say("有効時間が過ぎました。お客様に再申請してもらってください");
+    else if (st.step === "insufficient") say(`残高が足りません(残高 ${st.balance}pt)`);
+    else if (st.step === "cancelled") say("お客様が取り消しました");
+    else if (st.step === "locked") say("入力の間違いが続いたため、しばらく使えません");
+    else if (st.step === "forbidden") say("この操作の権限がありません");
+    else if (st.step === "error") { say("通信できませんでした。もう一度お試しください"); }
+  };
+  go.onclick = async () => { st = redeemReduce(st, { type: "lookup_start" }); render(); st = redeemReduce(st, { type: "lookup_result", result: await staff.lookupRedeem(code.value) }); render(); };
+  show(el("h2", "ポイント使用の確認"), code, go, out);
+}
+async function membersView(query = "") {
+  const q = el("input", undefined, { id: "q", placeholder: "会員番号・氏名" }), b = el("button", "検索", { id: "search" }), list = el("ul", undefined, { id: "list" });
+  b.onclick = () => membersView(q.value); q.value = query;
+  const r = await staff.listMembers({ query: query || null });
+  if (r.kind === "ok") for (const m of r.data.items) { const li = el("li"), a = el("button", `${m.memberNo} ${m.displayName ?? "—"} ${m.points}pt ${m.rank}`, { "data-id": m.id }); a.onclick = () => detailView(m.id); li.append(a); list.append(li); }
+  show(el("h2", "会員"), q, b, el("p", r.kind === "ok" ? `${r.data.total}件` : "取得できませんでした", { id: "count" }), list);
+}
+async function detailView(id) {
+  const r = await staff.memberDetail(id); if (r.kind !== "ok" || r.data.status !== "ok") return show(el("p", "取得できませんでした"));
+  const m = r.data.member, ul = el("ul", undefined, { id: "ledger" });
+  for (const l of r.data.ledger) ul.append(el("li", `${l.type} ${l.points > 0 ? "+" : ""}${l.points} (残高 ${l.balanceAfter})${l.reason ? " " + l.reason : ""}`));
+  const nodes = [el("h2", `${m.displayName ?? "—"}(${m.memberNo})`), el("p", `${m.points}pt / ランク ${m.rank} / 累計 ${m.lifetimePoints}${m.lifetimeConfirmed ? "" : "(未確認)"}`, { id: "detail" }), ul];
+  if (role === "manager") {
+    const pts = el("input", undefined, { id: "adjPoints", type: "number" }), why = el("input", undefined, { id: "adjReason", placeholder: "理由(必須)" }), go = el("button", "調整する", { id: "adjust" }), out = el("p", "", { id: "adjOut" });
+    let key = staff.newAdjustKey();                         // 1回の操作につき1つ。通信エラーで再送しても二重にならない
+    go.onclick = async () => { const res = await staff.adjust({ memberId: id, points: Number(pts.value), reason: why.value, key }); if (res.kind === "ok" && (res.data.status === "ok" || res.data.status === "duplicate")) { out.textContent = "調整しました"; key = staff.newAdjustKey(); detailView(id); } else out.textContent = res.kind === "invalid" ? "入力を確認してください(理由は必須)" : res.kind === "ok" ? "残高が足りません" : "実行できませんでした"; };
+    nodes.push(el("h3", "手動調整(店長のみ)"), pts, why, go, out);
+  }
+  show(...nodes);
+}
+async function todayView() {
+  const r = await staff.todayVisits(); const ul = el("ul", undefined, { id: "visits" });
+  if (r.kind === "ok") { for (const v of r.data.items) ul.append(el("li", `${v.memberNo} ${v.displayName ?? "—"}`)); if (r.data.suspiciousSlots.length) ul.append(el("li", `要確認: 同時刻に ${r.data.suspiciousSlots.map((s) => s.count).join(",")} 人の来店記録があります`, { id: "suspicious" })); }
+  show(el("h2", "本日の来店"), ul);
+}
+function qrView() {
+  if (role === "viewer") return show(el("p", "この操作の権限がありません"));
+  const img = el("pre", "", { id: "qrUrl" }), msg = el("p", "", { id: "qrMsg" });
+  show(el("h2", "店頭QR(お客様が読み取ります)"), img, msg);
+  kiosk = createQrKiosk({ getToken: () => staff.qrToken(), onUpdate: (d) => { img.textContent = d.url; msg.textContent = "30秒ごとに自動で切り替わります"; }, onHidden: () => { img.textContent = ""; msg.textContent = "通信が切れています。QRを一時的に隠しました"; } });
+  kiosk.start();
+}
+async function dashView() { const r = await staff.dashboard(); show(el("h2", "集計"), el("pre", r.kind === "ok" ? JSON.stringify(r.data, null, 1) : "取得できませんでした", { id: "dash" })); }
+start();
+</script>
+</body></html>
