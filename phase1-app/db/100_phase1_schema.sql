@@ -738,6 +738,7 @@ begin
   perform public._require_write(m.is_test, true);
   if m.balance + p_points < 0 then return jsonb_build_object('status', 'insufficient_balance', 'points', m.balance); end if;
   lid := public._grant(m.id, 'adjust', 'manual', p_points, 'adjust:' || p_idempotency_key, 'manager', null, now(), auth.uid(), btrim(p_reason));
+  if lid is not null then update public.system_state set reconciled = false, reconciled_at = null; end if;     -- 残高が変わったので照合済みを無効にする(再照合なしに open へ進めない)
   perform public._audit(auth.uid(), 'adjust', m.id, jsonb_build_object('points', p_points, 'reason', left(btrim(p_reason), 200), 'duplicate', lid is null, 'state', public._state()));
   perform public._mirror(m.id, null, null);
   return jsonb_build_object('status', case when lid is null then 'duplicate' else 'ok' end);
@@ -755,6 +756,7 @@ begin
   if r.status <> 'confirmed' then return jsonb_build_object('status', 'not_confirmed'); end if;
   perform public._require_write((select is_test from public.members where id = r.member_id), true);
   lid := public._grant(r.member_id, 'adjust', 'reverse_redeem', r.points, 'reverse:' || r.id, 'manager', r.id::text, now(), auth.uid(), btrim(p_reason));
+  if lid is not null then update public.system_state set reconciled = false, reconciled_at = null; end if;     -- 残高が変わったので照合済みを無効にする
   perform public._audit(auth.uid(), 'reverse_redeem', r.member_id, jsonb_build_object('request', r.id, 'points', r.points, 'duplicate', lid is null, 'state', public._state()));
   perform public._mirror(r.member_id, null, null);
   return jsonb_build_object('status', case when lid is null then 'already_reversed' else 'reversed' end);

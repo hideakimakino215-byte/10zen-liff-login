@@ -36,6 +36,7 @@ try {
     DriveApp: { getFoldersByName: () => ({ hasNext: () => false }), createFolder: () => ({ createFile: (name, content) => { const f = { name, content, getName: () => name, getSize: () => content.length }; files.push(f); return f; } }) },
     MailApp: { sendEmail: (to, subj, body) => mails.push({ to, subj, body }) },
     UrlFetchApp: { fetch: () => { throw new Error("replaced below"); } },
+    LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },   // 単一スレッドでは常に取得できる。並列の排他は下の race 検証で確認
     ScriptApp: { getProjectTriggers: () => [], newTrigger: () => ({ timeBased: () => ({ everyDays: () => ({ atHour: () => ({ inTimezone: () => ({ create() {} }) }) }) }) }) },
   };
   const cache = new Map();   // GAS の fetch は同期。ハンドラー(非同期)の実応答を先に作って渡す
@@ -102,6 +103,19 @@ try {
     who.email = ""; assert.throws(() => vm.runInContext("dailyBackupNow()", run), /権限がありません/);
     who.email = "other@example.test"; assert.throws(() => vm.runInContext("dailyBackupNow()", run), /権限がありません/); who.email = "me@example.test"; }
   ok("画面から呼べる入口 dailyBackup は6時間に1回まで(連打しても保存は1回)。所有者以外(匿名・他のユーザー)は dailyBackupNow を実行できない");
+
+  // 7) 並列呼び出し: 判定と実行枠の確保が排他なので、8並列でもバックアップ処理に入るのは1件だけ(ロックが無いと複数が入ることも確認)
+  { const { Worker } = await import("node:worker_threads");
+    const raceOnce = async (src) => {
+      const store = new SharedArrayBuffer(8), lockBuf = new SharedArrayBuffer(4), counter = new SharedArrayBuffer(4);
+      await Promise.all(Array.from({ length: 8 }, () => new Promise((res, rej) => { const w = new Worker(new URL("./race_worker.mjs", import.meta.url), { workerData: { src, store, lockBuf, counter, delayMs: 40 } }); w.on("message", res); w.on("error", rej); })));
+      return new Int32Array(counter)[0]; };
+    const real = fs.readFileSync(new URL("./backup.gs", import.meta.url), "utf8");
+    assert.equal(await raceOnce(real), 1);
+    // 対照: ロックを外した版では複数が通る(この検証が競合を捉えられることの確認)
+    const noLock = real.replace("if (!lock.tryLock(10000)) return false;", "").replace("finally { lock.releaseLock(); }", "finally { }");
+    assert.ok(noLock !== real); assert.ok((await raceOnce(noLock)) > 1); }
+  ok("バックアップの回数制限は排他: 8並列(別スレッド・共有ストア)で呼んでも処理に入るのは1件だけ。ロックを外した対照版では複数が入る(検証が競合を捉えている)");
   // 4) 保存したバックアップから復元できる(空のDBへ)
   pg.createDb("t2");
   pg.execIn("t2", `create role dummy nologin; create schema auth; create table auth.users(id uuid primary key);

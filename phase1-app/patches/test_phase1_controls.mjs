@@ -158,17 +158,32 @@ try {
   assert.equal(Number(val(`select visit_count from customers where line_user_id=${q(B)};`)), 1);   // 実際の店頭QRの来店で初めて customers が作られ、来店回数は1
   ok("登録日を来店扱いにしない設定: 登録だけでは customers に来店回数・最終来店日が作られず、最初の店頭QRの来店で1になる");
 
-  // ---- 5b. 凍結中の復旧: 店長の調整だけが通り(理由必須・監査記録つき)、顧客の操作は通らない。open に戻すと customers も追従 ----
+  // 照合済みの後で残高を変えると、照合済みは無効になる(調整・使用の取り消しの両方)。再照合なしに open へ進めない
+  const rq5 = rr(B, 100, "2026-12-01T06:00:00Z"); const code5 = rq5.member.pendingRedeem.code;
+  const lk5 = j(AS(U.staff, `select public.staff_lookup_redeem('${code5}');`)); assert.equal(j(AS(U.staff, `select public.staff_confirm_redeem('${lk5.request.id}');`)).status, "confirmed");
   setState("frozen");
+  const all = () => JSON.parse(val(`select json_agg(json_build_object('member_no', member_no, 'balance', balance)) from members where not is_test;`));
+  const m4a = val(`select id from members where member_no='user00004';`);
+  assert.equal(recon(all()).ok, true); assert.equal(val(`select reconciled from system_state;`), "t");
+  assert.equal(j(AS(U.mgr, `select public.manager_adjust('${m4a}', 10, '照合後の調整', 'repair-key-0000');`)).status, "ok");
+  assert.equal(val(`select reconciled from system_state;`), "f"); fails(() => setState("open", q("legacy_writes_stopped")), /not_reconciled/);
+  assert.equal(recon(all()).ok, true);
+  assert.equal(j(AS(U.mgr, `select public.manager_adjust('${m4a}', 10, '照合後の調整', 'repair-key-0000');`)).status, "duplicate");   // 重複(変化なし)は無効にしない
+  assert.equal(val(`select reconciled from system_state;`), "t");
+  assert.equal(j(AS(U.mgr, `select public.manager_reverse_redeem('${lk5.request.id}', '照合後の取り消し');`)).status, "reversed");
+  assert.equal(val(`select reconciled from system_state;`), "f"); fails(() => setState("open", q("legacy_writes_stopped")), /not_reconciled/);
+  ok("照合の後に店長が残高を変える(調整・使用の取り消し)と照合済みが無効になり、再照合するまで open に戻せない。変化のない重複の再送は無効にしない");
+  // ---- 5b. 凍結中の復旧: 店長の調整だけが通り(理由必須・監査記録つき)、顧客の操作は通らない。open に戻すと customers も追従 ----
   const m4 = val(`select id from members where member_no='user00004';`);
   fails(() => AS(U.staff, `select public.manager_adjust('${m4}', 50, '凍結中の訂正', 'repair-key-0001');`), /forbidden/);
   fails(() => reg(sub("z")), /maintenance/); fails(() => me(B), /maintenance/);
   fails(() => AS(U.mgr, `select public.manager_adjust('${m4}', 50, '', 'repair-key-0002');`), /reason_required/);
+  const cpt0 = Number(val(`select points from customers where line_user_id=${q(B)};`));
   assert.equal(j(AS(U.mgr, `select public.manager_adjust('${m4}', 50, '集計ミスの訂正(復旧作業)', 'repair-key-0003');`)).status, "ok");
   assert.equal(j(AS(U.mgr, `select public.manager_adjust('${m4}', 50, '集計ミスの訂正(復旧作業)', 'repair-key-0003');`)).status, "duplicate");
   const au = JSON.parse(val(`select meta from audit_log where action='adjust' order by id desc limit 1;`)); assert.equal(au.state, "frozen"); assert.match(au.reason, /復旧/);
   const bal4 = Number(val(`select balance from members where member_no='user00004';`));
-  assert.equal(Number(val(`select points from customers where line_user_id=${q(B)};`)), bal4 - 50);   // 凍結中は customers に反映されない
+  assert.equal(Number(val(`select points from customers where line_user_id=${q(B)};`)), cpt0);   // 凍結中は customers に反映されない(変わらない)
   fails(() => setState("open", q("legacy_writes_stopped")), /not_reconciled/);
   const cur = JSON.parse(val(`select json_agg(json_build_object('member_no', member_no, 'balance', balance)) from members where not is_test;`));
   assert.equal(recon(cur).ok, true);

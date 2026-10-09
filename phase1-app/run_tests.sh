@@ -6,27 +6,32 @@
 set -u
 N="node --experimental-strip-types"
 cd "$(dirname "$0")"
-FAILED=0; TOTAL=0
-# run <ディレクトリ> <ファイル> <期待する合格件数(0=SKIP 可)>
+FAILED=0; TOTAL=0; SKIPPED=0
+# run <ディレクトリ> <ファイル> <期待する合格件数> [skip-ok]
+#   SKIP を許すのは、非公開の GAS ソースの写しが必要な gas_freeze/test_freeze.mjs だけ(第4引数 skip-ok)。他のスイートが SKIP したら失敗。
 run() {
   local out rc passed
   out=$( cd "$1" && $N "$2" 2>&1 ); rc=$?
   echo "$out" | grep -v -i experimental | grep -E "ok -|passed|FAIL|Error|SKIP"
   passed=$(echo "$out" | grep -oE '^[0-9]+ [a-z0-9 -]*(passed|checks passed)' | head -1 | grep -oE '^[0-9]+')
   if [ "$rc" -ne 0 ]; then echo "!! 失敗: $1/$2 (終了コード $rc)"; FAILED=$((FAILED + 1));
-  elif echo "$out" | grep -q '^SKIP'; then echo "-- SKIP: $1/$2"
+  elif echo "$out" | grep -q '^SKIP'; then
+    if [ "${4:-}" = "skip-ok" ]; then echo "-- SKIP: $1/$2 (許可: 非公開ソースが必要)"; SKIPPED=$((SKIPPED + 1));
+    else echo "!! SKIP は許可されていない: $1/$2"; FAILED=$((FAILED + 1)); fi
   elif [ "${passed:-0}" -ne "$3" ]; then echo "!! 件数が想定と違う: $1/$2 (合格 ${passed:-0} / 想定 $3)"; FAILED=$((FAILED + 1));
   else TOTAL=$((TOTAL + passed)); fi
 }
 run patches test_phase1_db.mjs 33
-run patches test_phase1_controls.mjs 19
+run patches test_phase1_controls.mjs 20
 run patches test_phase1_mirror.mjs 8
 run patches audit_additive.mjs 5
 run functions/member-api test.mjs 19
 run app-core test.mjs 10
 run app-reference test_e2e.mjs 8
-run gas_backup test_backup.mjs 6
+run gas_backup test_backup.mjs 7
 run gas_freeze test_surface.mjs 3
-run gas_freeze test_freeze.mjs 7
-echo "合格 ${TOTAL} 件 / 失敗したスイート ${FAILED} 件"
+run gas_freeze test_freeze.mjs 7 skip-ok
+echo "合格 ${TOTAL} 件 / 失敗したスイート ${FAILED} 件 / SKIP ${SKIPPED} 件"
+# 合格が想定より少ない(全体が SKIP・0件など)場合も失敗。freeze の7件を除く最小は 113
+if [ "$TOTAL" -lt 113 ]; then echo "!! 合格件数が足りません(${TOTAL} < 113)"; FAILED=$((FAILED + 1)); fi
 [ "$FAILED" -eq 0 ]

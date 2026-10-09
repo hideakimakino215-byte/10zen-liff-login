@@ -22,11 +22,20 @@ function postBackup_(url, token, body) {
   var res = UrlFetchApp.fetch(url, { method: "post", contentType: "application/json", headers: { Authorization: "Bearer " + token }, payload: JSON.stringify(body), muteHttpExceptions: true });
   return { code: res.getResponseCode(), text: res.getContentText() };
 }
-// トリガーが呼ぶ入口。末尾が _ でない関数は誰でも画面から呼べるため、実行は6時間に1回までに制限する(呼ばれても Drive に1ファイル増える程度)。所有者が確認用に今すぐ実行するときは dailyBackupNow()。
+// 実行枠の確保(判定と記録を1つの排他区間で行う)。並列に呼ばれても、6時間に1件だけが true を得る。ロックが取れなければ実行しない。
+function claimBackupSlot_() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return false;
+  try {
+    var props = PropertiesService.getScriptProperties(), last = Number(props.getProperty("BACKUP_LAST_ATTEMPT") || 0);
+    if (Date.now() - last < 6 * 3600 * 1000) return false;
+    props.setProperty("BACKUP_LAST_ATTEMPT", String(Date.now()));
+    return true;
+  } finally { lock.releaseLock(); }
+}
+// トリガーが呼ぶ入口。末尾が _ でない関数は誰でも画面から呼べるため、実行は6時間に1回まで(並列でも1件だけ)。所有者が確認用に今すぐ実行するときは dailyBackupNow()。
 function dailyBackup() {
-  var props = PropertiesService.getScriptProperties(), last = Number(props.getProperty("BACKUP_LAST_ATTEMPT") || 0);
-  if (Date.now() - last < 6 * 3600 * 1000) return { ok: true, skipped: true };
-  props.setProperty("BACKUP_LAST_ATTEMPT", String(Date.now()));
+  if (!claimBackupSlot_()) return { ok: true, skipped: true };
   return dailyBackup_();
 }
 function dailyBackupNow() { assertOwner_(); return dailyBackup_(); }

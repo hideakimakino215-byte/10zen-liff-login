@@ -13,8 +13,9 @@ const names = found.map((x) => x[1]).sort();
 assert.deepEqual(names, [...OWNER_ONLY, ...THROTTLED].sort());
 ok("公開関数(末尾が _ でない関数)は想定した9個だけ: " + names.join(" / "));
 for (const [f, name, head] of found) { if (OWNER_ONLY.has(name)) assert.match(head, /assertOwner_\(\)/, `${f}:${name} の先頭に assertOwner_() がない`); }
-const dbk = files["backup.gs"].slice(files["backup.gs"].indexOf("function dailyBackup()")); assert.match(dbk.slice(0, 400), /BACKUP_LAST_ATTEMPT/);
-ok("所有者のみの8関数は先頭で assertOwner_() を呼び、トリガーの入口 dailyBackup は6時間に1回までの制限つき");
+const bk = files["backup.gs"]; assert.match(bk.slice(bk.indexOf("function dailyBackup()"), bk.indexOf("function dailyBackup()") + 200), /claimBackupSlot_\(\)/);
+const claim = bk.slice(bk.indexOf("function claimBackupSlot_()"), bk.indexOf("function dailyBackup()")); assert.match(claim, /tryLock/); assert.match(claim, /BACKUP_LAST_ATTEMPT[\s\S]*setProperty[\s\S]*releaseLock/);
+ok("所有者のみの8関数は先頭で assertOwner_() を呼び、トリガーの入口 dailyBackup は、ロック内で判定と実行枠の確保を行う6時間に1回までの制限つき");
 assert.ok(!/function\s+freezeOff\b/.test(files["freeze.gs"]) && !/function\s+notifyNexto\s*\(/.test(files["notifyNexto.gs"]) && /function\s+notifyNexto_\s*\(/.test(files["notifyNexto.gs"]));
 ok("freezeOff は存在せず、notifyNexto は notifyNexto_ に改名されている(画面から呼べない)");
 console.log(`\n${n} surface tests passed`);
