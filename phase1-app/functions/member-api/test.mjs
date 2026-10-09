@@ -8,6 +8,7 @@ import { handle } from "./handler.ts";
 import { makeToken, verifyToken, SLOT_SEC } from "./qr.ts";
 import { handle as staffQr } from "../staff-qr/handler.ts";
 import { makeJwt, lineVerify } from "../../patches/jwtstub.mjs";
+import { handle as backupHandle, backupToken, sha256Hex } from "../backup-export/handler.ts";
 
 const pg = startPg();
 let n = 0; const ok = (m) => console.log(`ok - ${++n} ${m}`);
@@ -22,7 +23,7 @@ let fetchMode = {};
 const mk = (opts = {}) => ({ fetchFn: (u, i) => lineFetch(fetchMode)(u, i), supabase: rpcOver(pg, opts), lineLoginChannelId: CH, qrSecret: SECRET, businessUnit: UNIT,
   allowedOrigins: ["https://card.example.test"], nowMs: () => NOW });
 const call = async (action, body = {}, { token, origin, method = "POST", deps } = {}) => {
-  const headers = { "content-type": "application/json" }; if (token !== null) { headers["x-liff-id-token"] = toJwt(token ?? `tok:${sub("a")}:牧野`); } if (origin) headers.origin = origin;
+  const headers = { "content-type": "application/json" }; if (token !== null) { headers["x-liff-id-token"] = toJwt(token ?? `tok:${sub("a")}:試験`); } if (origin) headers.origin = origin;
   const res = await handle(new Request("https://x.test/member-api", { method, headers, body: method === "POST" ? JSON.stringify({ action, ...body }) : undefined }), deps ?? mk());
   const text = await res.text(); return { status: res.status, body: text ? JSON.parse(text) : null, headers: res.headers, text };
 };
@@ -43,6 +44,7 @@ try {
     alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
     alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;`);
   pg.loadFile("100_phase1_schema.sql");
+  pg.exec(`update system_state set state='open';`);
   pg.exec(`update app_settings set value='false' where key='register_counts_as_visit';`);   // 登録日の扱い(既定=来店日として扱う)は DB テストと下の専用ケースで検証。ここでは来店の流れを見るため解除
   assert.equal(fs.readFileSync(new URL("./qr.ts", import.meta.url), "utf8"), fs.readFileSync(new URL("../staff-qr/qr.ts", import.meta.url), "utf8"));
   ok("スキーマ適用。member-api と staff-qr の qr.ts は同一内容(デプロイ時に両方へ同梱)");
@@ -90,7 +92,7 @@ try {
   // ---- 登録・表示 ----
   assert.equal((await call("me")).status, 404);
   r = await call("register", { displayName: "偽名(クライアント値)" }); assert.equal(r.status, 201);
-  assert.equal(r.body.member.displayName, "牧野"); assert.equal(r.body.member.points, 100); assert.equal(r.body.member.memberNo, "user00001");
+  assert.equal(r.body.member.displayName, "試験"); assert.equal(r.body.member.points, 100); assert.equal(r.body.member.memberNo, "user00001");
   r = await call("register", { displayName: "別" }); assert.equal(r.status, 200); assert.equal(r.body.status, "existing"); assert.equal(r.body.member.points, 100);
   r = await call("me"); assert.equal(r.status, 200); assert.equal(r.body.member.points, 100);
   r = await call("me", {}, { token: `tok:${sub("b")}:花子` }); assert.equal(r.status, 404);
@@ -151,7 +153,7 @@ try {
   ok("一連の操作の後も、全会員で残高=台帳の合計");
 
   // ---- staff-qr ----
-  const staffRows = { s1: { role: "staff", active: true }, m1: { role: "manager", active: true }, v1: { role: "viewer", active: true }, g1: { role: "staff", active: false } };
+  const staffRows = { s1: { role: "staff", active: true }, m1: { role: "manager", active: true }, v1: { role: "viewer", active: true }, g1: { role: "staff", active: false }, k1: { role: "kiosk", active: true } };
   const sdeps = (over = {}) => ({ supabase: { auth: { getUser: async (t) => t.startsWith("valid-") ? { data: { user: { id: t.slice(6, 8) } }, error: null } : { data: null, error: { message: "bad" } } },
     from: () => ({ select: () => ({ eq: (_k, v) => ({ maybeSingle: async () => ({ data: staffRows[v] ?? null }) }) }) }) },
     qrSecret: SECRET, businessUnit: UNIT, liffUrl: "https://liff.line.me/2011158053-N7nKgExB", allowedOrigins: ["https://admin.example.test"], nowMs: () => NOW, ...over });
@@ -164,5 +166,35 @@ try {
   assert.equal((await sq(null)).status, 401); assert.equal((await sq("Basic abc")).status, 401); assert.equal((await sq("Bearer valid-s1" + "x".repeat(20), { method: "GET" })).status, 405);
   assert.equal((await sq("Bearer valid-s1" + "x".repeat(20), { deps: { qrSecret: "" } })).status, 401);
   ok("店頭QRの発行(staff-qr): スタッフ/店長のみ。閲覧のみ・退職者・スタッフ以外・不正トークン・秘密未設定は拒否。発行したQRは member-api で有効");
+  assert.equal((await sq("Bearer valid-k1" + "x".repeat(20))).status, 200);
+  ok("店頭タブレット専用アカウント(kiosk)も店頭QRを取得できる");
+
+  // ---- 凍結中(maintenance)・営業時間外 ----
+  pg.exec(`update system_state set state='frozen';`);
+  for (const act of ["me", "register", "redeem_cancel"]) { r = await call(act); assert.equal(r.status, 503, act); assert.equal(r.body.error, "maintenance"); assert.equal(r.body.retryable, false); assert.equal(r.headers.get("retry-after"), "300"); }
+  r = await call("checkin", { token: await tokenAt(NOW) }); assert.equal(r.status, 503); assert.equal(r.body.error, "maintenance");
+  pg.exec(`update system_state set state='open';`);
+  pg.exec(`update app_settings set value='9' where key='checkin_open_hour'; update app_settings set value='10' where key='checkin_close_hour';`);   // T0 は JST 12:00 の日 → 時間外
+  r = await call("checkin", { token: await tokenAt(NOW) }); assert.equal(r.status, 200); assert.equal(r.body.status, "outside_hours");
+  pg.exec(`update app_settings set value='0' where key='checkin_open_hour'; update app_settings set value='24' where key='checkin_close_hour';`);
+  ok("凍結中は全操作が 503 maintenance(再試行不可・Retry-After)、営業時間外のQRは outside_hours を返し付与しない");
+
+  // ---- backup-export ----
+  const bdeps = { supabase: rpcOver(pg), secret: SECRET, nowMs: () => NOW };
+  const tok = await backupToken(SECRET); assert.match(tok, /^[0-9a-f]{64}$/); assert.notEqual(tok, await backupToken("x".repeat(64))); assert.ok(!tok.includes(SECRET));
+  const bcall = async (auth, body, d = bdeps, method = "POST") => { const res = await backupHandle(new Request("https://x.test", { method, headers: auth ? { authorization: auth } : {}, body: method === "POST" ? JSON.stringify(body) : undefined }), d); return { status: res.status, body: await res.json() }; };
+  assert.equal((await bcall(null, { action: "export" })).status, 401); assert.equal((await bcall("Bearer " + "0".repeat(64), { action: "export" })).status, 401);
+  assert.equal((await bcall("Bearer " + SECRET, { action: "export" })).status, 401);   // 秘密そのものでは通らない
+  assert.equal((await bcall("Bearer " + tok, { action: "export" }, { ...bdeps, secret: "" })).status, 401);
+  assert.equal((await bcall("Bearer " + tok, { action: "export" }, bdeps, "GET")).status, 405);
+  assert.equal((await bcall("Bearer " + tok, { action: "nope" })).status, 400);
+  const ex = await bcall("Bearer " + tok, { action: "export" }); assert.equal(ex.status, 200);
+  assert.equal(await sha256Hex(ex.body.payload), ex.body.sha256);                      // 受け取り側が再計算して照合できる
+  assert.equal(ex.body.counts.members, Number(pg.exec(`select count(*) from members;`))); assert.ok(!ex.body.payload.includes(SECRET));
+  assert.equal((await bcall("Bearer " + tok, { action: "record", ok: true, sha256: ex.body.sha256, counts: ex.body.counts, note: "ok" })).body.status, "recorded");
+  assert.equal((await bcall("Bearer " + tok, { action: "record", ok: false, note: "Drive 容量不足" })).body.status, "recorded");
+  assert.equal(pg.exec(`select count(*) from backup_runs where ok;`), "1"); assert.equal(pg.exec(`select count(*) from backup_runs where not ok;`), "1");
+  fails500: { const e = await bcall("Bearer " + tok, { action: "export" }, { ...bdeps, supabase: rpcOver(pg, { failRpc: () => true }) }); assert.equal(e.status, 500); assert.ok(!JSON.stringify(e.body).includes("injected")); }
+  ok("バックアップ書き出し(backup-export): 秘密から計算したトークンのみ受け付け(秘密そのもの・未設定・GETは拒否)、JSON全体+SHA-256を返し受け取り側で再計算して照合でき、成功/失敗を記録できる。DB障害は詳細を隠して500");
   console.log(`\n${n} member-api tests passed`);
 } finally { pg.stop(); }

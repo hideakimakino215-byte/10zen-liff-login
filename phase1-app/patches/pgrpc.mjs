@@ -9,7 +9,7 @@ export function rpcOver(pg, opts = {}) {
     async rpc(name, args) {
       calls.push(name);
       if (opts.failRpc && opts.failRpc(name)) return { data: null, error: { message: "injected failure" } };
-      const named = Object.entries(args).map(([k, v]) => `${k} => ${v === null || v === undefined ? "null" : q(v)}`).join(", ");
+      const named = Object.entries(args).map(([k, v]) => `${k} => ${v === null || v === undefined ? "null" : q(typeof v === "object" ? JSON.stringify(v) : v)}`).join(", ");
       const r = await pg.runAsync(`set role service_role;\nselect public.${name}(${named});`);
       if (r.status !== 0) return { data: null, error: { message: r.stderr } };
       return { data: JSON.parse(r.stdout), error: null };

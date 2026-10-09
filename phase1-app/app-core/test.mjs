@@ -22,7 +22,7 @@ const deps = () => ({ fetchFn: lineFetch, supabase: rpcOver(pg), lineLoginChanne
 // member-client の fetch を member-api ハンドラへ直結
 let netFail = 0;
 const toApi = async (_url, init) => { if (netFail > 0) { netFail--; throw new Error("offline"); } return memberApi(new Request("https://x.test/member-api", { method: "POST", headers: init.headers, body: init.body }), deps()); };
-const mkMember = (sub = SUB, name = "牧野 太郎") => createMemberClient({ endpoint: "https://x.test/member-api", getIdToken: async () => jwt(sub, name), fetchFn: toApi, sleep: async () => {} });
+const mkMember = (sub = SUB, name = "試験 太郎") => createMemberClient({ endpoint: "https://x.test/member-api", getIdToken: async () => jwt(sub, name), fetchFn: toApi, sleep: async () => {} });
 // スタッフの supabase: 実 PG に authenticated ロールで rpc を実行
 const staffSb = (uid) => ({
   async rpc(name, args) {
@@ -46,6 +46,7 @@ try {
     alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
     alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;`);
   pg.loadFile("100_phase1_schema.sql");
+  pg.exec(`update system_state set state='open';`);
   pg.exec(`update app_settings set value='false' where key='register_counts_as_visit';`);   // 登録日の扱い(既定=来店日として扱う)は DB テストと下の専用ケースで検証。ここでは来店の流れを見るため解除
   pg.exec(`insert into auth.users(id) values ${Object.values(STAFF).map((u) => `('${u}')`).join(",")};
     insert into staff_users(user_id, display_name, role) values ('${STAFF.staff}','スタッフ','staff'),('${STAFF.viewer}','閲覧','viewer'),('${STAFF.mgr}','店長','manager');`);
@@ -58,7 +59,7 @@ try {
   assert.equal(cardScreen(await createMemberClient({ endpoint: "x", getIdToken: async () => "bad", fetchFn: toApi }).me()).screen, "needs_login");
   let s = cardScreen(await member.me()); assert.equal(s.screen, "register"); assert.match(s.message, /100pt/);
   const regRes = await member.register(); s = cardScreen(regRes, NOW);
-  assert.equal(s.screen, "card"); assert.equal(s.view.displayName, "牧野 太郎"); assert.equal(s.view.pointsText, "100 pt"); assert.equal(s.view.yenText, "10円相当");
+  assert.equal(s.screen, "card"); assert.equal(s.view.displayName, "試験 太郎"); assert.equal(s.view.pointsText, "100 pt"); assert.equal(s.view.yenText, "10円相当");
   assert.equal(s.view.rankLabel, "WHITE OPAL"); assert.equal(s.view.next.label, "AMBER"); assert.equal(s.view.next.remainingText, "あと 9,900 pt"); assert.equal(s.view.lifetimeNote, null);
   assert.equal(s.view.expiresText, "2027年11月10日"); assert.equal(s.view.canRedeem, true); assert.equal(s.view.pending, null); assert.equal(s.view.visitedToday, false);
   ok("お客様: 未ログイン/不正トークン→ログイン画面、未登録→登録画面(100ptの案内)、登録→会員証(氏名・ポイント・円相当・ランク・次ランク・有効期限)");
@@ -92,7 +93,7 @@ try {
   // スタッフ: コード入力 → 確認 → 確定
   let st = redeemInitial; st = redeemReduce(st, { type: "lookup_start" }); assert.equal(st.step, "looking_up");
   st = redeemReduce(st, { type: "lookup_result", result: await staff.lookupRedeem(req.view.pending.codeText) });      // 空白入りの入力でも通る
-  assert.equal(st.step, "confirm"); assert.equal(st.member.displayName, "牧野 太郎"); assert.equal(st.request.yen, 10); assert.equal(st.member.points, 200);
+  assert.equal(st.step, "confirm"); assert.equal(st.member.displayName, "試験 太郎"); assert.equal(st.request.yen, 10); assert.equal(st.member.points, 200);
   st = redeemReduce(st, { type: "confirm_start" }); assert.equal(st.step, "confirming"); assert.equal(redeemReduce(st, { type: "confirm_start" }).step, "confirming");
   const reqId = (await staff.lookupRedeem(before.pending.code)).data.request.id;
   st = redeemReduce(st, { type: "confirm_result", result: await staff.confirmRedeem(reqId) });
@@ -115,7 +116,7 @@ try {
   ok("使用の例外系: お客様の取消→スタッフ側は『取消済み』・期限切れコードは見つからない・閲覧のみは拒否・当て推量はロック・通信エラーは再試行表示");
   // 店長の操作
   assert.equal((await staff.adjust({ memberId: "00000000-0000-0000-0000-000000000000", points: 10, reason: "x", key: "adj-12345678" })).kind, "forbidden");
-  const list = await staff.listMembers({ query: "牧野" }); assert.equal(list.kind, "ok"); assert.equal(list.data.items.length, 1);
+  const list = await staff.listMembers({ query: "試験" }); assert.equal(list.kind, "ok"); assert.equal(list.data.items.length, 1);
   const mid = list.data.items[0].id; const key = mgr.newAdjustKey(); assert.match(key, /^adj-/);
   assert.equal((await mgr.adjust({ memberId: mid, points: 50, reason: "訂正", key })).data.status, "ok");
   assert.equal((await mgr.adjust({ memberId: mid, points: 50, reason: "訂正", key })).data.status, "duplicate");
@@ -148,5 +149,15 @@ try {
   mode = "ok"; await timers.at(-1).fn(); assert.equal(updates.length, 2);
   kiosk.stop();
   ok("店頭QRの自動更新: 切替の2秒前に取得・取得失敗が続いて約90秒を過ぎたらQRを隠す・復帰したら再表示");
+  // ---- メンテナンス中・営業時間外 ----
+  pg.exec(`update system_state set state='frozen';`);
+  const mres = await member.me(); assert.equal(mres.kind, "maintenance");
+  assert.equal(cardScreen(mres).screen, "maintenance"); assert.equal(cardScreen(mres).retry, false); assert.match(cardScreen(mres).message, /メンテナンス/);
+  assert.equal(checkinScreen(await member.checkin(k.data.token)).screen, "maintenance"); assert.equal(redeemScreen(await member.redeemRequest(100)).screen, "maintenance");
+  pg.exec(`update system_state set state='open';`);
+  pg.exec(`update app_settings set value='9' where key='checkin_open_hour'; update app_settings set value='10' where key='checkin_close_hour';`);
+  const oh = checkinScreen(await member.checkin((await staff.qrToken()).data.url.split("t=")[1])); assert.equal(oh.screen, "checkin_outside_hours");
+  pg.exec(`update app_settings set value='0' where key='checkin_open_hour'; update app_settings set value='24' where key='checkin_close_hour';`);
+  ok("切替作業中は『メンテナンス中』画面(再試行なし)、営業時間外のQRは専用の案内画面(ポイントは付与されない)");
   console.log(`\n${n} app-core tests passed`);
 } finally { pg.stop(); }

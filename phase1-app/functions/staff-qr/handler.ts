@@ -23,7 +23,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
   const { data: u, error } = await d.supabase.auth.getUser(m[1]);
   if (error || !u?.user?.id) return json({ error: "unauthorized" }, 401, ch);
   const { data: st } = await d.supabase.from("staff_users").select("role, active").eq("user_id", u.user.id).maybeSingle();
-  if (!st || !st.active || (st.role !== "staff" && st.role !== "manager")) return json({ error: "forbidden" }, 403, ch);   // 閲覧のみのスタッフには出さない
+  if (!st || !st.active || (st.role !== "staff" && st.role !== "manager" && st.role !== "kiosk")) return json({ error: "forbidden" }, 403, ch);   // 閲覧のみのスタッフには出さない。kiosk(店頭タブレット専用アカウント)は QR の取得だけができる
   const t = await makeToken(d.qrSecret, d.businessUnit, d.nowMs());
   return json({ token: t.token, slot: t.slot, nextChangeAt: t.nextChangeAt, url: `${d.liffUrl}?action=visit&t=${encodeURIComponent(t.token)}` }, 200, ch);
 }

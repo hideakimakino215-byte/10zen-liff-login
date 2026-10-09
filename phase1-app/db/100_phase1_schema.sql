@@ -1,4 +1,5 @@
--- 10ZEN デジタル会員証 フェーズ1(完成形) データ基盤 v2【本番未適用・ローカル検証済みのみ】
+-- 10ZEN デジタル会員証 フェーズ1(完成形) データ基盤 v3【本番未適用・ローカル検証済みのみ】
+-- v3: システム状態(frozen/test/open)・試験データの分離・切替ゲート・未決定制度のゲート・kiosk 権限・バックアップ/復元を追加
 -- 方針
 --  * 既存の customers / interactions(追客・TOBIRA 連携用)には一切触れない。体質チェック・会話内容は持ち込まない。
 --  * 顧客は LINE の ID トークンで本人確認(Edge Function が検証。ここの関数は検証済みの issuer/subject だけを受け取る)。
@@ -22,6 +23,8 @@ insert into public.app_settings(key, value, note) values
   ('checkin_grace_slots',  '3',   '店頭QRの有効スロット数(1スロット=30秒)'),
   ('business_unit',        '10zen_aoyama', '事業単位(将来の連携用ラベル)'),
   ('register_counts_as_visit', 'true', '登録した日を来店日として扱い、同じ日の来店ポイントは付与しない(既存GASと同じ。登録ボーナスのみ)。false なら登録日にも来店ポイントを付与'),
+  ('checkin_open_hour',   '0',   '来店記録を受け付ける開始時刻(JSTの時。0-24)。営業時間外のQR利用を拒否する不正対策。既定は終日'),
+  ('checkin_close_hour',  '24',  '来店記録を受け付ける終了時刻(JSTの時。0-24)'),
   ('mirror_to_customers',  'true', '既存の customers(追客・リピート計測用)へ来店回数・ポイントを引き続き反映する。false で停止');
 
 create table public.point_rules (
@@ -51,10 +54,59 @@ insert into public.rank_thresholds(rank_code, min_points, label) values
   ('ruby',       100000, 'RUBY'),
   ('onyx',       200000, 'ONYX');
 
+-- ---------- システム状態(1行)と試験の分離 ----------
+--  frozen: 顧客の書込みを全て止める(既定・取込み/照合/切戻し用)。test: 許可リストのLINE IDだけが、本番とは完全に別の名前空間(issuer='test:…')・試験会員(T番号)で試す。open: 通常運用。
+--  試験会員は既存 customers / interactions / TOBIRA には一切反映しない(_mirror が止まる)。open では試験会員に誰も到達できない。
+create table public.system_state (
+  id            boolean primary key default true check (id),
+  state         text not null default 'frozen' check (state in ('frozen','test','open')),
+  reconciled    boolean not null default false,     -- 最後の取込み/残高照合が一致した(open へ進む条件)。取込み・凍結で false に戻る
+  reconciled_at timestamptz,
+  changed_at    timestamptz not null default now()
+);
+insert into public.system_state default values;
+
+create table public.test_allowlist (
+  issuer     text not null,
+  subject    text not null,
+  note       text,
+  created_at timestamptz not null default now(),
+  primary key (issuer, subject)
+);
+
+-- 制度の未決定項目(事業責任者の回答があるまで open にしない。回答は設定へ反映される)
+create table public.policy_decisions (
+  key         text primary key,
+  decided     boolean not null default false,
+  value       text,
+  note        text not null,
+  decided_at  timestamptz,
+  decided_via text
+);
+insert into public.policy_decisions(key, note) values
+  ('redeem_unit',               'ポイント使用の単位(現行GASは任意の値を受けていた)。例: 100pt単位 / 任意'),
+  ('referral',                  'お友達紹介(現行GAS: 紹介者・被紹介者に各100pt)を続けるか。on / off'),
+  ('register_counts_as_visit',  '登録した日を来店日として扱うか(現行GAS: 扱う=その日の来店ptは付かない)。true / false'),
+  ('campaign',                  '10/10〜10/31の登録+100ptキャンペーン(現行GAS)を新システムでも適用するか。on / off'),
+  ('lifetime',                  '既存会員の累計ポイント(ランク判定用)。confirmed_per_member(会員ごとに値を確定) / use_floor_estimate(残高を下限とした暫定値で開始)'),
+  ('migration_scope',           '移行対象の会員(LINE連携済みのみ / LINE ID なしの行も含む 等)');
+
+create table public.backup_runs (
+  id         bigint generated always as identity primary key,
+  at         timestamptz not null default now(),
+  ok         boolean not null,
+  sha256     text,
+  rows       jsonb,
+  note       text
+);
+
 -- ---------- 会員 ----------
 create sequence public.member_no_seq start 1;
+create sequence public.test_member_no_seq start 1;
 create function public.next_member_no() returns text language sql as
   $$ select 'user' || lpad(nextval('public.member_no_seq')::text, 5, '0') $$;
+create function public.next_test_member_no() returns text language sql as
+  $$ select 'T' || lpad(nextval('public.test_member_no_seq')::text, 5, '0') $$;
 
 create table public.members (
   id             uuid primary key default gen_random_uuid(),
@@ -62,6 +114,7 @@ create table public.members (
   display_name   text check (display_name is null or (char_length(display_name) between 1 and 40)),
   status         text not null default 'active' check (status in ('active','suspended','closed')),
   business_unit  text not null default '10zen_aoyama',
+  is_test        boolean not null default false,                -- 試験会員(T番号)。本番の集計・既存 customers への反映から除外
   balance        integer not null default 0 check (balance >= 0),   -- 台帳の合計と常に一致(同一トランザクションで更新)
   lifetime_base  integer check (lifetime_base is null or lifetime_base >= 0),  -- 確認済みの開始時の累計。null=未確認
   lifetime_floor integer not null default 0 check (lifetime_floor >= 0),     -- 開始時の累計の下限(= 取り込み時の残高。累計は残高以上であることは事実)。未確認の間の暫定
@@ -142,7 +195,7 @@ create unique index redeem_pending_member on public.redeem_requests (member_id) 
 create table public.staff_users (
   user_id      uuid primary key references auth.users(id) on delete cascade,
   display_name text not null,
-  role         text not null default 'viewer' check (role in ('viewer','staff','manager')),
+  role         text not null default 'viewer' check (role in ('viewer','staff','manager','kiosk')),   -- kiosk: 店頭QR表示専用(スタッフ操作・会員情報は一切不可)
   active       boolean not null default true,
   created_at   timestamptz not null default now()
 );
@@ -171,6 +224,28 @@ language sql stable set search_path = public as
 
 create function public._jst_date(p_at timestamptz) returns date
 language sql immutable as $$ select (p_at at time zone 'Asia/Tokyo')::date $$;
+
+create function public._state() returns text language sql stable security definer set search_path = public as $$ select state from public.system_state $$;
+
+-- 顧客向け関数の入口: 状態に応じて「使う issuer(名前空間)」を決める。frozen=停止、test=許可リストのみ(別名前空間)、open=本番。
+create function public._gate(p_issuer text, p_subject text) returns text
+language plpgsql stable security definer set search_path = public as $$
+declare st text := public._state();
+begin
+  if st = 'open' then return p_issuer; end if;
+  if st = 'test' and exists (select 1 from public.test_allowlist where issuer = p_issuer and subject = p_subject) then return 'test:' || p_issuer; end if;
+  raise exception 'maintenance' using errcode = '55000';
+end $$;
+
+-- スタッフの書込み: open なら本番会員のみ、test なら試験会員のみ、frozen は不可(試験データで本番に触れず、本番データで試験に触れない)
+create function public._require_write(p_is_test boolean) returns void
+language plpgsql stable security definer set search_path = public as $$
+declare st text := public._state();
+begin
+  if st = 'open' and not p_is_test then return; end if;
+  if st = 'test' and p_is_test then return; end if;
+  raise exception 'maintenance' using errcode = '55000';
+end $$;
 
 create function public.rank_for(p_points integer) returns text
 language sql stable set search_path = public as
@@ -240,6 +315,7 @@ begin
   if to_regprocedure('public.record_membership_checkin(uuid,text,text,timestamptz,integer,text,integer,text,bigint)') is null
      or to_regprocedure('public.sync_membership_points(uuid,text,integer,bigint,text,integer,text,timestamptz)') is null then return; end if;
   select * into m from public.members where id = p_member;
+  if m.is_test or public._state() <> 'open' then return; end if;                 -- 試験会員・open 以外は既存 customers へ一切反映しない
   select subject into sub from public.member_identities where member_id = p_member and provider = 'line' order by created_at limit 1;
   if sub is null then return; end if;
   execute 'select id from public.stores where name = $1' into store using '10ZEN';
@@ -291,24 +367,26 @@ end $$;
 create function public.app_register(p_issuer text, p_subject text, p_display_name text, p_referrer_member_no text default null, p_now timestamptz default now())
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare ident public.member_identities; mid uuid; nm text; ref public.members; on_date date := public._jst_date(p_now); pts integer; rp integer; cp integer; created boolean := false;
+        iss text; tst boolean;
 begin
   if coalesce(p_issuer, '') = '' or coalesce(p_subject, '') = '' then raise exception 'invalid_identity' using errcode = '22023'; end if;
-  perform pg_advisory_xact_lock(hashtextextended('reg:' || p_issuer || ':' || p_subject, 0));
-  select * into ident from public.member_identities where provider = 'line' and issuer = p_issuer and subject = p_subject;
+  iss := public._gate(p_issuer, p_subject); tst := iss <> p_issuer;
+  perform pg_advisory_xact_lock(hashtextextended('reg:' || iss || ':' || p_subject, 0));
+  select * into ident from public.member_identities where provider = 'line' and issuer = iss and subject = p_subject;
   if found then
     return jsonb_build_object('status', 'existing', 'member', public._snapshot(ident.member_id, p_now));
   end if;
-  if not public._throttle('reg:' || p_issuer || ':' || p_subject, 5, 3600, p_now) then raise exception 'rate_limited' using errcode = '22023'; end if;
+  if not public._throttle('reg:' || iss || ':' || p_subject, 5, 3600, p_now) then raise exception 'rate_limited' using errcode = '22023'; end if;
   -- 全体の新規登録にも上限(スクリプトによる大量登録の抑止。店舗の規模では1時間100人を超えない前提。超えたら 429 になり、スタッフが気づける)
-  if not public._throttle('reg:*', 100, 3600, p_now) then raise exception 'rate_limited' using errcode = '22023'; end if;
+  if not public._throttle('reg:*' || case when tst then 'test' else '' end, 100, 3600, p_now) then raise exception 'rate_limited' using errcode = '22023'; end if;
   nm := nullif(btrim(regexp_replace(coalesce(p_display_name, ''), '[[:cntrl:]]', '', 'g')), '');
   nm := left(nm, 40);
-  insert into public.members(member_no, display_name, lifetime_base) values (public.next_member_no(), nm, 0) returning id into mid;   -- 新規会員の累計は 0 から確定(開始時の不明はない)
-  insert into public.member_identities(member_id, provider, issuer, subject, verified_at) values (mid, 'line', p_issuer, p_subject, p_now);
+  insert into public.members(member_no, display_name, lifetime_base, is_test) values (case when tst then public.next_test_member_no() else public.next_member_no() end, nm, 0, tst) returning id into mid;   -- 新規会員の累計は 0 から確定(開始時の不明はない)
+  insert into public.member_identities(member_id, provider, issuer, subject, verified_at) values (mid, 'line', iss, p_subject, p_now);
   created := true;
   -- 紹介(有効な会員番号のみ。自分自身は不可能: まだ会員番号を持たない)
   if coalesce(btrim(p_referrer_member_no), '') <> '' then
-    select * into ref from public.members where lower(member_no) = lower(btrim(p_referrer_member_no)) and status = 'active' and id <> mid;
+    select * into ref from public.members where lower(member_no) = lower(btrim(p_referrer_member_no)) and status = 'active' and id <> mid and is_test = tst;
   end if;
   if ref.id is not null then
     rp := public._rule_points('referral_referrer', on_date);
@@ -337,9 +415,9 @@ end $$;
 
 create function public.app_me(p_issuer text, p_subject text, p_now timestamptz default now()) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare ident public.member_identities; m public.members;
+declare ident public.member_identities; m public.members; iss text := public._gate(p_issuer, p_subject);
 begin
-  select * into ident from public.member_identities where provider = 'line' and issuer = p_issuer and subject = p_subject;
+  select * into ident from public.member_identities where provider = 'line' and issuer = iss and subject = p_subject;
   if not found then return jsonb_build_object('status', 'not_registered'); end if;
   select * into m from public.members where id = ident.member_id;
   if m.status <> 'active' then return jsonb_build_object('status', 'not_registered'); end if;
@@ -350,9 +428,11 @@ end $$;
 -- 来店記録(店頭QRのトークン検証は Edge Function 側。ここは 1日1回の付与を DB で保証)
 create function public.app_checkin(p_issuer text, p_subject text, p_token_slot bigint default null, p_now timestamptz default now()) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare ident public.member_identities; m public.members; d date := public._jst_date(p_now); pts integer; vid bigint; lid bigint; v public.visits;
+declare ident public.member_identities; m public.members; d date := public._jst_date(p_now); pts integer; vid bigint; lid bigint; v public.visits; iss text := public._gate(p_issuer, p_subject);
+        h numeric := extract(hour from p_now at time zone 'Asia/Tokyo') + extract(minute from p_now at time zone 'Asia/Tokyo') / 60;
 begin
-  select * into ident from public.member_identities where provider = 'line' and issuer = p_issuer and subject = p_subject;
+  if h < public._setting_int('checkin_open_hour', 0) or h >= public._setting_int('checkin_close_hour', 24) then return jsonb_build_object('status', 'outside_hours'); end if;   -- 営業時間外のQR利用を拒否(写真のQRの不正対策)
+  select * into ident from public.member_identities where provider = 'line' and issuer = iss and subject = p_subject;
   if not found then return jsonb_build_object('status', 'not_registered'); end if;
   select * into m from public.members where id = ident.member_id for update;     -- 会員ごとに直列化
   if m.status <> 'active' then return jsonb_build_object('status', 'not_registered'); end if;
@@ -375,9 +455,9 @@ end $$;
 create function public.app_redeem_request(p_issuer text, p_subject text, p_points integer, p_now timestamptz default now()) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare ident public.member_identities; m public.members; unit integer := public._setting_int('redeem_unit', 100); ttl integer := public._setting_int('redeem_ttl_seconds', 180);
-        r public.redeem_requests; c text; tries integer := 0;
+        r public.redeem_requests; c text; tries integer := 0; iss text := public._gate(p_issuer, p_subject);
 begin
-  select * into ident from public.member_identities where provider = 'line' and issuer = p_issuer and subject = p_subject;
+  select * into ident from public.member_identities where provider = 'line' and issuer = iss and subject = p_subject;
   if not found then return jsonb_build_object('status', 'not_registered'); end if;
   select * into m from public.members where id = ident.member_id for update;
   if m.status <> 'active' then return jsonb_build_object('status', 'not_registered'); end if;
@@ -405,9 +485,9 @@ end $$;
 
 create function public.app_redeem_cancel(p_issuer text, p_subject text, p_now timestamptz default now()) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare ident public.member_identities; m public.members; n integer;
+declare ident public.member_identities; m public.members; n integer; iss text := public._gate(p_issuer, p_subject);
 begin
-  select * into ident from public.member_identities where provider = 'line' and issuer = p_issuer and subject = p_subject;
+  select * into ident from public.member_identities where provider = 'line' and issuer = iss and subject = p_subject;
   if not found then return jsonb_build_object('status', 'not_registered'); end if;
   select * into m from public.members where id = ident.member_id for update;
   update public.redeem_requests set status = 'cancelled', note = 'customer_cancel' where member_id = m.id and status = 'pending';
@@ -421,7 +501,10 @@ create function public.import_opening_balance(p_member_no text, p_display_name t
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare mid uuid; ident public.member_identities; existing uuid;
 begin
+  if public._state() <> 'frozen' then raise exception 'import_requires_frozen' using errcode = '55000'; end if;   -- 取込みは凍結中のみ(新旧が同時に書ける区間を作らない)
   if p_balance < 0 then raise exception 'invalid_balance' using errcode = '22023'; end if;
+  if p_member_no !~ '^user[0-9]{5,}$' then raise exception 'invalid_member_no' using errcode = '22023'; end if;
+  update public.system_state set reconciled = false, reconciled_at = null;     -- 取込みのたびに照合をやり直す
   select id into existing from public.members where member_no = p_member_no;
   if existing is not null then
     if exists (select 1 from public.point_ledger where member_id = existing and entry_type = 'opening_balance') then
@@ -486,10 +569,11 @@ language sql stable security definer set search_path = public as
 
 create function public._require_role(p_min text) returns void
 language plpgsql stable security definer set search_path = public as $$
-declare r text := public._staff_role(); rank_of jsonb := '{"viewer":1,"staff":2,"manager":3}';
+declare r text := public._staff_role(); rank_of jsonb := '{"kiosk":0,"viewer":1,"staff":2,"manager":3}';
 begin
   if r is null then raise exception 'not_staff' using errcode = '42501'; end if;
-  if (rank_of ->> r)::int < (rank_of ->> p_min)::int then raise exception 'forbidden' using errcode = '42501'; end if;
+  -- kiosk(店頭QR表示専用)は順位 0: viewer 以上を要求する関数はすべて拒否される
+  if coalesce((rank_of ->> r)::int, 0) < coalesce((rank_of ->> p_min)::int, 99) then raise exception 'forbidden' using errcode = '42501'; end if;
 end $$;
 
 create function public.staff_whoami() returns jsonb
@@ -500,15 +584,22 @@ language sql stable security definer set search_path = public as
 create function public.staff_dashboard() returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare d date := public._jst_date(now()); ms timestamptz := date_trunc('month', now() at time zone 'Asia/Tokyo') at time zone 'Asia/Tokyo';
+        t boolean := (public._state() = 'test'); lb timestamptz; ss public.system_state;
 begin
   perform public._require_role('viewer');
+  select max(at) into lb from public.backup_runs where ok;
+  select * into ss from public.system_state;
+  -- 集計は「いまの状態の会員」だけ(test のときは試験会員のみ・それ以外は本番会員のみ)
   return jsonb_build_object(
-    'asOf', now(),
-    'membersActive', (select count(*) from public.members where status = 'active'),
-    'visitsToday', (select count(*) from public.visits where visit_on = d),
-    'pointsIssuedThisMonth', (select coalesce(sum(points), 0) from public.point_ledger where entry_type = 'earn' and occurred_at >= ms),
-    'pointsRedeemedThisMonth', (select coalesce(-sum(points), 0) from public.point_ledger where entry_type = 'redeem' and occurred_at >= ms),
-    'pendingRedeems', (select count(*) from public.redeem_requests where status = 'pending' and expires_at > now()));
+    'asOf', now(), 'state', ss.state, 'reconciled', ss.reconciled,
+    'membersActive', (select count(*) from public.members where status = 'active' and is_test = t),
+    'visitsToday', (select count(*) from public.visits v join public.members m on m.id = v.member_id where v.visit_on = d and m.is_test = t),
+    'pointsIssuedThisMonth', (select coalesce(sum(l.points), 0) from public.point_ledger l join public.members m on m.id = l.member_id where l.entry_type = 'earn' and l.occurred_at >= ms and m.is_test = t),
+    'pointsRedeemedThisMonth', (select coalesce(-sum(l.points), 0) from public.point_ledger l join public.members m on m.id = l.member_id where l.entry_type = 'redeem' and l.occurred_at >= ms and m.is_test = t),
+    'pendingRedeems', (select count(*) from public.redeem_requests r join public.members m on m.id = r.member_id where r.status = 'pending' and r.expires_at > now() and m.is_test = t),
+    'lastBackupAt', lb, 'backupStale', (lb is null or lb < now() - interval '36 hours'),
+    'undecidedPolicies', (select coalesce(jsonb_agg(key order by key), '[]'::jsonb) from public.policy_decisions where not decided),
+    'balanceMismatches', (select count(*) from public.verify_balances()));
 end $$;
 
 create function public.staff_list_members(p_query text default null, p_limit integer default 50, p_offset integer default 0) returns jsonb
@@ -516,11 +607,11 @@ language plpgsql security definer set search_path = public as $$
 declare q text := nullif(btrim(coalesce(p_query, '')), ''); lim integer := least(greatest(coalesce(p_limit, 50), 1), 100); res jsonb; total integer;
 begin
   perform public._require_role('viewer');
-  select count(*) into total from public.members m where q is null or m.member_no ilike '%' || q || '%' or m.display_name ilike '%' || q || '%';
+  select count(*) into total from public.members m where m.is_test = (public._state() = 'test') and (q is null or m.member_no ilike '%' || q || '%' or m.display_name ilike '%' || q || '%');
   select coalesce(jsonb_agg(x order by x ->> 'memberNo'), '[]'::jsonb) into res from (
     select jsonb_build_object('id', m.id, 'memberNo', m.member_no, 'displayName', m.display_name, 'rank', m.rank_code, 'points', m.balance, 'status', m.status,
                               'lastActivityOn', m.last_activity_on) x
-    from public.members m where q is null or m.member_no ilike '%' || q || '%' or m.display_name ilike '%' || q || '%'
+    from public.members m where m.is_test = (public._state() = 'test') and (q is null or m.member_no ilike '%' || q || '%' or m.display_name ilike '%' || q || '%')
     order by m.member_no limit lim offset greatest(coalesce(p_offset, 0), 0)) t;
   perform public._audit(auth.uid(), 'list_members', null, jsonb_build_object('hasQuery', q is not null));
   return jsonb_build_object('total', total, 'items', res);
@@ -531,7 +622,7 @@ language plpgsql security definer set search_path = public as $$
 declare m public.members; eff integer;
 begin
   perform public._require_role('viewer');
-  select * into m from public.members where id = p_member_id;
+  select * into m from public.members where id = p_member_id and is_test = (public._state() = 'test');
   if not found then return jsonb_build_object('status', 'not_found'); end if;
   eff := public._effective_lifetime(m);
   perform public._audit(auth.uid(), 'view_member', m.id);
@@ -550,10 +641,10 @@ begin
   perform public._require_role('viewer');
   return jsonb_build_object('date', d,
     'items', (select coalesce(jsonb_agg(jsonb_build_object('memberNo', m.member_no, 'displayName', m.display_name, 'at', v.created_at, 'slot', v.token_slot) order by v.created_at desc), '[]'::jsonb)
-              from public.visits v join public.members m on m.id = v.member_id where v.visit_on = d),
+              from public.visits v join public.members m on m.id = v.member_id where v.visit_on = d and m.is_test = (public._state() = 'test')),
     -- 不正検知: 同じ30秒スロットに多数が来店記録している(店内に収まらない・QRの写真の拡散の疑い)
     'suspiciousSlots', (select coalesce(jsonb_agg(jsonb_build_object('slot', s.token_slot, 'count', s.c)), '[]'::jsonb)
-                        from (select token_slot, count(*) c from public.visits where visit_on = d and token_slot is not null group by token_slot having count(*) >= 6) s));
+                        from (select v.token_slot, count(*) c from public.visits v join public.members m on m.id = v.member_id where v.visit_on = d and v.token_slot is not null and m.is_test = (public._state() = 'test') group by v.token_slot having count(*) >= 6) s));
 end $$;
 
 -- ポイント使用: スタッフが6桁コードを入力 → 内容確認 → 確定
@@ -565,11 +656,11 @@ begin
   select count(*) into misses from public.audit_log where staff_user_id = auth.uid() and action = 'redeem_lookup_miss' and at > now() - interval '10 minutes';
   if misses >= 10 then raise exception 'too_many_attempts' using errcode = '42501'; end if;
   select * into r from public.redeem_requests where code = btrim(coalesce(p_code, '')) and status = 'pending';
-  if not found or r.expires_at <= now() then
+  if found then select * into m from public.members where id = r.member_id; end if;
+  if not found or r.expires_at <= now() or m.is_test <> (public._state() = 'test') then
     perform public._audit(auth.uid(), 'redeem_lookup_miss', null);
     return jsonb_build_object('status', 'not_found');
   end if;
-  select * into m from public.members where id = r.member_id;
   perform public._audit(auth.uid(), 'redeem_lookup', m.id, jsonb_build_object('request', r.id));
   return jsonb_build_object('status', 'ok', 'request', jsonb_build_object('id', r.id, 'points', r.points, 'yen', r.points * yen / 100, 'expiresAt', r.expires_at),
     'member', jsonb_build_object('memberNo', m.member_no, 'displayName', m.display_name, 'rank', m.rank_code, 'points', m.balance));
@@ -589,6 +680,7 @@ begin
     return jsonb_build_object('status', 'expired');
   end if;
   select * into m from public.members where id = r.member_id for update;
+  perform public._require_write(m.is_test);                                                -- 状態と会員の種別が合わない書込みは拒否
   if m.balance < r.points then
     return jsonb_build_object('status', 'insufficient_balance', 'points', m.balance);
   end if;
@@ -608,6 +700,7 @@ begin
   select * into r from public.redeem_requests where id = p_request_id for update;
   if not found then return jsonb_build_object('status', 'not_found'); end if;
   if r.status <> 'pending' then return jsonb_build_object('status', r.status); end if;
+  perform public._require_write((select is_test from public.members where id = r.member_id));
   update public.redeem_requests set status = 'cancelled', note = 'staff_cancel' where id = r.id;
   perform public._audit(auth.uid(), 'redeem_cancel', r.member_id, jsonb_build_object('request', r.id));
   return jsonb_build_object('status', 'cancelled');
@@ -624,6 +717,7 @@ begin
   if coalesce(p_idempotency_key, '') !~ '^[A-Za-z0-9:_-]{8,100}$' then raise exception 'invalid_key' using errcode = '22023'; end if;
   select * into m from public.members where id = p_member_id for update;
   if not found then return jsonb_build_object('status', 'not_found'); end if;
+  perform public._require_write(m.is_test);
   if m.balance + p_points < 0 then return jsonb_build_object('status', 'insufficient_balance', 'points', m.balance); end if;
   lid := public._grant(m.id, 'adjust', 'manual', p_points, 'adjust:' || p_idempotency_key, 'manager', null, now(), auth.uid(), btrim(p_reason));
   perform public._audit(auth.uid(), 'adjust', m.id, jsonb_build_object('points', p_points, 'reason', left(btrim(p_reason), 200), 'duplicate', lid is null));
@@ -640,10 +734,165 @@ begin
   select * into r from public.redeem_requests where id = p_request_id for update;
   if not found then return jsonb_build_object('status', 'not_found'); end if;
   if r.status <> 'confirmed' then return jsonb_build_object('status', 'not_confirmed'); end if;
+  perform public._require_write((select is_test from public.members where id = r.member_id));
   lid := public._grant(r.member_id, 'adjust', 'reverse_redeem', r.points, 'reverse:' || r.id, 'manager', r.id::text, now(), auth.uid(), btrim(p_reason));
   perform public._audit(auth.uid(), 'reverse_redeem', r.member_id, jsonb_build_object('request', r.id, 'points', r.points, 'duplicate', lid is null));
   perform public._mirror(r.member_id, null, null);
   return jsonb_build_object('status', case when lid is null then 'already_reversed' else 'reversed' end);
+end $$;
+
+-- ---------- 切替・照合・方針・バックアップ(service_role/SQL のみ。顧客・スタッフには公開しない) ----------
+-- 残高の照合: 期待値(旧システムの最終残高など)と、本番会員の残高・台帳が全件一致するか。一致したときだけ reconciled=true
+create function public.reconcile_balances(p_expected jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare mism jsonb; missing jsonb; extra jsonb; bad integer; ok boolean;
+begin
+  if jsonb_typeof(p_expected) <> 'array' then raise exception 'invalid_expected' using errcode = '22023'; end if;
+  with e as (select x ->> 'member_no' as member_no, (x ->> 'balance')::int as balance from jsonb_array_elements(p_expected) x),
+       m as (select member_no, balance from public.members where not is_test)
+  select
+    coalesce((select jsonb_agg(jsonb_build_object('member_no', e.member_no, 'expected', e.balance, 'actual', m.balance)) from e join m using (member_no) where e.balance <> m.balance), '[]'::jsonb),
+    coalesce((select jsonb_agg(e.member_no) from e where e.member_no not in (select member_no from m)), '[]'::jsonb),
+    coalesce((select jsonb_agg(m.member_no) from m where m.member_no not in (select member_no from e)), '[]'::jsonb)
+  into mism, missing, extra;
+  select count(*) into bad from public.verify_balances();
+  ok := jsonb_array_length(mism) = 0 and jsonb_array_length(missing) = 0 and jsonb_array_length(extra) = 0 and bad = 0;
+  update public.system_state set reconciled = ok, reconciled_at = case when ok then now() else null end;
+  perform public._audit(null, 'reconcile', null, jsonb_build_object('ok', ok, 'mismatch', jsonb_array_length(mism), 'missing', jsonb_array_length(missing), 'extra', jsonb_array_length(extra), 'ledgerMismatch', bad));
+  return jsonb_build_object('ok', ok, 'mismatches', mism, 'missingInDb', missing, 'extraInDb', extra, 'ledgerMismatches', bad);
+end $$;
+
+-- 方針の回答を記録し、設定へ反映する(事業責任者の返信があったときだけ呼ぶ)
+create function public.decide_policy(p_key text, p_value text, p_via text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from public.policy_decisions where key = p_key) then raise exception 'unknown_policy' using errcode = '22023'; end if;
+  if coalesce(btrim(p_via), '') = '' then raise exception 'via_required' using errcode = '22023'; end if;
+  case p_key
+    when 'redeem_unit' then
+      if p_value !~ '^[1-9][0-9]{0,6}$' then raise exception 'invalid_value' using errcode = '22023'; end if;
+      update public.app_settings set value = p_value where key = 'redeem_unit';
+    when 'referral' then
+      if p_value not in ('on','off') then raise exception 'invalid_value' using errcode = '22023'; end if;
+      update public.point_rules set active = (p_value = 'on') where code in ('referral_referrer','referral_welcome');
+    when 'register_counts_as_visit' then
+      if p_value not in ('true','false') then raise exception 'invalid_value' using errcode = '22023'; end if;
+      update public.app_settings set value = p_value where key = 'register_counts_as_visit';
+    when 'campaign' then
+      if p_value not in ('on','off') then raise exception 'invalid_value' using errcode = '22023'; end if;
+      update public.point_rules set active = (p_value = 'on') where code = 'campaign_welcome';
+    when 'lifetime' then
+      if p_value not in ('confirmed_per_member','use_floor_estimate') then raise exception 'invalid_value' using errcode = '22023'; end if;
+    when 'migration_scope' then
+      if coalesce(btrim(p_value), '') = '' then raise exception 'invalid_value' using errcode = '22023'; end if;
+  end case;
+  update public.policy_decisions set decided = true, value = left(p_value, 500), decided_at = now(), decided_via = left(p_via, 200) where key = p_key;
+  perform public._audit(null, 'decide_policy', null, jsonb_build_object('key', p_key, 'value', left(p_value, 100)));
+  return jsonb_build_object('status', 'ok', 'key', p_key);
+end $$;
+
+-- 状態遷移。frozen→test / test→frozen / frozen→open / open→frozen のみ。
+--  open へ進む条件: 照合一致(reconciled)・未決定の方針なし・旧システムの書込み停止の確認(p_attest = 'legacy_writes_stopped')。
+create function public.set_system_state(p_to text, p_attest text default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare cur text := public._state(); und text; ss public.system_state;
+begin
+  if p_to not in ('frozen','test','open') then raise exception 'invalid_state' using errcode = '22023'; end if;
+  if p_to = cur then return jsonb_build_object('status', 'unchanged', 'state', cur); end if;
+  if not ((cur = 'frozen' and p_to in ('test','open')) or (cur in ('test','open') and p_to = 'frozen')) then
+    raise exception 'transition_not_allowed:% -> %', cur, p_to using errcode = '55000';       -- test↔open は必ず frozen を経由する
+  end if;
+  if p_to = 'open' then
+    select * into ss from public.system_state;
+    if not ss.reconciled then raise exception 'not_reconciled' using errcode = '55000'; end if;
+    select string_agg(key, ',' order by key) into und from public.policy_decisions where not decided;
+    if und is not null then raise exception 'policies_undecided:%', und using errcode = '55000'; end if;
+    if p_attest is distinct from 'legacy_writes_stopped' then raise exception 'legacy_stop_not_attested' using errcode = '55000'; end if;
+  end if;
+  update public.system_state set state = p_to, changed_at = now(),
+    reconciled = case when p_to = 'frozen' then false else reconciled end,
+    reconciled_at = case when p_to = 'frozen' then null else reconciled_at end;
+  perform public._audit(null, 'set_state', null, jsonb_build_object('from', cur, 'to', p_to, 'attest', left(coalesce(p_attest, ''), 60)));
+  return jsonb_build_object('status', 'ok', 'state', p_to);
+end $$;
+
+create function public.allow_test_identity(p_issuer text, p_subject text, p_note text) returns void
+language sql security definer set search_path = public as
+  $$ insert into public.test_allowlist(issuer, subject, note) values (p_issuer, p_subject, left(p_note, 100)) on conflict do nothing $$;
+
+-- 切替後の増減レポート(切戻し・照合用): 本番会員ごとの 開始残高 / 現在残高 / 差(切替後の増減) / 切替後の台帳件数。台帳は削除されないので、いつでも再現できる。
+create function public.cutover_report() returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object('state', (select state from public.system_state), 'asOf', now(), 'members', coalesce(jsonb_agg(x order by x ->> 'memberNo'), '[]'::jsonb))
+  from (
+    select jsonb_build_object('memberNo', m.member_no, 'opening', o.points, 'balance', m.balance, 'delta', m.balance - coalesce(o.points, 0),
+             'entriesAfterOpening', (select count(*) from public.point_ledger l where l.member_id = m.id and l.entry_type <> 'opening_balance')) x
+    from public.members m left join lateral (select points from public.point_ledger l where l.member_id = m.id and l.entry_type = 'opening_balance') o on true
+    where not m.is_test) t
+$$;
+
+-- バックアップ(データ+設定)。個人情報を含むので、保存先は事業責任者だけが見られる場所にすること。
+create function public.export_backup() returns jsonb
+language plpgsql security definer set search_path = public as $$
+begin
+  return jsonb_build_object('version', 1, 'exportedAt', now(), 'tables', jsonb_build_object(
+    'app_settings',     (select coalesce(jsonb_agg(to_jsonb(t)), '[]') from public.app_settings t),
+    'point_rules',      (select coalesce(jsonb_agg(to_jsonb(t)), '[]') from public.point_rules t),
+    'rank_thresholds',  (select coalesce(jsonb_agg(to_jsonb(t)), '[]') from public.rank_thresholds t),
+    'policy_decisions', (select coalesce(jsonb_agg(to_jsonb(t)), '[]') from public.policy_decisions t),
+    'system_state',     (select coalesce(jsonb_agg(to_jsonb(t)), '[]') from public.system_state t),
+    'test_allowlist',   (select coalesce(jsonb_agg(to_jsonb(t)), '[]') from public.test_allowlist t),
+    'members',          (select coalesce(jsonb_agg(to_jsonb(t) order by t.member_no), '[]') from public.members t),
+    'member_identities',(select coalesce(jsonb_agg(to_jsonb(t) order by t.created_at, t.id), '[]') from public.member_identities t),
+    'point_ledger',     (select coalesce(jsonb_agg(to_jsonb(t) order by t.id), '[]') from public.point_ledger t),
+    'visits',           (select coalesce(jsonb_agg(to_jsonb(t) order by t.id), '[]') from public.visits t),
+    'redeem_requests',  (select coalesce(jsonb_agg(to_jsonb(t) order by t.created_at, t.id), '[]') from public.redeem_requests t),
+    'staff_users',      (select coalesce(jsonb_agg(to_jsonb(t)), '[]') from public.staff_users t),
+    'audit_log',        (select coalesce(jsonb_agg(to_jsonb(t) order by t.id), '[]') from (select * from public.audit_log order by id desc limit 5000) t)));
+end $$;
+
+create function public.record_backup(p_ok boolean, p_sha256 text, p_rows jsonb, p_note text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.backup_runs(ok, sha256, rows, note) values (p_ok, left(p_sha256, 64), p_rows, left(p_note, 300));
+  return jsonb_build_object('status', 'recorded');
+end $$;
+
+-- 復元: 空のデータベース(会員・台帳が0件)にだけ実行できる。復元後は必ず frozen。残高は台帳と照合して返す。
+-- staff_users は Supabase Auth のユーザーが存在する行だけ戻す(Auth のユーザーは別途復元/再作成が必要)。
+create function public.restore_backup(p jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare t jsonb := p -> 'tables'; mx bigint; bad integer;
+begin
+  if (p ->> 'version') is distinct from '1' or t is null then raise exception 'invalid_backup' using errcode = '22023'; end if;
+  if exists (select 1 from public.members) or exists (select 1 from public.point_ledger) then raise exception 'target_not_empty' using errcode = '55000'; end if;
+  insert into public.rank_thresholds select * from jsonb_populate_recordset(null::public.rank_thresholds, t -> 'rank_thresholds')
+    on conflict (rank_code) do update set min_points = excluded.min_points, label = excluded.label;
+  insert into public.app_settings select * from jsonb_populate_recordset(null::public.app_settings, t -> 'app_settings')
+    on conflict (key) do update set value = excluded.value, note = excluded.note;
+  insert into public.point_rules select * from jsonb_populate_recordset(null::public.point_rules, t -> 'point_rules')
+    on conflict (code) do update set points = excluded.points, active = excluded.active, starts_on = excluded.starts_on, ends_on = excluded.ends_on, description = excluded.description;
+  insert into public.policy_decisions select * from jsonb_populate_recordset(null::public.policy_decisions, t -> 'policy_decisions')
+    on conflict (key) do update set decided = excluded.decided, value = excluded.value, note = excluded.note, decided_at = excluded.decided_at, decided_via = excluded.decided_via;
+  insert into public.test_allowlist select * from jsonb_populate_recordset(null::public.test_allowlist, t -> 'test_allowlist') on conflict do nothing;
+  insert into public.members select * from jsonb_populate_recordset(null::public.members, t -> 'members');
+  insert into public.member_identities select * from jsonb_populate_recordset(null::public.member_identities, t -> 'member_identities');
+  insert into public.point_ledger overriding system value select * from jsonb_populate_recordset(null::public.point_ledger, t -> 'point_ledger');
+  insert into public.visits overriding system value select * from jsonb_populate_recordset(null::public.visits, t -> 'visits');
+  insert into public.redeem_requests select * from jsonb_populate_recordset(null::public.redeem_requests, t -> 'redeem_requests');
+  insert into public.staff_users select s.* from jsonb_populate_recordset(null::public.staff_users, t -> 'staff_users') s where exists (select 1 from auth.users u where u.id = s.user_id);
+  insert into public.audit_log overriding system value select * from jsonb_populate_recordset(null::public.audit_log, t -> 'audit_log');
+  select coalesce(max(substr(member_no, 5)::bigint), 0) into mx from public.members where member_no ~ '^user[0-9]+$';
+  perform setval('public.member_no_seq', greatest(mx, 1), mx > 0);
+  select coalesce(max(substr(member_no, 2)::bigint), 0) into mx from public.members where member_no ~ '^T[0-9]+$';
+  perform setval('public.test_member_no_seq', greatest(mx, 1), mx > 0);
+  perform setval(pg_get_serial_sequence('public.point_ledger', 'id'), greatest((select coalesce(max(id), 0) from public.point_ledger), 1), (select count(*) > 0 from public.point_ledger));
+  perform setval(pg_get_serial_sequence('public.visits', 'id'), greatest((select coalesce(max(id), 0) from public.visits), 1), (select count(*) > 0 from public.visits));
+  perform setval(pg_get_serial_sequence('public.audit_log', 'id'), greatest((select coalesce(max(id), 0) from public.audit_log), 1), (select count(*) > 0 from public.audit_log));
+  update public.system_state set state = 'frozen', reconciled = false, reconciled_at = null, changed_at = now();
+  select count(*) into bad from public.verify_balances();
+  return jsonb_build_object('status', 'restored', 'members', (select count(*) from public.members), 'ledger', (select count(*) from public.point_ledger),
+                            'balanceMismatches', bad, 'state', 'frozen');
 end $$;
 
 -- ---------- 権限(anon には何も与えない。表への直接アクセスも与えない) ----------
@@ -659,19 +908,23 @@ alter table public.redeem_requests   enable row level security;
 alter table public.staff_users       enable row level security;
 alter table public.audit_log         enable row level security;
 alter table public.api_throttle      enable row level security;
+alter table public.system_state      enable row level security;
+alter table public.test_allowlist    enable row level security;
+alter table public.policy_decisions  enable row level security;
+alter table public.backup_runs       enable row level security;
 
 do $$
 declare r record;
 begin
   -- 新しい表・連番: 既定で付く権限を一度外す(service_role を含む)。必要なものだけ後で付与する
   for r in select format('%I.%I', n.nspname, c.relname) as nm, c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
-           where n.nspname = 'public' and c.relname = any(array['app_settings','point_rules','rank_thresholds','members','member_identities','point_ledger','visits','redeem_requests','staff_users','audit_log','api_throttle', 'member_no_seq', 'point_ledger_id_seq', 'visits_id_seq', 'audit_log_id_seq']) loop
+           where n.nspname = 'public' and c.relname = any(array['app_settings','point_rules','rank_thresholds','members','member_identities','point_ledger','visits','redeem_requests','staff_users','audit_log','api_throttle','system_state','test_allowlist','policy_decisions','backup_runs', 'member_no_seq', 'test_member_no_seq', 'point_ledger_id_seq', 'visits_id_seq', 'audit_log_id_seq', 'backup_runs_id_seq']) loop
     if r.relkind = 'S' then execute format('revoke all on sequence %s from public, anon, authenticated, service_role', r.nm);
     else execute format('revoke all on table %s from public, anon, authenticated, service_role', r.nm); end if;
   end loop;
   -- 新しい関数: 既定の実行権限を外す(既存の関数には触れない)
   for r in select p.oid::regprocedure as sig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-           where n.nspname = 'public' and p.proname = any(array['_audit','_effective_lifetime','_grant','_jst_date','_require_role','_rule_points','_setting_int','_snapshot','_staff_role','_throttle','app_checkin','app_me','app_redeem_cancel','app_redeem_request','app_register','confirm_lifetime_base','import_opening_balance','manager_adjust','manager_reverse_redeem','next_member_no','point_ledger_immutable','rank_for','staff_cancel_redeem','staff_confirm_redeem','staff_dashboard','staff_list_members','staff_lookup_redeem','staff_member_detail','staff_today_visits','staff_whoami','verify_balances']) loop
+           where n.nspname = 'public' and p.proname = any(array['_gate','_mirror','_require_write','_state','next_test_member_no','reconcile_balances','decide_policy','set_system_state','allow_test_identity','export_backup','record_backup','restore_backup','cutover_report','_audit','_effective_lifetime','_grant','_jst_date','_require_role','_rule_points','_setting_int','_snapshot','_staff_role','_throttle','app_checkin','app_me','app_redeem_cancel','app_redeem_request','app_register','confirm_lifetime_base','import_opening_balance','manager_adjust','manager_reverse_redeem','next_member_no','point_ledger_immutable','rank_for','staff_cancel_redeem','staff_confirm_redeem','staff_dashboard','staff_list_members','staff_lookup_redeem','staff_member_detail','staff_today_visits','staff_whoami','verify_balances']) loop
     execute format('revoke execute on function %s from public, anon, authenticated, service_role', r.sig);
   end loop;
 end $$;
@@ -684,14 +937,17 @@ create policy ranks_read    on public.rank_thresholds for select to authenticate
 -- service_role(Edge Function): 台帳・監査ログは追記のみ。削除・更新・全消去はできない(復旧作業でも)
 grant select, insert, update on public.members, public.member_identities, public.visits, public.redeem_requests, public.staff_users, public.api_throttle to service_role;
 grant select, insert on public.point_ledger, public.audit_log to service_role;
-grant select, insert, update on public.app_settings, public.point_rules, public.rank_thresholds to service_role;
-grant usage, select on sequence public.member_no_seq, public.point_ledger_id_seq, public.visits_id_seq, public.audit_log_id_seq to service_role;
+grant select, insert, update on public.app_settings, public.point_rules, public.rank_thresholds, public.system_state, public.policy_decisions to service_role;
+grant select, insert on public.test_allowlist, public.backup_runs to service_role;
+grant usage, select on sequence public.member_no_seq, public.test_member_no_seq, public.point_ledger_id_seq, public.visits_id_seq, public.audit_log_id_seq, public.backup_runs_id_seq to service_role;
 
 -- 顧客向け・移行用・点検用: service_role のみ
 grant execute on function public.app_register(text, text, text, text, timestamptz), public.app_me(text, text, timestamptz),
   public.app_checkin(text, text, bigint, timestamptz), public.app_redeem_request(text, text, integer, timestamptz),
   public.app_redeem_cancel(text, text, timestamptz), public.import_opening_balance(text, text, text, text, integer, integer, date, text, timestamptz),
-  public.verify_balances(), public.confirm_lifetime_base(text, integer, text), public.rank_for(integer), public.next_member_no() to service_role;
+  public.verify_balances(), public.confirm_lifetime_base(text, integer, text), public.rank_for(integer), public.next_member_no(), public.next_test_member_no(),
+  public.reconcile_balances(jsonb), public.decide_policy(text, text, text), public.set_system_state(text, text), public.allow_test_identity(text, text, text),
+  public.export_backup(), public.record_backup(boolean, text, jsonb, text), public.restore_backup(jsonb), public.cutover_report() to service_role;
 -- スタッフ向け: ログイン済み(authenticated)。関数内でスタッフ権限を確認
 grant execute on function public.staff_whoami(), public.staff_dashboard(), public.staff_list_members(text, integer, integer), public.staff_member_detail(uuid),
   public.staff_today_visits(), public.staff_lookup_redeem(text), public.staff_confirm_redeem(uuid), public.staff_cancel_redeem(uuid),

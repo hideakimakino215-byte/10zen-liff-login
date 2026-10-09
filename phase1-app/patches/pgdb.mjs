@@ -29,8 +29,13 @@ export function startPg() {
     p.stdin.end(sql);
   });
   const loadFile = (name) => exec(readFileSync(join(DBDIR, name), "utf8"));
+  // 別のデータベース(同じサーバ内)。バックアップ→復元の訓練で、空のDBに復元するために使う
+  const dbArgs = (db) => psqlArgs.map((a, i) => (psqlArgs[i - 1] === "-d" ? db : a));
+  const createDb = (db) => sh(`psql -h ${sock} -p 55433 -U postgres -d postgres -q -X -c "create database ${db}"`);
+  const execIn = (db, sql) => { const r = spawnSync("psql", dbArgs(db), { input: sql, encoding: "utf8" }); if (r.status !== 0) throw new Error(r.stderr); return r.stdout.trim(); };
+  const loadFileIn = (db, name) => execIn(db, readFileSync(join(DBDIR, name), "utf8"));
   const stop = () => { try { sh(`su postgres -c "${PGBIN}/pg_ctl -D ${data} -m immediate stop >/dev/null"`); } catch (_e) {} };
-  return { exec, run, runAsync, loadFile, stop };
+  return { exec, run, runAsync, loadFile, createDb, execIn, loadFileIn, stop };
 }
 
 // supabase-js 互換の最小アダプター(handler が使う範囲だけ): from("stores").select().eq().single() と rpc()

@@ -6,23 +6,24 @@
 <header><strong>10ZEN スタッフ</strong> <span id="who"></span> <button id="logout" hidden>ログアウト</button></header>
 <nav id="nav" hidden>
   <button data-tab="redeem">ポイント使用</button> <button data-tab="members">会員</button> <button data-tab="today">本日の来店</button>
-  <button data-tab="qr">店頭QR</button> <button data-tab="dash">集計</button>
+  <button data-tab="dash">集計</button>
 </nav>
 <main id="app"></main>
 <script src="config.js"></script>
 <script src="vendor/supabase.js"></script>
 <script type="module">
-import { createStaffClient, redeemReduce, redeemInitial, createQrKiosk } from "../app-core/staff-client.mjs";
+import { createStaffClient, redeemReduce, redeemInitial } from "../app-core/staff-client.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 const sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
 const staff = createStaffClient({ supabase: sb, qrEndpoint: cfg.staffQrApi });
-let role = null, kiosk = null;
-const show = (...n) => { if (kiosk) { kiosk.stop(); kiosk = null; } app.replaceChildren(...n); };
+let role = null;
+const show = (...n) => app.replaceChildren(...n);
 
 async function start() {
   const w = await staff.whoami();
   if (w.kind !== "ok" || !w.data.active) return loginView(w.kind === "ok" ? "このアカウントにはスタッフ権限がありません" : null);
+  if (w.data.role === "kiosk") { await staff.signOut(); return loginView("このアカウントは店頭QR専用です。スタッフ用のアカウントでログインしてください"); }   // 店頭タブレットのアカウントでは管理画面に入れない
   role = w.data.role; document.getElementById("who").textContent = `${w.data.displayName}(${role})`;
   document.getElementById("nav").hidden = false; document.getElementById("logout").hidden = false; tab("redeem");
 }
@@ -35,7 +36,7 @@ function loginView(msg) {
 }
 document.getElementById("logout").onclick = async () => { await staff.signOut(); loginView(); };
 document.getElementById("nav").onclick = (ev) => { const t = ev.target.dataset?.tab; if (t) tab(t); };
-function tab(t) { ({ redeem: redeemView, members: membersView, today: todayView, qr: qrView, dash: dashView })[t](); }
+function tab(t) { ({ redeem: redeemView, members: membersView, today: todayView, dash: dashView })[t](); }
 
 function redeemView() {
   let st = redeemInitial; const code = el("input", undefined, { id: "code", inputmode: "numeric", maxlength: "7", placeholder: "お客様のコード(6桁)" }), go = el("button", "確認", { id: "lookup" }), out = el("div", undefined, { id: "redeemOut" });
@@ -84,13 +85,6 @@ async function todayView() {
   const r = await staff.todayVisits(); const ul = el("ul", undefined, { id: "visits" });
   if (r.kind === "ok") { for (const v of r.data.items) ul.append(el("li", `${v.memberNo} ${v.displayName ?? "—"}`)); if (r.data.suspiciousSlots.length) ul.append(el("li", `要確認: 同時刻に ${r.data.suspiciousSlots.map((s) => s.count).join(",")} 人の来店記録があります`, { id: "suspicious" })); }
   show(el("h2", "本日の来店"), ul);
-}
-function qrView() {
-  if (role === "viewer") return show(el("p", "この操作の権限がありません"));
-  const img = el("pre", "", { id: "qrUrl" }), msg = el("p", "", { id: "qrMsg" });
-  show(el("h2", "店頭QR(お客様が読み取ります)"), img, msg);
-  kiosk = createQrKiosk({ getToken: () => staff.qrToken(), onUpdate: (d) => { img.textContent = d.url; msg.textContent = "30秒ごとに自動で切り替わります"; }, onHidden: () => { img.textContent = ""; msg.textContent = "通信が切れています。QRを一時的に隠しました"; } });
-  kiosk.start();
 }
 async function dashView() { const r = await staff.dashboard(); show(el("h2", "集計"), el("pre", r.kind === "ok" ? JSON.stringify(r.data, null, 1) : "取得できませんでした", { id: "dash" })); }
 start();

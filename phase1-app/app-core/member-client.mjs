@@ -1,6 +1,6 @@
 // お客様向け API クライアント(見た目に依存しない。ブラウザ・Node 両方で動く。依存なし)。
 // UI はこの結果(kind / data)だけを見て画面を切り替える。通信・再試行・エラー分類はここで完結する。
-//   kind: ok / auth_required / not_registered / conflict / bad_request / rate_limited / network_error / server_error
+//   kind: ok / auth_required / not_registered / conflict / bad_request / rate_limited / maintenance / network_error / server_error
 export function createMemberClient({ endpoint, getIdToken, fetchFn = (...a) => fetch(...a), timeoutMs = 10000, retries = 2, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
   async function call(action, body = {}) {
     let idToken;
@@ -16,6 +16,7 @@ export function createMemberClient({ endpoint, getIdToken, fetchFn = (...a) => f
         const data = await res.json().catch(() => ({}));
         const s = res.status;
         if (s === 200 || s === 201) return { kind: "ok", status: data.status, httpStatus: s, data };
+        if (s === 503 && data.error === "maintenance") return { kind: "maintenance" };      // 切替作業中・試験中(再試行しても変わらない)
         if (s === 401) return { kind: "auth_required" };
         if (s === 404) return { kind: "not_registered", data };
         if (s === 409) return { kind: "conflict", code: data.status, data };

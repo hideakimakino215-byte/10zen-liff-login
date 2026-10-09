@@ -24,11 +24,12 @@ try {
   pg.exec(`insert into stores(name) values('10ZEN');`);
   pg.loadFile("003_membership_checkin_rpc.sql");
   pg.loadFile("100_phase1_schema.sql");
+  pg.exec(`update system_state set state='open';`);
   pg.exec(`insert into auth.users(id) values ('${STAFF}'); insert into staff_users(user_id, display_name, role) values ('${STAFF}','店長','manager');`);
   ok("既存スキーマ(customers・来店関数)の上に新しい会員基盤を適用");
 
   // 1) 新規登録 → customers にも反映(来店回数1・履歴1・ポイント・会員番号)
-  const A = sub("a"); reg(A, "牧野", "2026-09-01T03:00:00Z");
+  const A = sub("a"); reg(A, "試験", "2026-09-01T03:00:00Z");
   let c = cust(A); assert.deepEqual([c.visit_count, c.points, c.rank, c.membership_user_id], [1, 100, "white_opal", "user00001"]); assert.equal(nInter(A), 1);
   assert.equal(Number(pg.exec(`select count(*) from membership_events where event_key = ${q("visit:" + A + ":2026-09-01")};`)), 1);
   ok("登録: customers に会員が作られ、来店回数1・履歴1・ポイント100・会員番号が入る(既存と同じイベントキー visit:LINE ID:JST日)");
@@ -40,7 +41,7 @@ try {
   const B = sub("b");
   pg.exec(`insert into customers(store_id,line_user_id,first_visited_at,last_visited_at,visit_count,points,points_updated_at) select id, ${q(B)}, '2026-08-01T01:00:00Z','2026-09-05T00:30:00Z',5,300,'2026-09-05T00:30:00Z' from stores where name='10ZEN';
            insert into interactions(store_id,customer_id,trigger_type,sent_at) select store_id, id, 'membership_checkin','2026-09-05T00:30:00Z' from customers where line_user_id=${q(B)};`);
-  SVC(`select public.import_opening_balance('user00002','既存会員',${q(ISS)},${q(B)},300,null,'2026-09-05','test','2026-09-05T00:00:00Z');`);
+  SVC(`update system_state set state='frozen'; select public.import_opening_balance('user00002','既存会員',${q(ISS)},${q(B)},300,null,'2026-09-05','test','2026-09-05T00:00:00Z'); update system_state set state='open';`);
   chk(B, "2026-09-05T03:00:00Z");
   c = cust(B); assert.equal(c.visit_count, 5); assert.equal(nInter(B), 1);
   chk(B, "2026-09-06T03:00:00Z"); c = cust(B); assert.equal(c.visit_count, 6); assert.equal(c.points, 400);

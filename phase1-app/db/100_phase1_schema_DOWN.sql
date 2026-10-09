@@ -5,11 +5,11 @@ do $$
 declare r record;
 begin
   for r in select p.oid::regprocedure as sig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-           where n.nspname = 'public' and p.proname = any(array['_audit','_effective_lifetime','_grant','_jst_date','_mirror','_require_role','_rule_points','_setting_int','_snapshot','_staff_role','_throttle','app_checkin','app_me','app_redeem_cancel','app_redeem_request','app_register','confirm_lifetime_base','import_opening_balance','manager_adjust','manager_reverse_redeem','next_member_no','point_ledger_immutable','rank_for','staff_cancel_redeem','staff_confirm_redeem','staff_dashboard','staff_list_members','staff_lookup_redeem','staff_member_detail','staff_today_visits','staff_whoami','verify_balances']) loop
+           where n.nspname = 'public' and p.proname = any(array['_gate','_require_write','_state','next_test_member_no','reconcile_balances','decide_policy','set_system_state','allow_test_identity','export_backup','record_backup','restore_backup','cutover_report','_audit','_effective_lifetime','_grant','_jst_date','_mirror','_require_role','_rule_points','_setting_int','_snapshot','_staff_role','_throttle','app_checkin','app_me','app_redeem_cancel','app_redeem_request','app_register','confirm_lifetime_base','import_opening_balance','manager_adjust','manager_reverse_redeem','next_member_no','point_ledger_immutable','rank_for','staff_cancel_redeem','staff_confirm_redeem','staff_dashboard','staff_list_members','staff_lookup_redeem','staff_member_detail','staff_today_visits','staff_whoami','verify_balances']) loop
     execute format('drop function if exists %s cascade', r.sig);
   end loop;
 end $$;
-drop table if exists public.api_throttle, public.audit_log, public.redeem_requests, public.visits, public.point_ledger,
+drop table if exists public.backup_runs, public.policy_decisions, public.test_allowlist, public.system_state, public.api_throttle, public.audit_log, public.redeem_requests, public.visits, public.point_ledger,
   public.member_identities, public.members, public.staff_users, public.rank_thresholds, public.point_rules, public.app_settings cascade;
-drop sequence if exists public.member_no_seq;
+drop sequence if exists public.member_no_seq, public.test_member_no_seq;
 commit;

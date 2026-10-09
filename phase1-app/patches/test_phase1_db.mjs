@@ -52,6 +52,7 @@ try {
   assert.ok(Number(objs()) > 10); pg.loadFile("100_phase1_schema_DOWN.sql"); assert.equal(Number(objs()), 0); assert.equal(snapPriv(), privBefore);
   assert.equal(val(`select count(*) from public.customers;`), "0"); assert.equal(val(`select public.legacy_fn();`), "1");
   pg.loadFile("100_phase1_schema.sql"); assert.equal(snapPriv(), privBefore);
+  pg.exec(`update system_state set state='open';`);   // 既存の検証は open(通常運用)の状態で行う。状態の制御は専用ケースで検証
   ok("スキーマ適用: 既定で全権限が付く環境でも、新しい物には必要な権限だけが残り、既存の表・ビュー・関数・連番の権限は1つも変わらない。DOWN(戻し)で新しい物だけが消え、既存は元のまま・再適用もできる");
   pg.exec(`insert into auth.users(id) values ${Object.values(STAFF).map((u) => `('${u}')`).join(",")};
     insert into staff_users(user_id, display_name, role, active) values
@@ -65,13 +66,13 @@ try {
   ok("ランク閾値(既存GASと同じ 0/10000/50000/100000/200000)と境界");
 
   // ---- 登録 ----
-  let r = reg(sub("a"), "牧野　太郎");
+  let r = reg(sub("a"), "試験　太郎");
   assert.equal(r.status, "created"); assert.equal(r.member.points, 100); assert.equal(r.member.rank, "white_opal"); assert.equal(r.member.memberNo, "user00001");
   assert.equal(r.member.lifetimeConfirmed, true); assert.equal(r.member.visitedToday, true); assert.equal(r.member.nextRank.label, "AMBER"); assert.equal(r.member.nextRank.remainingPoints, 9900);
   assert.deepEqual(ledger("user00001"), [{ t: "earn", r: "welcome", p: 100, after: 100 }]);
   assert.ok(!JSON.stringify(r).includes(sub("a")), "外部IDを返さない");
   ok("新規登録: 登録ボーナス100pt・台帳1件・会員番号 user00001。応答に外部IDを含まない");
-  r = reg(sub("a"), "別の名前"); assert.equal(r.status, "existing"); assert.equal(r.member.points, 100); assert.equal(r.member.displayName, "牧野　太郎");
+  r = reg(sub("a"), "別の名前"); assert.equal(r.status, "existing"); assert.equal(r.member.points, 100); assert.equal(r.member.displayName, "試験　太郎");
   ok("再ログイン・再登録は既存会員を返し、ポイントも氏名も変わらない");
   const rs = await Promise.all(Array.from({ length: 12 }, () => SVCA(`select public.app_register(${q(ISS)}, ${q(sub("b"))}, 'x', null, '2026-09-01T03:00:00Z');`)));
   assert.ok(rs.every((x) => x.status === 0), rs.map((x) => x.stderr).join("|"));
@@ -132,8 +133,11 @@ try {
   ok("未登録・停止中の会員は付与されない");
 
   // ---- ランクの更新(開始残高の取り込み経由で閾値付近を再現) ----
-  const imp = (no, name, s, bal, life, last = "2026-08-25") =>
-    j(SVC(`select public.import_opening_balance(${q(no)}, ${q(name)}, ${q(ISS)}, ${s ? q(s) : "null"}, ${bal}, ${life === null ? "null" : life}::integer, ${q(last)}::date, 'test 基準 2026-10-08', '2026-08-25T00:00:00Z');`));
+  const imp = (no, name, s, bal, life, last = "2026-08-25") => {
+    pg.exec(`update system_state set state='frozen';`);   // 取込みは凍結中のみ可能
+    try { return j(SVC(`select public.import_opening_balance(${q(no)}, ${q(name)}, ${q(ISS)}, ${s ? q(s) : "null"}, ${bal}, ${life === null ? "null" : life}::integer, ${q(last)}::date, 'test 基準 2026-10-08', '2026-08-25T00:00:00Z');`)); }
+    finally { pg.exec(`update system_state set state='open';`); }
+  };
   // 連番は取り込み後の会員番号より後ろから始まるので、先に既存の会員番号と衝突しない番号で取り込む
   assert.equal(imp("user00101", "移行1", sub("p"), 9950, null).status, "imported");
   assert.equal(imp("user00101", "移行1", sub("p"), 9950, null).status, "already_imported");
@@ -284,7 +288,7 @@ try {
   const list = j(AS(STAFF.viewer, `select public.staff_list_members(null, 1000, 0);`));
   assert.equal(list.items.length, Math.min(100, list.total)); assert.ok(list.total > 5);
   assert.equal(j(AS(STAFF.viewer, `select public.staff_list_members('user00101', 50, 0);`)).items.length, 1);
-  assert.equal(j(AS(STAFF.viewer, `select public.staff_list_members('牧野', 50, 0);`)).items[0].memberNo, "user00001");
+  assert.equal(j(AS(STAFF.viewer, `select public.staff_list_members('試験', 50, 0);`)).items[0].memberNo, "user00001");
   assert.ok(!JSON.stringify(list).match(/U[0-9a-f]{32}/), "一覧に外部IDを出さない");
   const dash = j(AS(STAFF.viewer, `select public.staff_dashboard();`));
   assert.ok(dash.membersActive > 5 && typeof dash.pointsIssuedThisMonth === "number" && "pendingRedeems" in dash);

@@ -71,6 +71,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
     const { data, error } = await d.supabase.rpc(name, args);
     if (error) {
       if (/rate_limited/.test(error.message || "")) throw Object.assign(new Error("rate_limited"), { status: 429 });
+      if (/maintenance/.test(error.message || "")) throw Object.assign(new Error("maintenance"), { status: 503 });   // 凍結中・試験中(許可外)・切替作業中
       console.error(`member-api rpc ${name} failed: ${String(error.message).slice(0, 200)}`);
       throw Object.assign(new Error("server_error"), { status: 500 });
     }
@@ -110,6 +111,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
     }
   } catch (e) {
     const st = (e as any).status || 500;
+    if (st === 503 && (e as Error).message === "maintenance") return json({ error: "maintenance", retryable: false }, 503, { ...ch, "Retry-After": "300" });
     return json({ error: st === 429 ? "rate_limited" : "server_error", retryable: st !== 429 }, st, ch);
   }
 }

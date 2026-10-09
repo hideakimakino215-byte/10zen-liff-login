@@ -7,6 +7,8 @@ export const messages = {
     network_error: "通信できませんでした。電波の良い場所で、もう一度お試しください",
     server_error: "ただいま混み合っています。しばらくしてからもう一度お試しください",
     rate_limited: "操作が多すぎます。しばらくしてからもう一度お試しください",
+    maintenance: "ただいま会員証のメンテナンス中です。しばらくしてからお試しください",
+    checkin_outside_hours: "ただいまの時間帯は来店ポイントの対象外です。営業時間内に店頭のQRコードを読み取ってください",
     checkin_counted: (pts) => `ご来店ありがとうございます。${pts}pt を付与しました`,
     checkin_already: "本日の来店ポイントは付与済みです",
     checkin_registered_today: "本日はご登録ボーナスを付与済みです(来店ポイントは明日から)",
@@ -53,6 +55,7 @@ export function cardScreen(res, nowMs = Date.now(), lang = "ja") {
   switch (res.kind) {
     case "ok": return { screen: "card", view: memberView(res.data.member, nowMs, lang) };
     case "auth_required": return { screen: "needs_login", message: m.needs_login };
+    case "maintenance": return { screen: "maintenance", retry: false, message: m.maintenance };
     case "not_registered": return { screen: "register", message: m.not_registered };
     case "network_error": return { screen: "error", retry: true, message: m.network_error };
     case "rate_limited": return { screen: "error", retry: true, message: m.rate_limited };
@@ -63,6 +66,8 @@ export function cardScreen(res, nowMs = Date.now(), lang = "ja") {
 // 来店記録(QR 読み取り後)の画面: checkin() の結果 → 画面
 export function checkinScreen(res, nowMs = Date.now(), lang = "ja") {
   const m = messages[lang];
+  if (res.kind === "maintenance") return { screen: "maintenance", retry: false, message: m.maintenance };
+  if (res.kind === "ok" && res.status === "outside_hours") return { screen: "checkin_outside_hours", message: m.checkin_outside_hours };
   if (res.kind === "ok") {
     const view = memberView(res.data.member, nowMs, lang);
     return res.status === "counted" ? { screen: "checkin_success", granted: res.data.granted, message: m.checkin_counted(res.data.granted), view }
@@ -85,6 +90,7 @@ export function redeemScreen(res, nowMs = Date.now(), lang = "ja") {
     if (res.code === "already_pending") return { screen: "redeem_pending", notice: m.redeem_already_pending, view };
   }
   if (res.kind === "bad_request") return { screen: "redeem_form", error: m.redeem_invalid_amount(null) };
+  if (res.kind === "maintenance") return { screen: "maintenance", retry: false, message: m.maintenance };
   if (res.kind === "auth_required") return { screen: "needs_login", message: m.needs_login };
   return { screen: "error", retry: res.kind !== "rate_limited", message: res.kind === "rate_limited" ? m.rate_limited : res.kind === "network_error" ? m.network_error : m.server_error };
 }
