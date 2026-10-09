@@ -7,6 +7,7 @@
 <main id="app"></main>
 <script src="config.js"></script>
 <script src="vendor/supabase.js"></script>
+<script src="vendor/qrcode.js"></script>
 <script type="module">
 import { createStaffClient, createQrKiosk } from "../app-core/staff-client.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
@@ -14,12 +15,18 @@ const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); i
 const sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
 const staff = createStaffClient({ supabase: sb, qrEndpoint: cfg.staffQrApi });
 let kiosk = null;
+// URL を QR の SVG にする(ライブラリは同梱の qrcode.js。SVG は数値だけの文字列を DOMParser で読み、文字列を HTML として差し込まない)
+function qrSvg(text) {
+  const q = window.qrcode(0, "M"); q.addData(text); q.make();
+  const doc = new DOMParser().parseFromString(q.createSvgTag({ cellSize: 8, margin: 16, scalable: true }), "image/svg+xml");
+  const svg = document.importNode(doc.documentElement, true); svg.setAttribute("style", "width:min(80vmin,480px);height:auto;background:#fff"); return svg;
+}
 async function start() {
   const w = await staff.whoami();
   if (w.kind !== "ok" || !w.data.active || w.data.role !== "kiosk") { if (w.kind === "ok" && w.data.active) await staff.signOut(); return loginView(w.kind === "ok" && w.data.active ? "店頭QR専用のアカウントでログインしてください" : null); }
-  const url = el("pre", "", { id: "qrUrl" }), msg = el("p", "", { id: "qrMsg" });
-  app.replaceChildren(el("h1", "ご来店の方は、このQRコードを LINE で読み取ってください"), url, msg);   // 最終UIでは url を QR 画像にして表示する
-  kiosk = createQrKiosk({ getToken: () => staff.qrToken(), onUpdate: (d) => { url.textContent = d.url; msg.textContent = ""; }, onHidden: () => { url.textContent = ""; msg.textContent = "ただいま表示できません。スタッフにお声がけください"; } });
+  const url = el("pre", "", { id: "qrUrl", hidden: "" }), msg = el("p", "", { id: "qrMsg" }), box = el("div", undefined, { id: "qrImage", role: "img", "aria-label": "来店用のQRコード" });
+  app.replaceChildren(el("h1", "ご来店の方は、このQRコードを LINE で読み取ってください"), box, url, msg);   // URL は画面に出さない(テスト用に非表示で保持)
+  kiosk = createQrKiosk({ getToken: () => staff.qrToken(), onUpdate: (d) => { url.textContent = d.url; msg.textContent = ""; box.replaceChildren(qrSvg(d.url)); }, onHidden: () => { url.textContent = ""; box.replaceChildren(); msg.textContent = "ただいま表示できません。スタッフにお声がけください"; } });
   kiosk.start();
 }
 function loginView(msg) {

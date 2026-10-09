@@ -34,6 +34,7 @@ try {
   pg.exec(`insert into stores(name) values('10ZEN');`);
   pg.loadFile("003_membership_checkin_rpc.sql");
   pg.loadFile("100_phase1_schema.sql");
+  pg.loadFile("101_search_path_fix.sql");
   pg.exec(`insert into auth.users(id) values ${Object.values(U).map((u) => `('${u}')`).join(",")};
     insert into staff_users(user_id, display_name, role) values ('${U.mgr}','店長','manager'),('${U.staff}','スタッフ','staff'),('${U.kiosk}','店頭タブレット','kiosk');`);
   const custSnap = () => val(`select md5(coalesce((select string_agg(t::text, '|' order by t::text) from customers t), '') || coalesce((select string_agg(t::text, '|' order by t::text) from interactions t), '') || coalesce((select string_agg(t::text, '|' order by t::text) from membership_events t), ''));`);
@@ -315,6 +316,13 @@ try {
       const staffSide = /^(staff_|manager_)/.test(r.f) || r.f === "_staff_role";
       assert.equal(r.auth, staffSide, `authenticated の実行可否が想定と違う: ${r.f}`);
     } }
+  { // 新しい関数すべてで search_path が固定されている(trigger 関数を含む)。101 の取り消しで元に戻り、再適用できる
+    const unpinned = () => val(`select coalesce(string_agg(p.proname, ','), '') from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prokind = 'f'
+      and p.proname not in ('assign_experiment_group','maybe_fail','record_membership_checkin','sync_membership_points') and (p.proconfig is null or not exists (select 1 from unnest(p.proconfig) c where c like 'search_path=%'));`);
+    assert.equal(unpinned(), "");
+    pg.loadFile("101_search_path_fix_DOWN.sql"); assert.equal(unpinned().split(",").sort().join(","), "_effective_lifetime,_jst_date,next_member_no,next_test_member_no");
+    pg.loadFile("101_search_path_fix.sql"); assert.equal(unpinned(), ""); }
+  ok("search_path の固定: 新しい関数すべてで固定されている。101 の取り消しで4関数だけが外れ、再適用で戻る");
   ok("全関数の実行権限の総点検: 新しい関数すべてで匿名は実行不可、ログイン済みが実行できるのはスタッフ向け(staff_* / manager_* / _staff_role)だけ");
   console.log(`\n${n} phase1 controls tests passed`);
 } finally { pg.stop(); }

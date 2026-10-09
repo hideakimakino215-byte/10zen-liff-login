@@ -72,8 +72,10 @@ function dailyBackup_() {
     return { ok: false, error: msg };
   }
 }
-// 1回だけ実行: 毎日 午前3時台に dailyBackup を動かすトリガーを作る(失敗の通知はトリガー画面の『失敗通知設定』でも有効にする)
-function installBackupTrigger_() {
+// 1回だけ実行(所有者のみ): 毎日 午前3時台に dailyBackup を動かすトリガーを作る(失敗の通知はトリガー画面の『失敗通知設定』でも有効にする)
+function installBackupTrigger() {
+  assertOwner_();
   ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === "dailyBackup") ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger("dailyBackup").timeBased().everyDays(1).atHour(3).inTimezone("Asia/Tokyo").create();
+  return "daily trigger installed";
 }

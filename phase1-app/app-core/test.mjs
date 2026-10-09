@@ -72,6 +72,10 @@ try {
   const k = await staff.qrToken(); assert.equal(k.kind, "ok"); assert.ok(k.data.url.includes("action=visit"));
   assert.equal((await viewer.qrToken()).kind, "forbidden");
   const tok = qrTokenFromLocation(new URL(k.data.url).search); assert.ok(tok);
+  { const enc = (x) => encodeURIComponent(x);   // LIFF が ?liff.state= の形で渡す場合も、元の形も、同じトークンを取り出せる
+    assert.equal(qrTokenFromLocation("?liff.state=" + enc("?action=visit&t=" + tok)), tok); assert.equal(qrTokenFromLocation("?liff.state=" + enc("/?action=visit&t=" + tok)), tok);
+    assert.equal(qrTokenFromLocation("?liff.state=" + enc("?action=visit&t=bad")), null); assert.equal(qrTokenFromLocation("?liff.state=" + enc("?action=other&t=" + tok)), null);
+    assert.equal(qrTokenFromLocation("?liff.state=%E0%A4%A"), null); }
   assert.equal(qrTokenFromLocation("?action=visit&t=bad"), null); assert.equal(qrTokenFromLocation("?t=" + tok), null); assert.equal(qrTokenFromLocation(""), null);
   let c = checkinScreen(await member.checkin(tok), NOW); assert.equal(c.screen, "checkin_success"); assert.equal(c.granted, 100); assert.equal(c.view.pointsText, "200 pt"); assert.match(c.message, /100pt/);
   c = checkinScreen(await member.checkin(tok), NOW); assert.equal(c.screen, "checkin_already"); assert.equal(c.view.pointsText, "200 pt");

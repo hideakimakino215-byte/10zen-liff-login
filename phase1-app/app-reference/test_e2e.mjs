@@ -100,6 +100,9 @@ try {
   await kio.fill("#email", "kiosk@t"); await kio.fill("#password", "pw"); await kio.click("#login");
   await kio.waitForFunction(() => document.getElementById("qrUrl")?.textContent.includes("action=visit"));
   const qrUrl = await text(kio, "#qrUrl"); assert.match(qrUrl, /^https:\/\/liff\.line\.me\/2011158053-N7nKgExB\?action=visit&t=\d+\.[A-Za-z0-9_-]{22}$/);
+  // QR は画像(SVG)として表示され、URL の文字は画面に出ない
+  assert.equal(await kio.locator("#qrImage svg").count(), 1); assert.ok((await kio.locator("#qrImage svg rect, #qrImage svg path").count()) > 0);
+  assert.equal(await kio.locator("#qrUrl").isVisible(), false);
   // QR 表示中のページには、操作できる部品(ボタン・入力・リンク)が1つもない。お客様が触れても管理操作へ進めない
   assert.equal(await kio.locator("button, input, a, select, textarea, nav").count(), 0);
   // 店頭アカウントの資格情報を使って管理用の関数を直接呼んでも、すべて拒否される

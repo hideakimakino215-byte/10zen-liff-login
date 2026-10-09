@@ -39,9 +39,12 @@ export function createMemberClient({ endpoint, getIdToken, fetchFn = (...a) => f
   };
 }
 
-// 店頭QRのURL(?action=visit&t=...)から QR トークンを取り出す
+// 店頭QRのURL(?action=visit&t=...)から QR トークンを取り出す。
+// LIFF は最初の読み込みで追加のパラメーターを ?liff.state=%3Faction%3Dvisit%26t%3D… の形で渡し、初期化後に元の形へ戻すことがあるため、どちらの形も受け付ける。
 export function qrTokenFromLocation(search) {
-  const p = new URLSearchParams(search || "");
+  let p = new URLSearchParams(search || "");
+  const st = p.get("liff.state");
+  if (st && !(p.get("action") && p.get("t"))) { try { p = new URLSearchParams(st.startsWith("?") ? st.slice(1) : st.replace(/^\/?\??/, "")); } catch (_e) { /* 無視 */ } }
   const action = p.get("action"), t = p.get("t");
   return action === "visit" && t && /^[0-9]{1,12}\.[A-Za-z0-9_-]{22}$/.test(t) ? t : null;
 }

@@ -11,8 +11,14 @@ let n = 0; const ok = (m) => console.log(`ok - ${++n} ${m}`);
 assert.ok(!/create\s+or\s+replace/i.test(code)); assert.ok(!/\bdrop\s+(table|function|view|trigger|policy|index|sequence|schema)/i.test(code.replace(/drop function if exists %s/g, "")));
 assert.ok(!/\btruncate\b/i.test(code.replace(/before truncate/gi, "")));
 ok("既存の物を置き換え・削除・全消去する文がない(create or replace / drop / truncate なし。名前が衝突すれば単に失敗してトランザクション全体が取り消される)");
+// 101(search_path の固定): 対象は 100 で作った新しい関数だけ。alter function ... set/reset search_path 以外の文はない
+{ const c101 = fs.readFileSync(new URL("../db/101_search_path_fix.sql", import.meta.url), "utf8").split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
+  const stm = [...c101.matchAll(/alter\s+function\s+public\.([A-Za-z_0-9]+)\(([^)]*)\)\s+set\s+search_path\s*=\s*public\s*;/gi)];
+  assert.equal(stm.length, 4); for (const m of stm) assert.ok(created.has(m[1]), "100 で作った関数以外: " + m[1]);
+  const rest = c101.replace(/alter\s+function[^;]*;/gi, "").replace(/\b(begin|commit)\s*;/gi, "").trim(); assert.equal(rest, ""); }
 const alters = [...code.matchAll(/alter\s+(table|function|sequence|view)\s+([A-Za-z_.0-9]+)\s+([^;]*);/gi)];
 for (const a of alters) { const t = a[2].replace(/^public\./, ""); assert.ok(newTables.has(t), "新しい表以外への alter: " + a[0]); assert.match(a[3], /^enable row level security$/i); }
+ok("101(search_path の固定)は、100 で作った関数4つへの alter function ... set search_path だけ");
 ok(`alter は新しい表への「行レベルセキュリティの有効化」${alters.length}件のみ`);
 const dml = [...code.matchAll(/(?:insert\s+into|update|delete\s+from)\s+public\.([A-Za-z_0-9]+)/gi)].map((m) => m[1]);
 const touchedExisting = [...new Set(dml.filter((t) => EXISTING.includes(t)))];
