@@ -234,6 +234,30 @@ try {
   pg.execIn("t2", `insert into public.point_ledger(member_id, entry_type, rule_code, points, balance_after, idempotency_key, source, occurred_at) select id, 'adjust', 'manual', 1, balance + 1, 'post-restore-1', 'manager', now() from public.members where member_no='user00001';`);
   ok("復元訓練: 全データ+設定(会員・本人確認・台帳・来店・使用申請・制度の値・方針・試験会員)を空のDBへ復元でき、件数と全行が一致。残高=台帳、復元直後は frozen、台帳は追記専用のまま、連番も続き、既に会員がいるDBへの復元は拒否");
 
+  // ---- 10. 会員 0 名で開始する場合(サンプルを移行しない): 取込みなしで、照合→方針の回答→open まで進める ----
+  { fails(() => dp("lifetime", "not_applicable"), /lifetime_needed_for_imported_members/);   // 取込み済みの会員がいるDBでは使えない
+    pg.createDb("t3");
+    pg.execIn("t3", `create schema auth; create table auth.users(id uuid primary key);
+      create function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;
+      grant usage on schema auth to anon, authenticated, service_role; grant select on auth.users to service_role;
+      alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+      alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;`);
+    pg.loadFileIn("t3", "100_phase1_schema.sql");
+    const X = (sql) => pg.execIn("t3", `set role service_role;\n${sql}`);
+    const lastJ = (t) => JSON.parse(t.split("\n").filter(Boolean).pop());
+    assert.throws(() => X(`select public.set_system_state('open','legacy_writes_stopped');`), /not_reconciled/);
+    assert.equal(lastJ(X(`select public.reconcile_balances('[]'::jsonb);`)).ok, true);                  // 期待値も DB も空 → 一致
+    assert.throws(() => X(`select public.set_system_state('open','legacy_writes_stopped');`), /policies_undecided:campaign,lifetime,migration_scope,redeem_unit,referral,register_counts_as_visit/);
+    for (const [k, v] of [["redeem_unit", "100"], ["referral", "off"], ["register_counts_as_visit", "false"], ["campaign", "off"], ["lifetime", "not_applicable"], ["migration_scope", "なし(会員0名で開始。サンプルは削除)"]])
+      assert.equal(lastJ(X(`select public.decide_policy(${q(k)}, ${q(v)}, '事業責任者の返信');`)).status, "ok");
+    assert.equal(lastJ(X(`select public.set_system_state('open','legacy_writes_stopped');`)).state, "open");
+    assert.equal(X(`select value from public.app_settings where key='register_counts_as_visit';`).split("\n").pop(), "false");
+    assert.equal(X(`select count(*) from public.point_rules where active and code in ('campaign_welcome','referral_referrer','referral_welcome');`).split("\n").pop(), "0");
+    // 開始後は登録でき、登録ボーナスのみ(来店ポイントは店頭QRの日から)
+    const r0 = lastJ(X(`select public.app_register('2011158053', ${q(sub("v"))}, '初回', null, '2026-12-01T03:00:00Z'::timestamptz);`));
+    assert.equal(r0.member.points, 100); assert.equal(r0.member.memberNo, "user00001"); }
+  ok("会員 0 名で開始(取込みなし): 照合(空=空)→方針6件の回答(lifetime=not_applicable)→open まで進め、制度の値(使用単位100・紹介/キャンペーン停止・登録日は来店扱いなし)が反映され、最初の会員は user00001 で登録ボーナス100のみ");
+
   // ---- 8. 権限: 管理系の関数は service_role 専用 ----
   for (const f of ["set_system_state('open','legacy_writes_stopped')", "reconcile_balances('[]'::jsonb)", "decide_policy('campaign','on','x')", "allow_test_identity('a','b','c')", "export_backup()", "restore_backup('{}'::jsonb)", "record_backup(true,'x',null,'x')", "cutover_report()"]) {
     fails(() => AS(U.mgr, `select public.${f};`), /permission denied/);

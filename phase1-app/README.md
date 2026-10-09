@@ -18,5 +18,5 @@
 ## 実行
 `bash run_tests.sh`(root の Linux。Node 22、PostgreSQL 16、e2e のみ Playwright+Chromium。npm の依存パッケージはなし)。使い捨ての PostgreSQL を起動して実行し、本番には接続しない。
 `gas_freeze/test_freeze.mjs` は、GAS ソースの写し(共通PINを含むため同梱しない)が無い環境では SKIP になる。
-期待される件数: db 33 / controls 20 / mirror 8 / audit 5 / member-api 19 / app-core 10 / e2e 8 / backup 7 / surface 3(合計113)/ freeze 7(これだけ SKIP 可。他が SKIP・件数不足・失敗なら `run_tests.sh` は終了コード1)。
+期待される件数: db 33 / controls 21 / mirror 8 / audit 5 / member-api 19 / app-core 10 / e2e 8 / backup 7 / surface 3(合計114)/ freeze 7(これだけ SKIP 可。他が SKIP・件数不足・失敗なら `run_tests.sh` は終了コード1)。
 構成・API・UI 契約・切替/切戻し・運用は別の非公開資料(`audit_docs/`)にある。

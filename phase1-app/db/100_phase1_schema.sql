@@ -804,7 +804,9 @@ begin
       if p_value not in ('on','off') then raise exception 'invalid_value' using errcode = '22023'; end if;
       update public.point_rules set active = (p_value = 'on') where code = 'campaign_welcome';
     when 'lifetime' then
-      if p_value not in ('confirmed_per_member','use_floor_estimate') then raise exception 'invalid_value' using errcode = '22023'; end if;
+      if p_value not in ('confirmed_per_member','use_floor_estimate','not_applicable') then raise exception 'invalid_value' using errcode = '22023'; end if;
+      -- not_applicable: 移行する会員がいない(会員 0 名で開始)場合の回答。開始残高を取り込んだ会員がいるときは使えない
+      if p_value = 'not_applicable' and exists (select 1 from public.point_ledger where entry_type = 'opening_balance') then raise exception 'lifetime_needed_for_imported_members' using errcode = '22023'; end if;
     when 'migration_scope' then
       if coalesce(btrim(p_value), '') = '' then raise exception 'invalid_value' using errcode = '22023'; end if;
   end case;
