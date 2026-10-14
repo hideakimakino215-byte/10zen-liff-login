@@ -99,7 +99,10 @@ h1,h2,h3{margin:0}
 .list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
 .row{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;align-items:center;gap:12px;min-height:60px;padding:8px 16px;background:var(--card);border:1px solid var(--line);border-radius:14px;font-size:16px;text-align:left;width:100%}
 .row .no,.row .time{color:var(--muted)} .row .nm{font-weight:700;overflow-wrap:anywhere} .row .pt{font-weight:700}
-.rank{font-size:12px;font-weight:800;padding:3px 10px;border-radius:999px;background:var(--purple-soft);color:var(--purple);letter-spacing:.04em;white-space:nowrap}
+.rank{display:inline-block;font-size:12px;font-weight:800;padding:3px 10px;border-radius:999px;letter-spacing:.06em;white-space:nowrap;color:#fff;border:1px solid rgba(0,0,0,.08);background:#eef1f5}
+.rank.r-white_opal{color:#4a4843;background:linear-gradient(135deg,#f6f5f1,#d8d5cc);border-color:#cfcabd}
+.rank.r-amber{background:linear-gradient(135deg,#f3c27a,#b45309)} .rank.r-emerald{background:linear-gradient(135deg,#5fbf97,#064e3b)} .rank.r-ruby{background:linear-gradient(135deg,#e07a9e,#831843)}
+.rank.r-onyx{color:#d4af37;background:linear-gradient(135deg,#2a3142,#0b1220);border-color:#d4af37}
 .row .arrow{color:var(--muted);font-size:20px}
 .row.static{grid-template-columns:auto auto minmax(0,1fr)}
 .detail{--c:var(--purple);border-color:var(--purple);border-width:2px}
@@ -130,10 +133,6 @@ h1,h2,h3{margin:0}
 .stat .v{font-size:32px;font-weight:900;line-height:1.15;overflow-wrap:anywhere}
 .stat .v small{font-size:14px;font-weight:700;color:var(--muted);margin-left:4px}
 .stat.t .v{color:var(--teal)} .stat.p .v{color:var(--purple)} .stat.o .v{color:var(--orange)} .stat.b .v{color:var(--blue)}
-.facts{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:14px}
-.facts dt{color:var(--muted)} .facts dd{margin:0}
-details summary{cursor:pointer;color:var(--muted);font-weight:700;min-height:44px;display:flex;align-items:center}
-#dash{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;background:#f5f7fa;border-radius:10px;padding:12px}
 #exportBox{--c:var(--blue);border-color:var(--blue)}
 #exportOut{margin:0;font-weight:700}
 
@@ -179,6 +178,7 @@ const show = (...n) => app.replaceChildren(...n);
 const DASH = "—";                                                          // 未取得は「—」(0 で埋めない)
 const n = (v) => (typeof v === "number" && Number.isFinite(v) ? v.toLocaleString("ja-JP") : DASH);
 const rankLabel = (c) => (c ? String(c).replace(/_/g, " ").toUpperCase() : DASH);
+const rankChip = (c) => el("span", rankLabel(c), { class: `rank r-${String(c || "").replace(/[^a-z_]/g, "")}` });   // 色は会員証と同じ
 const jst = (iso, withTime = true) => {
   if (!iso) return null; const d = new Date(iso); if (Number.isNaN(d.getTime())) return null;
   const p = Object.fromEntries(new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(d).map((x) => [x.type, x.value]));
@@ -305,7 +305,7 @@ async function membersView(query = "") {
     count.textContent = `${n(r.data.total)} 件`;
     for (const m of r.data.items) {
       const a = put(el("button", undefined, { "data-id": m.id, class: "row num" }), el("span", m.memberNo, { class: "no" }), el("span", m.displayName ?? DASH, { class: "nm" }),
-        el("span", `${n(m.points)}pt`, { class: "pt" }), el("span", rankLabel(m.rank), { class: "rank" }), el("span", "›", { class: "arrow", "aria-hidden": "true" }));
+        el("span", `${n(m.points)}pt`, { class: "pt" }), rankChip(m.rank), el("span", "›", { class: "arrow", "aria-hidden": "true" }));
       a.onclick = () => detailView(m.id, query); list.append(put(el("li"), a));
     }
     shown += r.data.items.length; more.hidden = shown >= r.data.total || !r.data.items.length;
@@ -331,7 +331,7 @@ async function detailView(id, backQuery = "") {
   if (!r.data.ledger.length) ul.append(put(el("li"), el("span", "履歴はありません", { class: "meta" })));
   const head = put(el("h2"), document.createTextNode(m.displayName ?? DASH), el("span", `(${m.memberNo})`, { class: "no" }));
   const panel = put(el("section", undefined, { class: "panel detail" }), put(el("div", undefined, { class: "head" }), back), head,
-    el("p", `${m.points}pt / ランク ${rankLabel(m.rank)} / 累計 ${m.lifetimePoints}${m.lifetimeConfirmed ? "" : "(未確認)"}`, { id: "detail", class: "num" }),
+    put(el("p", `${m.points}pt / ランク `, { id: "detail", class: "num" }), rankChip(m.rank), document.createTextNode(` / 累計 ${m.lifetimePoints}${m.lifetimeConfirmed ? "" : "(未確認)"}`)),
     el("p", `登録日 ${jst(m.createdAt, false) ?? DASH} / 最終の来店・利用日 ${m.lastActivityOn ?? DASH}`, { class: "hint num" }),
     el("h3", r.data.ledger.length >= 100 ? "履歴(新しい順・直近100件)" : "履歴(新しい順)"), ul);
   if (role === "manager") {
@@ -377,16 +377,12 @@ async function dashView() {
   // 問題は先頭に(赤 → オレンジ → 緑)
   const bad = [], warn = [], ok = [];
   if (typeof d.balanceMismatches === "number" && d.balanceMismatches > 0) bad.push(msgBox("bad", `残高と履歴が合いません(${n(d.balanceMismatches)}件)。至急確認`));
-  if (d.backupStale) warn.push(msgBox("warn", d.lastBackupAt ? "バックアップが古い(36時間以上更新なし)" : "バックアップの記録がありません", undefined, d.lastBackupAt ? `最終 ${jst(d.lastBackupAt)}` : ""));
   if (Array.isArray(d.undecidedPolicies) && d.undecidedPolicies.length) warn.push(msgBox("warn", `未決定の方針が ${d.undecidedPolicies.length} 件あります`, undefined, d.undecidedPolicies.join(", ")));
-  if (typeof d.pendingRedeems === "number") (d.pendingRedeems > 0 ? warn : ok).push(d.pendingRedeems > 0 ? msgBox("warn", `使用の申請中が ${n(d.pendingRedeems)} 件あります(有効時間内)`) : msgBox("ok", "使用の申請中はありません"));
+  if (typeof d.pendingRedeems === "number" && d.pendingRedeems > 0) warn.push(msgBox("warn", `確定待ちのポイント使用: ${n(d.pendingRedeems)} 件`, undefined, "お客様が使用コードを表示中で、まだ確定していません。3分たつと自動で無効になります"));
   if (d.balanceMismatches === 0) ok.push(msgBox("ok", "残高と履歴は一致しています"));
   const stat = (cls, k, v, unit) => put(el("div", undefined, { class: `stat ${cls}` }), el("div", k, { class: "k" }), put(el("div", n(v), { class: "v num" }), el("small", unit)));
-  const facts = put(el("dl", undefined, { class: "facts num" }), el("dt", "最終バックアップ"), el("dd", jst(d.lastBackupAt) ?? DASH), el("dt", "移行残高の照合"), el("dd", d.reconciled === true ? "済み" : d.reconciled === false ? "未完了" : DASH));
-  const raw = put(el("details"), el("summary", "元のデータ(JSON)を見る"), el("pre", JSON.stringify(d, null, 1), { id: "dash" }));
   const nodes = [head, put(el("div", undefined, { class: "alerts" }), ...bad, ...warn, ...ok),
-    put(el("div", undefined, { class: "stats" }), stat("p", "有効会員数", d.membersActive, "人"), stat("o", "本日の来店", d.visitsToday, "人"), stat("t", "今月の付与ポイント", d.pointsIssuedThisMonth, "pt"), stat("b", "今月の使用ポイント", d.pointsRedeemedThisMonth, "pt")),
-    put(el("section", undefined, { class: "panel" }), facts, raw)];
+    put(el("div", undefined, { class: "stats" }), stat("p", "有効会員数", d.membersActive, "人"), stat("o", "本日の来店", d.visitsToday, "人"), stat("t", "今月の付与ポイント", d.pointsIssuedThisMonth, "pt"), stat("b", "今月の使用ポイント", d.pointsRedeemedThisMonth, "pt"))];
   if (role === "manager") nodes.push(exportBox());                // CSV 出力は店長のみ(既存の API の範囲)
   show(...nodes);
 }
