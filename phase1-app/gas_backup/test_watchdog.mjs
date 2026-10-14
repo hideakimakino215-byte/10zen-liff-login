@@ -69,21 +69,24 @@ try {
   // 2) 一度も成功していない → 止まっている知らせ(「記録なし」)
   let r = await check(D("2026-10-15T00:00:00Z"));
   assert.equal(r.status, "stale"); assert.equal(mails.length, 1); assert.equal(mails[0].to, "makino@example.test");
-  assert.match(mails[0].subj, /36時間以上止まっています/); assert.match(mails[0].body, /記録なし/); assert.match(mails[0].body, /dailyBackupNow/);
+  assert.match(mails[0].subj, /24時間以上止まっています/); assert.match(mails[0].body, /記録なし/); assert.match(mails[0].body, /dailyBackupNow/);
   assert.deepEqual(fetched.map((f) => [f.url, f.body.action]), [[URL_, "status"]]);
-  ok("一度もバックアップが成功していないとき: 『36時間以上止まっています』のメール(最後の成功=記録なし、直し方つき)。問い合わせは status だけ");
+  ok("一度もバックアップが成功していないとき: 『24時間以上止まっています』のメール(最後の成功=記録なし、直し方つき)。問い合わせは status だけ");
 
   // 3) 成功の記録が新しい → メールなし。失敗の記録は「成功」に数えない
   pg.exec(`insert into backup_runs(at, ok) values ('2026-10-14T18:00:00Z', true), ('2026-10-15T18:00:00Z', false);`);
   r = await check(D("2026-10-15T09:00:00Z"));
   assert.equal(r.status, "ok"); assert.equal(r.lastSuccessAt.slice(0, 16), "2026-10-14T18:00"); assert.equal(mails.length, 0);
-  ok("最後の成功から36時間以内: メールは出ない(失敗の記録は成功に数えない)");
+  ok("最後の成功から24時間以内: メールは出ない(失敗の記録は成功に数えない)");
 
   // 4) 36時間を超えた → 止まっている知らせ(最後の成功の日時つき・日本時間)
-  r = await check(D("2026-10-14T18:00:00Z") + 37 * H);
+  r = await check(D("2026-10-14T18:00:00Z") + 25 * H);
   assert.equal(r.status, "stale"); assert.equal(mails.length, 1); assert.match(mails[0].body, /2026-10-15 03:00/);
-  r = await check(D("2026-10-14T18:00:00Z") + 35 * H); assert.equal(r.status, "ok"); assert.equal(mails.length, 0);
-  ok("最後の成功から36時間を超えたらメール(最後の成功を日本時間で表示)。35時間ならメールなし");
+  r = await check(D("2026-10-14T18:00:00Z") + 23 * H); assert.equal(r.status, "ok"); assert.equal(mails.length, 0);
+  // 毎朝の具体例: 3:00(日本時間)に成功 → 同じ日の 9:00 は正常(6時間)。翌日のバックアップが失敗 → 翌日 9:00(30時間)に通知
+  r = await check(D("2026-10-15T00:00:00Z")); assert.equal(r.status, "ok"); assert.equal(mails.length, 0);
+  r = await check(D("2026-10-16T00:00:00Z")); assert.equal(r.status, "stale"); assert.equal(mails.length, 1);
+  ok("最後の成功から24時間を超えたらメール(23時間ならなし)。毎朝3時のバックアップが1回失敗すると、その朝9時の確認で気づける");
 
   // 5) 問い合わせできない(通信エラー・HTTP 500・設定漏れ・トークン違い)も、黙らずにメール
   throwNet = true; r = await check(D("2026-10-15T09:00:00Z")); throwNet = false;
@@ -116,8 +119,24 @@ try {
 
   // 8) 見張り役の公開関数は2つだけで、データを変える問い合わせはしない
   const pub = [...wsrc.matchAll(/^function\s+([A-Za-z0-9_$]+)\s*\(/gm)].map((m) => m[1]).filter((x) => !x.endsWith("_")).sort();
-  assert.deepEqual(pub, ["installWatchdogTrigger", "watchdogCheck"]);
-  assert.ok(!/action:\s*"(export|record)"/.test(wsrc)); assert.ok(!/CHECKIN_SECRET/.test(wsrc));
-  ok("見張り役の公開関数は watchdogCheck・installWatchdogTrigger の2つだけ。会員データの書き出し・記録は呼ばず、秘密そのもの(CHECKIN_SECRET)も持たない");
+  assert.deepEqual(pub, ["installWatchdogTrigger", "watchdogCheck", "watchdogSelfTest"]);
+  assert.ok(!/action:\s*"(export|record)"/.test(wsrc)); assert.ok(!/getProperty\("CHECKIN_SECRET"\)/.test(wsrc));
+  ok("見張り役の公開関数は watchdogCheck・installWatchdogTrigger・watchdogSelfTest の3つだけ。会員データの書き出し・記録は呼ばない。元の秘密(CHECKIN_SECRET)は持たず、用途を限定した認証情報だけを使う");
+
+  // 9) 動作確認(所有者のみ): 本番の成功時刻を問い合わせて試験メールを送る。データは変えない。確認結果は実行ログにも残る
+  const runsBefore = pg.exec(`select count(*) from backup_runs;`);
+  const logs = []; const origLog = w.console; w.console = { log: (x) => logs.push(String(x)) };
+  const call2 = await call({ action: "status" }, wProps.BACKUP_STATUS_TOKEN); prepared = { getResponseCode: () => call2.status, getContentText: () => JSON.stringify(call2.body) };
+  mails.length = 0; fetched.length = 0;
+  r = JSON.parse(JSON.stringify(vm.runInContext("watchdogSelfTest()", w)));
+  assert.equal(r.status, "ok"); assert.equal(mails.length, 1); assert.match(mails[0].subj, /見張り.*試験メール.*異常ではありません/); assert.match(mails[0].body, /2026-11-01 03:00/);
+  assert.deepEqual(fetched.map((f) => f.body.action), ["status"]); assert.equal(pg.exec(`select count(*) from backup_runs;`), runsBefore);
+  assert.ok(logs.some((x) => /見張り役の動作確認/.test(x)));
+  vm.runInContext("watchdogCheck()", w); assert.ok(logs.some((x) => /見張り役の確認結果: .*"status"/.test(x)));
+  throwNet = true; mails.length = 0; r = JSON.parse(JSON.stringify(vm.runInContext("watchdogSelfTest()", w))); throwNet = false;
+  assert.equal(r.status, "unreachable"); assert.match(mails[0].body, /通信エラー/);
+  who.email = "other@example.test"; assert.throws(() => vm.runInContext("watchdogSelfTest()", w), /権限がありません/); who.email = "owner@example.test";
+  w.console = origLog;
+  ok("動作確認 watchdogSelfTest(所有者のみ): 本番の成功時刻を問い合わせ、結果を書いた試験メールを送る。データは変えない。確認結果は実行ログにも残る");
   console.log(`\n${n} watchdog tests passed`);
 } finally { pg.stop(); }

@@ -404,7 +404,7 @@ function exportBox() {
     if (!window.confirm(`会員 ${all.length} 人分の詳細を取得して出力します。会員ごとに閲覧の記録が残ります。続けますか?`)) { busy(false); out.textContent = ""; return; }
     const startedAt = jst(new Date().toISOString());
     const head = ["会員番号", "会員の状態", "登録日", "最終の来店・利用日", "残高pt", "ランク", "累計付与pt(確認済みのみ。未確認は空欄)", "付与件数(登録)", "付与件数(来店)", "付与件数(その他)", "付与pt合計",
-      "使用件数", "使用pt合計", "調整件数", "調整pt合計", "来店ポイント付与日(台帳より。来店記録そのものではない)", "台帳が100件以上(集計は直近100件のみ・不完全)", "詳細の取得", "出力開始の時点"];
+      "使用件数", "使用pt合計", "調整件数", "調整pt合計", "来店ポイント付与日(台帳より。来店記録そのものではない)", "台帳が100件以上(集計は直近100件のみ・不完全)", "詳細の取得", "取得開始時刻(会員ごとに順番に取得。厳密な同一時刻ではない)"];
     const rows = [head]; let failed = 0;
     for (let i = 0; i < all.length; i++) {
       const m = all[i]; out.textContent = `会員の詳細を取得しています… ${i + 1} / ${all.length}`;
@@ -418,10 +418,10 @@ function exportBox() {
         cnt((l) => l.type === "adjust"), sum((l) => l.type === "adjust"), visitDays, yn(L.length >= 100), "取得済み", startedAt]);
     }
     busy(false); download(`10zen_members_${stamp()}.csv`, toCsv(rows));
-    out.style.color = failed ? "var(--warn)" : ""; out.textContent = `出力しました(${all.length} 人・${startedAt} 時点)` + (failed ? `。${failed} 人は詳細を取得できず、その行は「取得失敗」です` : "");
+    out.style.color = failed ? "var(--warn)" : ""; out.textContent = `出力しました(${all.length} 人・取得開始 ${startedAt}。会員ごとに順番に取得したため、厳密な同一時刻ではありません)` + (failed ? `。${failed} 人は詳細を取得できず、その行は「取得失敗」です` : "");
   };
   return put(el("section", undefined, { class: "panel", id: "exportBox" }), el("h3", "分析用の出力(CSV・店長のみ)"),
-    el("p", "出力した時点のデータです。氏名・LINE ID は含めません。会員別は会員ごとに詳細を読み込むため、人数が多いと時間がかかります。", { class: "hint" }),
+    el("p", "氏名・LINE ID は含めません。集計のスナップショットは、集計した時刻のデータです。会員別は会員ごとに順番に読み込むため、取得開始時刻を記録します(厳密な同一時刻のデータではありません)。履歴は直近100件で集計します。人数が多いと時間がかかります。", { class: "hint" }),
     put(el("div", undefined, { class: "row-flex" }), b1, b2), out);
 }
 start();
