@@ -16,6 +16,7 @@ export function build({ liffId, supabaseKey, out, supabaseUrl = "https://ynqnhjv
   const copy = (from, to) => { fs.mkdirSync(path.dirname(to), { recursive: true }); fs.copyFileSync(from, to); };
   for (const f of fs.readdirSync(path.join(ROOT, "app-core"))) if (/\.mjs$/.test(f) && !/^test/.test(f)) copy(path.join(ROOT, "app-core", f), path.join(out, "app-core", f));
   for (const f of ["card.html", "staff.html", "qr.html", "whoami.html"]) copy(path.join(ROOT, "app-reference", f), path.join(out, "app-reference", f));
+  for (const f of fs.readdirSync(path.join(ROOT, "app-reference", "assets"))) copy(path.join(ROOT, "app-reference", "assets", f), path.join(out, "app-reference", "assets", f));   // 会員証の画像(表面)
   for (const f of ["supabase.js", "qrcode.js", "README.md"]) copy(path.join(ROOT, "app-reference", "vendor", f), path.join(out, "app-reference", "vendor", f));
   const v = path.join(out, "app-reference");
   fs.copyFileSync(path.join(v, "card.html"), path.join(v, "index.html"));   // LIFF の入口 URL(…/app-reference/)用。/{LIFF ID}/whoami.html のように、入口の後ろにファイル名を付けて開けるようにする
