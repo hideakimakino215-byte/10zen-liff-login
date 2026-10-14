@@ -23,7 +23,7 @@ const userJwt = (uid) => `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub: uid,
 const subOf = (auth) => { try { return JSON.parse(Buffer.from(String(auth).replace(/^Bearer /, "").split(".")[1], "base64url").toString()).sub; } catch { return ""; } };
 const body = (req) => new Promise((r) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => r(b)); });
 const LIFF = `window.liff={init:async()=>{},isLoggedIn:()=>!!localStorage.getItem('tok'),getIDToken:()=>localStorage.getItem('tok'),login:()=>{},getProfile:async()=>({displayName:'試験 花子',userId:'U'+'7'.repeat(32)})};`;
-const MIME = { ".html": "text/html; charset=utf-8", ".mjs": "text/javascript", ".js": "text/javascript", ".jpg": "image/jpeg" };
+const MIME = { ".html": "text/html; charset=utf-8", ".mjs": "text/javascript", ".js": "text/javascript", ".jpg": "image/jpeg", ".webp": "image/webp", ".png": "image/png" };
 const staffDeps = () => ({ supabase: { auth: { getUser: async (t) => ({ data: { user: { id: subOf(t) } }, error: null }) },
   from: () => ({ select: () => ({ eq: (_k, v) => ({ maybeSingle: async () => ({ data: JSON.parse(pg.exec(`select coalesce((select row_to_json(s) from (select role, active from staff_users where user_id=${q(v)}) s),'null');`)) }) }) }) }) },
   qrSecret: SECRET, businessUnit: UNIT, liffUrl: "https://liff.line.me/2011158053-N7nKgExB", allowedOrigins: [], nowMs: () => Date.now() });

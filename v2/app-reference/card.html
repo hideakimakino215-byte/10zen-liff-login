@@ -1,7 +1,7 @@
 <!doctype html>
 <!-- 会員証(両面)。見た目だけを持つ。業務処理は ../app-core のクライアントと画面状態(screens.mjs)・店舗情報(store-info.mjs)に集約されている。
      UI が守ること: 画面は cardScreen/checkinScreen/redeemScreen が返す screen 名で分岐し、表示は view の項目をそのまま使う。値の未取得は『—』。値は textContent で入れる(innerHTML 不可)。
-     素材: assets/logo.png(店のロゴ・透過)と assets/herb-*.png(店のショップカード 0507 の薬膳素材を切り抜き)。 -->
+     素材: assets/logo.png(店のロゴ・透過)と assets/herb-*.webp(水彩の生薬イラスト。白背景を透過に加工)。 -->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
 <title>10ZEN 会員証</title>
 <style>
@@ -91,13 +91,13 @@ const BENEFITS = [["white_opal", "WHITE OPAL", "100pt = 10円としてお会計�
   ["ruby", "RUBY", "100,000pt達成:お会計5%OFF & 特別席優先案内"], ["onyx", "ONYX", "200,000pt達成:新メニュー特別試食会ご招待 & 特別優待"]];
 
 // 表面(会員証: ロゴ・氏名・会員番号・ランク+生薬の飾り)と裏面(店舗情報)。タップで裏返る。リンクのタップでは裏返らない
-const HERBS = [["reishi", "right:3%;top:7%;width:19%"], ["cinnamon", "right:22%;top:-3%;width:24%"], ["anise", "right:2%;top:41%;width:15%"], ["goji", "right:17%;top:30%;width:24%"],
-  ["ginseng", "right:5%;bottom:3%;width:26%"], ["jujube", "right:33%;bottom:6%;width:15%"]];
+const HERBS = [["chili", "right:19%;top:-5%;width:25%"], ["chenpi", "right:3%;top:5%;width:20%"], ["goji", "right:17%;top:28%;width:22%"], ["anise", "right:1%;top:41%;width:22%"],
+  ["green", "right:3%;bottom:4%;width:27%"], ["jujube", "right:34%;bottom:5%;width:19%"]];   // 水彩の生薬6種(位置と大きさ。画像は assets/herb-名前.webp)
 function cardFace(view) {
   const rank = view ? view.rank : "white_opal";
   const front = el("div", undefined, { class: "face front" }), fin = el("div", undefined, { class: "in" });
   fin.append(el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT", class: "logo", width: "1400", height: "518", decoding: "async" }));
-  for (const [name, pos] of HERBS) fin.append(el("img", undefined, { src: `assets/herb-${name}.png`, alt: "", "aria-hidden": "true", class: "herb", style: pos, decoding: "async" }));
+  for (const [name, pos] of HERBS) fin.append(el("img", undefined, { src: `assets/herb-${name}.webp`, alt: "", "aria-hidden": "true", class: "herb", style: pos, decoding: "async" }));
   if (view) {
     fin.append(el("span", view.rankLabel, { id: "rank", class: `chip rank-${view.rank}` }));
     kids(fin, kids(el("div", undefined, { class: "who" }), el("h1", view.displayName, { id: "name" }), el("p", `会員番号 ${view.memberNo}`, { id: "memberNo" })));
