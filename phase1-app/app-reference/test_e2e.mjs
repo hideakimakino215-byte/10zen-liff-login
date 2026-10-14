@@ -23,7 +23,7 @@ const staffDeps = () => ({ supabase: { auth: { getUser: async (t) => ({ data: { 
   from: () => ({ select: () => ({ eq: (_k, v) => ({ maybeSingle: async () => ({ data: JSON.parse(pg.exec(`select coalesce((select row_to_json(s) from (select role, active from staff_users where user_id=${q(v)}) s),'null');`)) }) }) }) }) },
   qrSecret: SECRET, businessUnit: UNIT, liffUrl: "https://liff.line.me/2011158053-N7nKgExB", allowedOrigins: [], nowMs: () => Date.now() });
 
-const LIFF = `window.liff={init:async()=>{},isLoggedIn:()=>!!localStorage.getItem('tok'),getIDToken:()=>localStorage.getItem('tok'),login:()=>{window.__loginCalled=true}};`;
+const LIFF = `window.liff={init:async()=>{},isLoggedIn:()=>!!localStorage.getItem('tok'),getIDToken:()=>localStorage.getItem('tok'),getProfile:async()=>({userId:'Uline0000000000000000000000000001',displayName:'x'}),login:()=>{window.__loginCalled=true}};`;
 const SB = `window.supabase={createClient(){const S=()=>JSON.parse(localStorage.getItem('sess')||'null');return{
  auth:{signInWithPassword:async({email,password})=>{const r=await fetch('/auth',{method:'POST',body:JSON.stringify({email,password})});if(!r.ok)return{error:{message:'bad'}};const j=await r.json();localStorage.setItem('sess',JSON.stringify(j));return{data:j,error:null}},
  getSession:async()=>({data:{session:S()}}),signOut:async()=>{localStorage.removeItem('sess');return{}}},
@@ -86,6 +86,14 @@ try {
   ok("お客様: 未登録→登録ボタン→会員証(氏名・会員番号・ポイント・ランク)");
   await cust.reload(); await cust.waitForSelector("#points"); assert.equal(await text(cust, "#points"), `${welcomeExpected} pt`);
   ok("再読み込み・再ログインしてもポイントは変わらない(登録の重複付与なし)");
+  // 店舗情報(旧 会員証の裏面から引き継ぎ): 営業時間・電話(発信)・住所(地図)・予約・30秒体質チェック(LINE IDつき)
+  assert.match(await text(cust, "#storeHours"), /11:00〜21:00/);
+  assert.equal(await cust.getAttribute("#storeTel", "href"), "tel:0364505834");
+  assert.match(await cust.getAttribute("#storeMap", "href"), /^https:\/\/maps\.google\.com\/\?q=/);
+  assert.equal(await cust.getAttribute("#storeBooking", "href"), "https://booking.ebica.jp/webrsv/search/e014032801/23809");
+  assert.equal(await cust.getAttribute("#storeQuiz", "href"), "https://tally.so/r/440keB?line_user_id=Uline0000000000000000000000000001");
+  for (const id of ["#storeMap", "#storeBooking", "#storeQuiz"]) assert.equal(await cust.getAttribute(id, "rel"), "noopener noreferrer");
+  ok("店舗情報(裏面の引き継ぎ): 営業時間・電話(tel:)・地図・WEB予約・30秒体質チェック(line_user_id つき)が会員証に出る");
 
   // ---- スタッフ: ログイン・権限 ----
   let stf = await newPage(); await stf.goto(`${BASE}/app-reference/staff.html`); await stf.waitForSelector("#login");

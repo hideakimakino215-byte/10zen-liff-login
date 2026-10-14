@@ -28,14 +28,16 @@ run patches audit_additive.mjs 6
 run patches test_sample_delete_restore.mjs 3
 run functions/member-api test.mjs 19
 run app-core test.mjs 10
-run app-reference test_e2e.mjs 8
+run app-core test_store_info.mjs 3
+run app-reference test_e2e.mjs 9
 run tools test_build_v2.mjs 5
 run tools test_built_e2e.mjs 4
 run gas_backup test_backup.mjs 7
 run gas_freeze test_surface.mjs 4
 run gas_freeze test_codegs_edits.mjs 6
+run gas_freeze test_admin_stop.mjs 5
 run gas_freeze test_freeze.mjs 7 skip-ok
 echo "合格 ${TOTAL} 件 / 失敗したスイート ${FAILED} 件 / SKIP ${SKIPPED} 件"
-# 合格が想定より少ない(全体が SKIP・0件など)場合も失敗。freeze の7件を除く最小は 135
-if [ "$TOTAL" -lt 135 ]; then echo "!! 合格件数が足りません(${TOTAL} < 129)"; FAILED=$((FAILED + 1)); fi
+# 合格が想定より少ない(全体が SKIP・0件など)場合も失敗。freeze の7件を除く最小は 144
+if [ "$TOTAL" -lt 144 ]; then echo "!! 合格件数が足りません(${TOTAL} < 144)"; FAILED=$((FAILED + 1)); fi
 [ "$FAILED" -eq 0 ]

@@ -10,10 +10,11 @@
 <script type="module">
 import { createMemberClient, qrTokenFromLocation } from "../app-core/member-client.mjs";
 import { cardScreen, checkinScreen, redeemScreen, redeemWatch } from "../app-core/screens.mjs";
+import { STORE, quizUrl, flowFromLocation } from "../app-core/store-info.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 const show = (...nodes) => { app.replaceChildren(...nodes); };
-let client, prevView = null, poll = null, notice = null;
+let client, prevView = null, poll = null, notice = null, lineUserId = null;
 
 function cardNodes(view) {
   const n = [];
@@ -34,7 +35,15 @@ function cardNodes(view) {
     b.onclick = async () => { const s = redeemScreen(await client.redeemRequest(Number(i.value)), Date.now()); if (s.error) { notice = s.error; } else { notice = s.notice || null; } load(); };
     n.push(i, b);
   }
+  n.push(...storeNodes());
   return n;
+}
+// 店舗情報(旧 会員証の裏面): 電話はタップで発信、住所は Google マップ、予約は WEB 予約ページ、体質チェックは Tally(LINE ID つき)
+function storeNodes() {
+  const a = (text, href, id, ext) => el("a", text, { id, href, ...(ext ? { target: "_blank", rel: "noopener noreferrer" } : {}) });
+  return [el("h2", STORE.name, { id: "storeName" }), el("p", STORE.hoursText, { id: "storeHours" }),
+    a(`TEL ${STORE.telText}`, STORE.telHref, "storeTel"), a(`📍 ${STORE.addressText}`, STORE.mapUrl, "storeMap", true),
+    a("WEBご予約", STORE.bookingUrl, "storeBooking", true), a("30秒体質チェック", quizUrl(lineUserId), "storeQuiz", true)];
 }
 async function load() {
   clearTimeout(poll);
@@ -52,13 +61,18 @@ async function load() {
 (async () => {
   try { await window.liff.init({ liffId: cfg.liffId }); } catch (_e) { return show(el("p", "LINE アプリで開いてください", { id: "msg" })); }
   if (!window.liff.isLoggedIn()) { window.liff.login(); return; }
+  lineUserId = (await window.liff.getProfile?.().catch?.(() => null))?.userId || null;
   client = createMemberClient({ endpoint: cfg.memberApi, getIdToken: async () => window.liff.getIDToken() });
-  const qr = qrTokenFromLocation(location.search);
+  const qr = qrTokenFromLocation(location.search), flow = flowFromLocation(location.search);
   if (qr) {                                    // 店頭QRから開いた: 来店を記録してから会員証を出す
     const r = await client.checkin(qr);
     if (r.kind === "not_registered") { const prof = await window.liff.getProfile?.().catch?.(() => null); await client.register({ displayName: prof?.displayName }); const r2 = await client.checkin(qr); const s2 = checkinScreen(r2); notice = s2.message; }
     else { const s = checkinScreen(r); notice = s.message; }
     history.replaceState(null, "", location.pathname);     // 再読み込みで同じQRを再送しない(送っても付与は1回)
+  }
+  if (flow === "quiz") {                                                         // 旧仕様: 来店・登録の処理のあと、そのまま体質チェックへ
+    if (!qr && cardScreen(await client.me(), Date.now()).screen === "register") { const prof = await window.liff.getProfile?.().catch?.(() => null); await client.register({ displayName: prof?.displayName }); }
+    location.href = quizUrl(lineUserId); return;
   }
   load();
 })();

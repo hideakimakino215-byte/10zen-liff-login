@@ -10,6 +10,8 @@ import { handle as memberApi } from "../functions/member-api/handler.ts";
 import { handle as staffQrApi } from "../functions/staff-qr/handler.ts";
 import { build } from "./build_v2.mjs";
 
+const jstToday = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+const welcomeExpected = jstToday >= "2026-10-10" && jstToday <= "2026-10-31" ? 200 : 100;   // 規則の初期値のキャンペーン(本番では decide_policy で停止)
 const pg = startPg(); const CH = "2011158053", SECRET = "b".repeat(64), UNIT = "10zen_aoyama";
 const U = { staff: "00000000-0000-0000-0000-0000000000b2", kiosk: "00000000-0000-0000-0000-0000000000f6" };
 const EMAIL = { "staff@t": U.staff, "kiosk@t": U.kiosk };
@@ -77,7 +79,7 @@ try {
   const cust = await newPage(makeJwt({ sub: "U" + "7".repeat(32), name: "試験 花子" }));
   const via = qrUrl.replace("https://liff.line.me/2011158053-N7nKgExB", `${BASE}/app-reference/card.html`).replace(/\?(.*)$/, (_m, qs) => "?liff.state=" + encodeURIComponent("?" + qs));
   await cust.goto(via); await cust.waitForSelector("#notice"); await cust.waitForSelector("#points");
-  assert.match(await text(cust, "#notice"), /100pt を付与/); assert.equal(await text(cust, "#points"), "200 pt"); assert.equal(await text(cust, "#name"), "試験 花子");
+  assert.match(await text(cust, "#notice"), /100pt を付与/); assert.equal(await text(cust, "#points"), `${welcomeExpected + 100} pt`); assert.equal(await text(cust, "#name"), "試験 花子");
   assert.equal(val("select count(*) from visits where source='store_qr'"), "1"); assert.deepEqual(cust.errs, []);
   ok("お客様: LIFF の ?liff.state= の形の店頭QRで開くと、登録 → 来店の記録(登録100pt+来店100pt)。ブラウザのエラーなし");
 
@@ -94,7 +96,7 @@ try {
   await stf.fill("#email", "staff@t"); await stf.fill("#password", "pw"); await stf.click("#login"); await stf.waitForSelector("#who:has-text('staff')");
   await stf.fill("#code", code); await stf.click("#lookup"); await stf.waitForSelector("#confirm"); assert.match(await text(stf, "#rAmount"), /100pt = 10円/);
   await stf.click("#confirm"); await stf.waitForSelector("#rDone"); assert.match(await text(stf, "#rDone"), /確定しました: 100pt/);
-  await cust.waitForSelector("#lastRedeem", { timeout: 8000 }); assert.equal(await text(cust, "#points"), "100 pt");
+  await cust.waitForSelector("#lastRedeem", { timeout: 8000 }); assert.equal(await text(cust, "#points"), `${welcomeExpected} pt`);
   assert.equal(val("select count(*) from public.verify_balances()"), "0"); assert.deepEqual(stf.errs, []);
   ok("スタッフ(実物の supabase-js): 店頭専用アカウントは拒否・スタッフでログイン → コード入力 → 確定 → お客様の画面が自動で『使用しました』・残高100。残高=台帳");
   console.log(`\n${n} built e2e tests passed`);
