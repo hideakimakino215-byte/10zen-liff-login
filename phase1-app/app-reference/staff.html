@@ -28,9 +28,9 @@ button:disabled{opacity:.55;cursor:default}
 .btn-ghost{min-height:44px;padding:0 16px;border:1.5px solid var(--line);background:var(--card);border-radius:12px;font-weight:700;font-size:14px;white-space:nowrap}
 
 /* タブ(機能ごとの色) */
-#nav{background:var(--card);border-bottom:1px solid var(--line);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:0 8px}
+#nav{background:var(--card);border-bottom:1px solid var(--line);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:0 8px}
 #nav button{min-height:48px;border:0;background:none;font-weight:700;font-size:14px;color:var(--muted);border-bottom:3px solid transparent;padding:4px 2px;line-height:1.25}
-#nav button[data-tab=redeem]{--c:var(--teal)} #nav button[data-tab=members]{--c:var(--purple)} #nav button[data-tab=today]{--c:var(--orange)} #nav button[data-tab=dash]{--c:var(--blue)}
+#nav button[data-tab=redeem]{--c:var(--teal)} #nav button[data-tab=members]{--c:var(--purple)} #nav button[data-tab=dash]{--c:var(--blue)}
 #nav button[aria-current=page]{color:var(--c);border-bottom-color:var(--c)}
 
 main{max-width:1080px;margin:0 auto;padding:20px 16px 40px;display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
@@ -84,13 +84,13 @@ h1,h2,h3{margin:0}
 #confirm{min-height:76px;flex:1 1 240px;border:0;border-radius:14px;background:var(--ok);color:#fff;font-size:24px;font-weight:900}
 .done{align-items:center}
 #rDone{font-size:22px;font-weight:900}
-.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px 16px 16px;display:grid;justify-items:center;align-content:start;gap:8px;text-align:center;min-height:180px}
 .card svg{width:56px;height:56px;color:var(--c)}
 .card h2{font-size:21px}
 .card .pill{background:var(--c-soft);color:var(--c)}
 .card .go{color:var(--muted);font-size:14px}
-.card.c-purple{--c:var(--purple);--c-soft:var(--purple-soft)} .card.c-orange{--c:var(--orange);--c-soft:var(--orange-soft)} .card.c-blue{--c:var(--blue);--c-soft:var(--blue-soft)}
+.card.c-purple{--c:var(--purple);--c-soft:var(--purple-soft)} .card.c-blue{--c:var(--blue);--c-soft:var(--blue-soft)}
 
 /* 会員(紫) */
 .band{--c:var(--purple);background:var(--purple-soft);border:2px solid var(--purple);border-radius:var(--radius);padding:18px;display:grid;gap:12px}
@@ -104,7 +104,6 @@ h1,h2,h3{margin:0}
 .rank.r-amber{background:linear-gradient(135deg,#f3c27a,#b45309)} .rank.r-emerald{background:linear-gradient(135deg,#5fbf97,#064e3b)} .rank.r-ruby{background:linear-gradient(135deg,#e07a9e,#831843)}
 .rank.r-onyx{color:#d4af37;background:linear-gradient(135deg,#2a3142,#0b1220);border-color:#d4af37}
 .row .arrow{color:var(--muted);font-size:20px}
-.row.static{grid-template-columns:auto auto minmax(0,1fr)}
 .detail{--c:var(--purple);border-color:var(--purple);border-width:2px}
 .detail h2{font-size:22px;overflow-wrap:anywhere}
 .detail h2 .no{font-size:15px;font-weight:500;color:var(--muted)}
@@ -122,7 +121,7 @@ h1,h2,h3{margin:0}
 #adjOut{margin:0;font-weight:700}
 
 /* 本日の来店(オレンジ) / 集計(青) */
-.c-orange-text{color:var(--orange)} .c-blue-text{color:var(--blue)}
+.c-blue-text{color:var(--blue)}
 .state{display:inline-flex;align-items:center;gap:8px;padding:5px 14px;border-radius:999px;font-weight:800}
 .state i{width:10px;height:10px;border-radius:50%;background:currentColor}
 .state.ok{background:var(--ok-soft);color:var(--ok)} .state.warn{background:var(--warn-soft);color:var(--warn)} .state.bad{background:var(--bad-soft);color:var(--bad)} .state.unknown{background:#eef1f5;color:var(--muted)}
@@ -158,7 +157,7 @@ h1,h2,h3{margin:0}
 <body>
 <header class="topbar"><img class="logo" src="assets/logo.png" alt="10ZEN"><span id="who"></span> <button id="logout" class="btn-ghost" hidden>ログアウト</button></header>
 <nav id="nav" hidden aria-label="機能">
-  <button data-tab="redeem">ポイント使用</button> <button data-tab="members">会員</button> <button data-tab="today">本日の来店</button>
+  <button data-tab="redeem">ポイント使用</button> <button data-tab="members">会員</button>
   <button data-tab="dash">集計</button>
 </nav>
 <main id="app"></main>
@@ -189,7 +188,6 @@ const SVGNS = "http://www.w3.org/2000/svg";
 const ICONS = {
   redeem: [["rect", { x: 4, y: 3, width: 16, height: 18, rx: 2 }], ["path", { d: "M9 3v2h6V3" }], ["path", { d: "m8.5 13 2.5 2.5 4.5-5" }]],
   members: [["circle", { cx: 9, cy: 8, r: 3.5 }], ["path", { d: "M2.5 20a6.5 6.5 0 0 1 13 0" }], ["circle", { cx: 17, cy: 9, r: 2.5 }], ["path", { d: "M15.5 14.5A5 5 0 0 1 22 19" }]],
-  today: [["path", { d: "M4 21V5a2 2 0 0 1 2-2h7v18" }], ["path", { d: "M13 21h7V9h-7" }], ["path", { d: "M9 12h1" }]],
   dash: [["path", { d: "M4 20h16" }], ["rect", { x: 5, y: 11, width: 3.5, height: 7, rx: 1 }], ["rect", { x: 10.25, y: 6, width: 3.5, height: 12, rx: 1 }], ["rect", { x: 15.5, y: 9, width: 3.5, height: 9, rx: 1 }]],
 };
 function icon(name) {
@@ -234,10 +232,10 @@ document.getElementById("nav").onclick = (ev) => { const t = ev.target.closest?.
 function tab(t) {
   for (const b of document.querySelectorAll("#nav [data-tab]")) { if (b.dataset.tab === t) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
   window.scrollTo(0, 0);
-  ({ redeem: redeemView, members: membersView, today: todayView, dash: dashView })[t]();
+  ({ redeem: redeemView, members: membersView, dash: dashView })[t]();
 }
 
-// ---- ポイント使用(ログイン直後の画面: 最上段にコード入力、下に3つの入口) ----
+// ---- ポイント使用(ログイン直後の画面: 最上段にコード入力、下に会員・集計の入口) ----
 function redeemView() {
   let st = redeemInitial;
   const code = el("input", undefined, { id: "code", class: "input num", inputmode: "numeric", maxlength: "7", autocomplete: "off", placeholder: "お客様のコード(6桁)", "aria-label": "お客様のコード(6桁)" });
@@ -277,15 +275,15 @@ function redeemView() {
     el("p", "お客様の画面に表示された6桁のコードを入力してください。", { class: "hint" }), stepsEl,
     put(el("div", undefined, { class: "row-flex" }), code, go), out);
   hero.firstChild.id = "redeemTitle";
-  // 下の3つの入口(会員・本日の来店・集計)。件数は集計から(取れなければ「—」)
-  const pills = { members: el("span", `有効 ${DASH} 人`, { class: "pill num" }), today: el("span", `来店 ${DASH} 人`, { class: "pill num" }), dash: el("span", `状態 ${DASH}`, { class: "pill" }) };
+  // 下の入口(会員・集計)。件数は集計から(取れなければ「—」)。本日の来店は集計にまとめた
+  const pills = { members: el("span", `有効 ${DASH} 人`, { class: "pill num" }), dash: el("span", `来店 ${DASH} 人`, { class: "pill num" }) };
   const card = (t, cls, name, h, go) => { const b = put(el("button", undefined, { class: `card ${cls}`, "data-go": t }), icon(name), el("h2", h), pills[t], el("span", `${go} ›`, { class: "go" })); b.onclick = () => tab(t); return b; };
   const cards = put(el("section", undefined, { class: "cards", "aria-label": "ほかの機能" }),
-    card("members", "c-purple", "members", "会員", "会員番号・氏名で探す"), card("today", "c-orange", "today", "本日の来店", "今日の来店を見る"), card("dash", "c-blue", "dash", "集計", "今月の付与・使用を見る"));
+    card("members", "c-purple", "members", "会員", "会員番号・氏名で探す"), card("dash", "c-blue", "dash", "集計", "本日の来店・今月の付与と使用"));
   show(hero, cards);
   staff.dashboard().then((r) => {
     if (r.kind !== "ok") return;
-    pills.members.textContent = `有効 ${n(r.data.membersActive)} 人`; pills.today.textContent = `来店 ${n(r.data.visitsToday)} 人`; pills.dash.textContent = `状態 ${STATE[r.data.state]?.label ?? DASH}`;
+    pills.members.textContent = `有効 ${n(r.data.membersActive)} 人`; pills.dash.textContent = `本日の来店 ${n(r.data.visitsToday)} 人`;
   });
   code.focus();
 }
@@ -349,28 +347,12 @@ async function detailView(id, backQuery = "") {
   show(panel);
 }
 
-// ---- 本日の来店(オレンジ) ----
-async function todayView() {
-  const reload = el("button", "更新", { class: "btn sub", id: "reloadToday", style: "--c:var(--orange)" }); reload.onclick = todayView;
-  const r = await staff.todayVisits();
-  const head = put(el("div", undefined, { class: "head" }), title("today", "本日の来店", "c-orange-text"));
-  if (r.kind !== "ok") return show(head, failView("取得できませんでした", todayView));
-  head.append(el("span", `${n(r.data.items.length)} 人`, { class: "pill num" }), el("span", `${jst(new Date().toISOString()).slice(11)} 時点`, { class: "asof num" }), reload);
-  const nodes = [head];
-  if (r.data.suspiciousSlots.length) nodes.push(msgBox("warn", `要確認: 同時刻に ${r.data.suspiciousSlots.map((s) => s.count).join(",")} 人の来店記録があります`, "suspicious", "(QRの写真の拡散などの疑い)"));
-  const ul = el("ul", undefined, { id: "visits", class: "list" });
-  for (const v of r.data.items) ul.append(put(el("li", undefined, { class: "row static num" }), el("span", hhmm(v.at), { class: "time" }), el("span", v.memberNo, { class: "no" }), el("span", v.displayName ?? DASH, { class: "nm" })));
-  if (!r.data.items.length) ul.append(put(el("li"), msgBox("info", "今日の来店記録はまだありません")));
-  nodes.push(ul);
-  show(...nodes);
-}
-
 // ---- 集計(青) ----
 const STATE = { open: { label: "運用中", cls: "ok" }, test: { label: "試験運用", cls: "warn" }, frozen: { label: "停止中(切替作業)", cls: "bad" } };
 async function dashView() {
   const reload = el("button", "更新", { class: "btn sub", id: "reloadDash", style: "--c:var(--blue)" }); reload.onclick = dashView;
   const head = put(el("div", undefined, { class: "head" }), title("dash", "集計", "c-blue-text"));
-  const r = await staff.dashboard();
+  const [r, tv] = await Promise.all([staff.dashboard(), staff.todayVisits()]);
   if (r.kind !== "ok") return show(head, failView("取得できませんでした", dashView));
   const d = r.data, s = STATE[d.state] ?? { label: d.state ?? DASH, cls: "unknown" };
   head.append(put(el("span", undefined, { class: `state ${s.cls}`, id: "dashState" }), el("i"), document.createTextNode(s.label)), el("span", `${jst(d.asOf) ?? DASH} 時点`, { class: "asof num" }), reload);
@@ -379,6 +361,8 @@ async function dashView() {
   if (typeof d.balanceMismatches === "number" && d.balanceMismatches > 0) bad.push(msgBox("bad", `残高と履歴が合いません(${n(d.balanceMismatches)}件)。至急確認`));
   if (Array.isArray(d.undecidedPolicies) && d.undecidedPolicies.length) warn.push(msgBox("warn", `未決定の方針が ${d.undecidedPolicies.length} 件あります`, undefined, d.undecidedPolicies.join(", ")));
   if (typeof d.pendingRedeems === "number" && d.pendingRedeems > 0) warn.push(msgBox("warn", `確定待ちのポイント使用: ${n(d.pendingRedeems)} 件`, undefined, "お客様が使用コードを表示中で、まだ確定していません。3分たつと自動で無効になります"));
+  // 本日の来店のうち、同じ30秒に6人以上の来店記録(QRの写真の拡散などの疑い)。取れなければ出さない
+  if (tv.kind === "ok" && tv.data.suspiciousSlots.length) warn.unshift(msgBox("warn", `要確認: 本日、同じ時刻に ${tv.data.suspiciousSlots.map((x) => x.count).join("人・")}人の来店記録があります`, "suspicious", "店の外でQRの写真が使われた疑いがあります"));
   if (d.balanceMismatches === 0) ok.push(msgBox("ok", "残高と履歴は一致しています"));
   const stat = (cls, k, v, unit) => put(el("div", undefined, { class: `stat ${cls}` }), el("div", k, { class: "k" }), put(el("div", n(v), { class: "v num" }), el("small", unit)));
   const nodes = [head, put(el("div", undefined, { class: "alerts" }), ...bad, ...warn, ...ok),
