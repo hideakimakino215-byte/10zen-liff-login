@@ -1,7 +1,7 @@
 <!doctype html>
 <!-- 会員証(両面)。見た目だけを持つ。業務処理は ../app-core のクライアントと画面状態(screens.mjs)・店舗情報(store-info.mjs)に集約されている。
      UI が守ること: 画面は cardScreen/checkinScreen/redeemScreen が返す screen 名で分岐し、表示は view の項目をそのまま使う。値の未取得は『—』。値は textContent で入れる(innerHTML 不可)。
-     表面の画像: assets/card-front.jpg(店のショップカード 0507 の表面の絵柄。ロゴと薬膳素材。1100×664)。 -->
+     素材: assets/logo.png(店のロゴ・透過)と assets/herb-*.png(店のショップカード 0507 の薬膳素材を切り抜き)。 -->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
 <title>10ZEN 会員証</title>
 <style>
@@ -13,28 +13,39 @@ h1, h2, p { margin:0; }
 a { color:inherit; }
 .serif { font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; }
 .notice { background:#fff; border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:8px; padding:12px 14px; margin:0 0 16px; font-size:14px; line-height:1.6; }
-/* ---- カード(タップで裏返る) ---- */
+/* ---- カード(タップで裏返る)。ランクごとに枠・帯・バッジの色が変わる ---- */
 .scene { perspective:1200px; }
-.card { position:relative; width:100%; cursor:pointer; transform-style:preserve-3d; transition:transform .6s cubic-bezier(.2,.7,.2,1); outline-offset:4px; border-radius:14px; }
+.card { position:relative; width:100%; aspect-ratio:1.3 / 1; cursor:pointer; transform-style:preserve-3d; transition:transform .6s cubic-bezier(.2,.7,.2,1); outline-offset:4px; border-radius:16px;
+  --r1:#e9e7e1; --r2:#bfbcb3; --r3:#fbfaf6; --on:#3b3935; --tint:#fdfcf9; --lg:none; }
+.card.rank-amber { --r1:#f3c27a; --r2:#b45309; --r3:#fff7ea; --on:#7c3a06; --tint:#fff9ef; }
+.card.rank-emerald { --r1:#5fbf97; --r2:#064e3b; --r3:#f1faf5; --on:#064e3b; --tint:#f4fbf7; }
+.card.rank-ruby { --r1:#e07a9e; --r2:#831843; --r3:#fdf2f6; --on:#831843; --tint:#fef5f8; }
+.card.rank-onyx { --r1:#4b5160; --r2:#0b1220; --r3:#f3f3f6; --on:#d4af37; --tint:#f7f6f2; --lg:1; }
 .card.flipped { transform:rotateY(180deg); }
-.face { position:relative; backface-visibility:hidden; -webkit-backface-visibility:hidden; border-radius:14px; background:var(--paper); box-shadow:0 10px 28px rgba(60,45,20,.16), 0 1px 3px rgba(60,45,20,.12); overflow:hidden; display:flex; flex-direction:column; }
-.face.back { position:absolute; inset:0; transform:rotateY(180deg); padding:16px 18px 12px; }
-.face img { display:block; width:100%; height:auto; aspect-ratio:1100 / 664; background:#fff; }
-.band { flex:none; height:66px; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:0 16px; border-top:1px solid var(--line); min-height:0; }
-.who { min-width:0; }
-.who h1 { font-size:17px; font-weight:600; letter-spacing:.02em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.who p { font-size:11px; color:var(--sub); letter-spacing:.06em; margin-top:2px; }
-.chip { flex:none; font-size:11px; letter-spacing:.12em; padding:5px 10px; border-radius:999px; border:1px solid var(--line); background:#fff; font-weight:600; }
-.rank-white_opal { color:#555; background:#f4f4f2; } .rank-amber { color:#fff; background:#b45309; border-color:#b45309; } .rank-emerald { color:#ecfdf5; background:#064e3b; border-color:#064e3b; }
-.rank-ruby { color:#fdf2f8; background:#831843; border-color:#831843; } .rank-onyx { color:#d4af37; background:#0f172a; border-color:#d4af37; }
+.face { position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; border-radius:16px; overflow:hidden; box-shadow:0 12px 30px rgba(60,45,20,.18), 0 1px 3px rgba(60,45,20,.14);
+  background:linear-gradient(135deg,var(--r1),var(--r2)); padding:5px; }
+.face .in { position:relative; width:100%; height:100%; border-radius:12px; background:var(--tint); overflow:hidden; }
+.face.back { transform:rotateY(180deg); }
+.logo { display:block; height:auto; }
+.herb { position:absolute; height:auto; pointer-events:none; filter:drop-shadow(0 2px 3px rgba(60,40,20,.18)); }
+.front .logo { position:absolute; left:6.5%; top:9%; width:38%; }
+.who { position:absolute; left:7%; bottom:8.5%; right:44%; min-width:0; }
+.who h1 { font-size:19px; font-weight:600; letter-spacing:.03em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.who p { font-size:11.5px; color:var(--sub); letter-spacing:.1em; margin-top:3px; }
+.chip { display:inline-block; font-size:11px; letter-spacing:.14em; padding:5px 11px; border-radius:999px; font-weight:700; color:#fff; background:linear-gradient(135deg,var(--r1),var(--r2)); border:1px solid rgba(0,0,0,.08); text-shadow:0 1px 1px rgba(0,0,0,.2); }
+.rank-white_opal.chip { color:#4a4843; text-shadow:none; background:linear-gradient(135deg,#f6f5f1,#d8d5cc); }
+.rank-onyx.chip { color:#d4af37; text-shadow:none; background:linear-gradient(135deg,#2a3142,#0b1220); border-color:#d4af37; }
+.front .chip { position:absolute; left:7%; top:44%; }
 .hint { text-align:center; font-size:11px; color:var(--sub); margin:12px 0 0; letter-spacing:.08em; }
-/* ---- 裏面(店舗情報) ---- */
-.back h2 { font-size:17px; font-weight:600; letter-spacing:.12em; }
-.back .hours, .back .addr, .back .tel { font-size:13px; line-height:1.6; margin-top:9px; }
+/* ---- 裏面(店舗情報。中央揃え) ---- */
+.back .in { display:flex; flex-direction:column; align-items:center; text-align:center; padding:16px 14px 12px; }
+.back .logo { width:40%; }
+.back .branch { font-size:12px; letter-spacing:.42em; margin-top:7px; color:var(--sub); }
+.back .hours, .back .addr, .back .tel { font-size:14.5px; line-height:1.5; margin-top:7px; }
 .back .tel a, .back .addr a { text-decoration:none; border-bottom:1px solid var(--line); }
-.back .actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:auto; }
-.back .btn { display:flex; align-items:center; justify-content:center; text-align:center; min-height:40px; padding:6px 8px; border:1px solid var(--ink); border-radius:8px; font-size:12.5px; font-weight:600; text-decoration:none; background:#fff; }
-.back .back-note { font-size:10.5px; color:var(--sub); text-align:center; margin-top:8px; letter-spacing:.08em; }
+.back .actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; width:100%; margin-top:auto; padding-top:10px; }
+.back .btn { display:flex; align-items:center; justify-content:center; text-align:center; min-height:44px; padding:6px 8px; border:1px solid var(--ink); border-radius:10px; font-size:13.5px; font-weight:600; text-decoration:none; background:#fff; color:var(--ink); }
+.back .back-note { font-size:10.5px; color:var(--sub); margin-top:7px; letter-spacing:.08em; }
 /* ---- ポイント ---- */
 .panel { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:18px 18px 16px; margin-top:20px; }
 .label { font-size:11px; letter-spacing:.14em; color:var(--sub); }
@@ -60,7 +71,7 @@ details.benefits summary::-webkit-details-marker { display:none; }
 .benefit .chip { min-width:96px; text-align:center; }
 .ticket { margin-top:16px; text-align:center; background:#0f172a; color:#d4af37; border-radius:12px; padding:14px; font-size:14px; font-weight:600; line-height:1.6; }
 .ticket small { display:block; font-weight:400; font-size:12px; color:#e2e8f0; }
-@media (max-width:340px) { .points { font-size:36px; } .code { font-size:36px; } .back { padding:12px 14px 10px; } .back .hours, .back .addr, .back .tel { font-size:12px; margin-top:5px; } .back .btn { font-size:11.5px; min-height:38px; padding:4px; } }
+@media (max-width:340px) { .points { font-size:36px; } .code { font-size:36px; } .back .in { padding:12px 10px 8px; } .back .hours, .back .addr, .back .tel { font-size:12.5px; margin-top:5px; } .back .btn { font-size:11.5px; min-height:38px; padding:4px; } .who h1 { font-size:16px; } }
 @media (prefers-reduced-motion: reduce) { .card { transition:none; } }
 </style></head>
 <body>
@@ -76,26 +87,31 @@ const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); i
 const kids = (parent, ...nodes) => { for (const n of nodes) if (n) parent.append(n); return parent; };
 const show = (...nodes) => { app.replaceChildren(...nodes); };
 let client, prevView = null, poll = null, notice = null, lineUserId = null, flipped = false;
-const FRONT_IMG = "assets/card-front.jpg";
 const BENEFITS = [["white_opal", "WHITE OPAL", "100pt = 10円としてお会計時にいつでも利用可能"], ["amber", "AMBER", "10,000pt達成:季節の薬膳茶を1杯プレゼント"], ["emerald", "EMERALD", "50,000pt達成:限定薬膳スイーツご提供"],
   ["ruby", "RUBY", "100,000pt達成:お会計5%OFF & 特別席優先案内"], ["onyx", "ONYX", "200,000pt達成:新メニュー特別試食会ご招待 & 特別優待"]];
 
-// 表面(ショップカードの画像+氏名・会員番号・ランク)と裏面(店舗情報)。タップで裏返る。リンクのタップでは裏返らない
+// 表面(会員証: ロゴ・氏名・会員番号・ランク+生薬の飾り)と裏面(店舗情報)。タップで裏返る。リンクのタップでは裏返らない
+const HERBS = [["reishi", "right:3%;top:7%;width:19%"], ["cinnamon", "right:22%;top:-3%;width:24%"], ["anise", "right:2%;top:41%;width:15%"], ["goji", "right:21%;top:34%;width:14%"],
+  ["ginseng", "right:5%;bottom:3%;width:26%"], ["jujube", "right:33%;bottom:6%;width:15%"]];
 function cardFace(view) {
-  const front = el("div", undefined, { class: "face front" });
-  front.append(el("img", undefined, { src: FRONT_IMG, alt: "10ZEN YAKUZEN RESTAURANT", width: "1100", height: "664", decoding: "async" }));
-  const band = el("div", undefined, { class: "band" }), who = el("div", undefined, { class: "who" });
-  if (view) kids(who, el("h1", view.displayName, { id: "name" }), el("p", `会員番号 ${view.memberNo}`, { id: "memberNo" }));
-  band.append(who); if (view) band.append(el("span", view.rankLabel, { id: "rank", class: `chip rank-${view.rank}` }));
-  front.append(band);
-  const back = el("div", undefined, { class: "face back" });
+  const rank = view ? view.rank : "white_opal";
+  const front = el("div", undefined, { class: "face front" }), fin = el("div", undefined, { class: "in" });
+  fin.append(el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT", class: "logo", width: "1400", height: "518", decoding: "async" }));
+  for (const [name, pos] of HERBS) fin.append(el("img", undefined, { src: `assets/herb-${name}.png`, alt: "", "aria-hidden": "true", class: "herb", style: pos, decoding: "async" }));
+  if (view) {
+    fin.append(el("span", view.rankLabel, { id: "rank", class: `chip rank-${view.rank}` }));
+    kids(fin, kids(el("div", undefined, { class: "who" }), el("h1", view.displayName, { id: "name" }), el("p", `会員番号 ${view.memberNo}`, { id: "memberNo" })));
+  }
+  front.append(fin);
+  const back = el("div", undefined, { class: "face back" }), bin = el("div", undefined, { class: "in" });
   const link = (text, href, id, cls, ext) => el("a", text, { id, href, ...(cls ? { class: cls } : {}), ...(ext ? { target: "_blank", rel: "noopener noreferrer" } : {}) });
-  kids(back, el("h2", STORE.name, { id: "storeName", class: "serif" }), el("p", STORE.hoursText, { id: "storeHours", class: "hours" }),
+  kids(bin, el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT", class: "logo", width: "1400", height: "518", decoding: "async" }), el("h2", "青山店", { id: "storeName", class: "branch" }), el("p", STORE.hoursText, { id: "storeHours", class: "hours" }),
     kids(el("p", undefined, { class: "tel" }), link(`TEL ${STORE.telText}`, STORE.telHref, "storeTel")),
     kids(el("p", undefined, { class: "addr" }), link(`📍 ${STORE.addressText}`, STORE.mapUrl, "storeMap", "", true)),
     kids(el("div", undefined, { class: "actions" }), link("WEBご予約", STORE.bookingUrl, "storeBooking", "btn", true), link("30秒体質チェック", quizUrl(lineUserId), "storeQuiz", "btn", true)),
     el("p", "タップで表面へ", { class: "back-note" }));
-  const card = el("div", undefined, { class: "card" + (flipped ? " flipped" : ""), role: "button", tabindex: "0", "aria-label": "会員証。タップで表裏を切り替え", "aria-pressed": String(flipped) });
+  back.append(bin);
+  const card = el("div", undefined, { class: `card rank-${rank}` + (flipped ? " flipped" : ""), role: "button", tabindex: "0", "aria-label": "会員証。タップで表裏を切り替え", "aria-pressed": String(flipped) });
   const sync = () => { card.classList.toggle("flipped", flipped); card.setAttribute("aria-pressed", String(flipped)); (flipped ? front : back).setAttribute("inert", ""); (flipped ? back : front).removeAttribute("inert"); };
   const flip = () => { flipped = !flipped; sync(); };
   card.addEventListener("click", (ev) => { if (ev.target.closest("a")) return; flip(); });
@@ -113,7 +129,8 @@ function cardNodes(view) {
   kids(pts, el("p", "保有ポイント", { class: "label" }), el("p", view.pointsText, { id: "points", class: "points" }), el("p", view.yenText, { id: "yen", class: "yen" }));
   const bar = el("div", undefined, { class: "bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(view.next.percent ?? 0), "aria-label": "次のランクまで" });
   const fill = el("i"); fill.style.width = `${Math.max(0, Math.min(100, Number(view.next.percent) || 0))}%`; bar.append(fill);
-  kids(pts, bar, el("p", `${view.next.remainingText}${view.next.label ? "(" + view.next.label + ")" : ""}`, { id: "next", class: "next" }));
+  kids(pts, bar, el("p", `${view.next.remainingText}${view.next.label ? "(" + view.next.label + ")" : ""}`, { id: "next", class: "next" }),
+    el("p", `ランクは、使っても減らない「累計ポイント」で決まります。累計 ${view.lifetimeText}`, { id: "lifetime", class: "meta" }));
   if (view.lifetimeNote) pts.append(el("p", view.lifetimeNote, { id: "lifetimeNote", class: "meta" }));
   if (view.expiresText) pts.append(el("p", `有効期限 ${view.expiresText}`, { id: "expires", class: "meta" }));
   if (view.lastRedeem) pts.append(el("p", view.lastRedeem.message, { id: "lastRedeem", class: "meta" }));
