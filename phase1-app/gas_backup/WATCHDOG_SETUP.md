@@ -20,7 +20,7 @@
 
 本番の変更を含む。1 は開発担当(Claude Code)が牧野さんの承認を得て行う。2〜4 は Google にログインした状態で行う(約15分)。
 
-1. **Supabase の backup-export 関数を更新する。** `functions/backup-export` を本番へ反映する。既存の書き出し・記録の動きは変わらない。DB の変更はない。
+1. **Supabase の backup-export 関数を更新する。** `functions/backup-export` を本番へ反映する。既存の書き出し・記録の動きは変わらない。DB の変更はない。**2026-10-14 反映済み(version 3、牧野さん承認)。**
 2. **バックアップ本体の GAS を更新し、トークンを表示する。**
    - バックアップ本体の Apps Script に、最新の `backup.gs` を貼り付けて保存する。
    - 上の関数の選択から `showWatchdogToken` を選んで実行する。
