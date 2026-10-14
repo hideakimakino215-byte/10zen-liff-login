@@ -1,10 +1,164 @@
 <!doctype html>
-<!-- 参照実装(見た目は最小限)。最終UIはこのファイルを差し替える。権限の判定は DB の関数側(画面の出し分けは補助)。 -->
+<!-- スタッフ画面(B案: 白地+機能ごとの色。ティール=ポイント使用・紫=会員・オレンジ=本日の来店・青=集計。成功=緑/注意=オレンジ/失敗=赤)。
+     権限の判定は DB の関数側(画面の出し分けは補助)。描画は textContent のみ(innerHTML は使わない)。外部の CDN・フォントは使わない。 -->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
-<title>10ZEN スタッフ</title></head>
+<title>10ZEN スタッフ</title>
+<style>
+:root{
+  --bg:#f3f5f8; --card:#fff; --fg:#1c2430; --muted:#5b6675; --line:#e3e7ee;
+  --teal:#0f9d8f; --teal-soft:#e3f5f2; --purple:#7a5af5; --purple-soft:#eee9fe;
+  --orange:#d9670f; --orange-soft:#fff0e2; --blue:#2f7fe0; --blue-soft:#e6f0fc;
+  --ok:#1f8a4c; --ok-soft:#e4f6ea; --warn:#c75f0e; --warn-soft:#fff1e3; --bad:#c93a3a; --bad-soft:#fde8e8;
+  --radius:16px; color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;-webkit-text-size-adjust:100%}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{opacity:.55;cursor:default}
+:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+[hidden]{display:none!important}
+.num{font-variant-numeric:tabular-nums}
+
+/* 上部: ロゴ・ログイン中・ログアウト */
+.topbar{background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;align-items:center;gap:12px;padding-top:max(10px,env(safe-area-inset-top))}
+.logo{height:36px;width:auto;display:block}
+#who{margin-left:auto;color:var(--muted);font-size:14px;min-width:0;overflow-wrap:anywhere;text-align:right}
+.btn-ghost{min-height:44px;padding:0 16px;border:1.5px solid var(--line);background:var(--card);border-radius:12px;font-weight:700;font-size:14px;white-space:nowrap}
+
+/* タブ(機能ごとの色) */
+#nav{background:var(--card);border-bottom:1px solid var(--line);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:0 8px}
+#nav button{min-height:48px;border:0;background:none;font-weight:700;font-size:14px;color:var(--muted);border-bottom:3px solid transparent;padding:4px 2px;line-height:1.25}
+#nav button[data-tab=redeem]{--c:var(--teal)} #nav button[data-tab=members]{--c:var(--purple)} #nav button[data-tab=today]{--c:var(--orange)} #nav button[data-tab=dash]{--c:var(--blue)}
+#nav button[aria-current=page]{color:var(--c);border-bottom-color:var(--c)}
+
+main{max-width:1080px;margin:0 auto;padding:20px 16px 40px;display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+h1,h2,h3{margin:0}
+.title{display:flex;align-items:center;gap:10px;font-size:26px;line-height:1.2}
+.title svg{width:30px;height:30px;flex:none}
+.muted{color:var(--muted)}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px;display:grid;gap:14px}
+.row-flex{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.asof{margin-left:auto;color:var(--muted);font-size:13px}
+.pill{font-size:13px;font-weight:800;padding:4px 12px;border-radius:999px;background:#eef1f5;color:var(--muted);white-space:nowrap}
+.input{flex:1 1 220px;min-width:0;width:100%;min-height:60px;border:2px solid var(--line);border-radius:14px;padding:0 16px;font-size:18px;background:var(--card)}
+.input:focus{border-color:var(--c,var(--teal));outline:none}
+.btn{min-height:60px;padding:0 24px;border:0;border-radius:14px;background:var(--c,var(--teal));color:#fff;font-size:18px;font-weight:800;white-space:nowrap}
+.btn.sub{min-height:44px;font-size:15px;padding:0 16px;background:var(--card);color:var(--c,var(--teal));border:2px solid var(--c,var(--teal))}
+
+/* 結果の表示: 色・アイコン・文言の3点セット */
+.msg{display:flex;align-items:flex-start;gap:10px;border-radius:14px;padding:14px 16px;border:2px solid;font-weight:700}
+.msg .ic{flex:none;font-weight:900}
+.msg p{margin:0}
+.msg.ok{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+.msg.warn{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
+.msg.bad{background:var(--bad-soft);border-color:var(--bad);color:var(--bad)}
+.msg.info{background:#f5f7fa;border-color:var(--line);color:var(--muted)}
+.msg .note{font-weight:500;color:var(--fg)}
+
+/* ログイン */
+.login{max-width:420px;width:100%;margin:24px auto 0}
+.login label{display:grid;gap:6px;font-weight:700;font-size:14px}
+#msg{margin:0;color:var(--bad);font-weight:700;min-height:1.5em}
+
+/* ポイント使用(ティール) */
+.hero{--c:var(--teal);background:var(--card);border:2px solid var(--teal);border-radius:var(--radius);padding:20px;display:grid;gap:14px}
+.hero .title{color:var(--fg)} .hero .title svg{color:var(--teal)}
+.steps{display:flex;gap:16px;font-size:13px;color:var(--muted);flex-wrap:wrap;margin:0;padding:0;list-style:none}
+.steps .on{color:var(--teal);font-weight:800}
+#code{font-size:30px;letter-spacing:.16em;min-height:72px;flex-basis:260px}
+#code::placeholder{font-size:17px;letter-spacing:0}
+#lookup{min-height:72px;font-size:22px;min-width:140px}
+.confirm{display:grid;gap:12px;background:var(--teal-soft);border-radius:14px;padding:18px}
+.member{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline}
+#rMember{margin:0;font-size:22px;font-weight:800;overflow-wrap:anywhere}
+#rMember .no{font-size:15px;font-weight:500;color:var(--muted);margin-left:4px}
+.bal{color:var(--muted)}
+#rAmount{margin:0;font-size:38px;font-weight:900;line-height:1.15}
+#rAmount small{font-size:20px;font-weight:700;color:var(--muted)}
+.actions{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center;margin-top:4px}
+#cancelReq{min-height:52px;padding:0 20px;border:2px solid var(--line);background:var(--card);border-radius:14px;font-size:16px;font-weight:700;color:var(--muted)}
+#confirm{min-height:76px;flex:1 1 240px;border:0;border-radius:14px;background:var(--ok);color:#fff;font-size:24px;font-weight:900}
+.done{align-items:center}
+#rDone{font-size:22px;font-weight:900}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px 16px 16px;display:grid;justify-items:center;align-content:start;gap:8px;text-align:center;min-height:180px}
+.card svg{width:56px;height:56px;color:var(--c)}
+.card h2{font-size:21px}
+.card .pill{background:var(--c-soft);color:var(--c)}
+.card .go{color:var(--muted);font-size:14px}
+.card.c-purple{--c:var(--purple);--c-soft:var(--purple-soft)} .card.c-orange{--c:var(--orange);--c-soft:var(--orange-soft)} .card.c-blue{--c:var(--blue);--c-soft:var(--blue-soft)}
+
+/* 会員(紫) */
+.band{--c:var(--purple);background:var(--purple-soft);border:2px solid var(--purple);border-radius:var(--radius);padding:18px;display:grid;gap:12px}
+.band .title{color:var(--purple)}
+#count{background:var(--card);color:var(--purple);border:1.5px solid var(--purple)}
+.list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.row{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;align-items:center;gap:12px;min-height:60px;padding:8px 16px;background:var(--card);border:1px solid var(--line);border-radius:14px;font-size:16px;text-align:left;width:100%}
+.row .no,.row .time{color:var(--muted)} .row .nm{font-weight:700;overflow-wrap:anywhere} .row .pt{font-weight:700}
+.rank{font-size:12px;font-weight:800;padding:3px 10px;border-radius:999px;background:var(--purple-soft);color:var(--purple);letter-spacing:.04em;white-space:nowrap}
+.row .arrow{color:var(--muted);font-size:20px}
+.row.static{grid-template-columns:auto auto minmax(0,1fr)}
+.detail{--c:var(--purple);border-color:var(--purple);border-width:2px}
+.detail h2{font-size:22px;overflow-wrap:anywhere}
+.detail h2 .no{font-size:15px;font-weight:500;color:var(--muted)}
+#detail{margin:0;font-size:16px}
+.detail h3{font-size:15px;color:var(--muted)}
+#ledger li{display:grid;grid-template-columns:7.5em 5.5em 1fr;align-items:center;gap:6px 12px;padding:10px 14px;border:1px solid var(--line);border-radius:10px}
+.tag{font-size:12px;font-weight:800;padding:3px 8px;border-radius:999px;text-align:center;white-space:nowrap;background:#eef1f5;color:var(--muted)}
+.tag.t-earn{background:var(--ok-soft);color:var(--ok)} .tag.t-redeem{background:var(--teal-soft);color:var(--teal)} .tag.t-adjust{background:var(--purple-soft);color:var(--purple)}
+.delta{font-weight:800} .plus{color:var(--ok)} .minus{color:var(--bad)}
+#ledger .meta{color:var(--muted);font-size:13px}
+#ledger .why{grid-column:1/-1;color:var(--fg);font-size:14px}
+.adjust{border-top:1px dashed var(--line);padding-top:14px;display:grid;gap:10px}
+.adjust .input{flex:1 1 140px;font-size:16px}
+.adjust #adjReason{flex:2 1 220px}
+#adjOut{margin:0;font-weight:700}
+
+/* 本日の来店(オレンジ) / 集計(青) */
+.c-orange-text{color:var(--orange)} .c-blue-text{color:var(--blue)}
+.state{display:inline-flex;align-items:center;gap:8px;padding:5px 14px;border-radius:999px;font-weight:800}
+.state i{width:10px;height:10px;border-radius:50%;background:currentColor}
+.state.ok{background:var(--ok-soft);color:var(--ok)} .state.warn{background:var(--warn-soft);color:var(--warn)} .state.bad{background:var(--bad-soft);color:var(--bad)} .state.unknown{background:#eef1f5;color:var(--muted)}
+.alerts{display:grid;gap:10px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;display:grid;gap:2px}
+.stat .k{font-size:13px;color:var(--muted);font-weight:700}
+.stat .v{font-size:32px;font-weight:900;line-height:1.15;overflow-wrap:anywhere}
+.stat .v small{font-size:14px;font-weight:700;color:var(--muted);margin-left:4px}
+.stat.t .v{color:var(--teal)} .stat.p .v{color:var(--purple)} .stat.o .v{color:var(--orange)} .stat.b .v{color:var(--blue)}
+.facts{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:14px}
+.facts dt{color:var(--muted)} .facts dd{margin:0}
+details summary{cursor:pointer;color:var(--muted);font-weight:700;min-height:44px;display:flex;align-items:center}
+#dash{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;background:#f5f7fa;border-radius:10px;padding:12px}
+#exportBox{--c:var(--blue);border-color:var(--blue)}
+#exportOut{margin:0;font-weight:700}
+
+@media (max-width:760px){
+  .cards{grid-template-columns:1fr}
+  .card{min-height:0;grid-template-columns:auto 1fr auto;justify-items:start;align-items:center;text-align:left;padding:14px 16px}
+  .card svg{width:40px;height:40px;grid-row:span 2}
+  .card .pill{grid-column:3;grid-row:1}
+  .card .go{grid-column:2/-1}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stat .v{font-size:26px}
+  .title{font-size:22px}
+  #code{font-size:26px}
+  #lookup{width:100%}
+  #rAmount{font-size:32px}
+  .row{grid-template-columns:minmax(0,1fr) auto auto;gap:4px 10px}
+  .row .no{grid-column:1/-1;font-size:13px}
+  .row .arrow{display:none}
+  #ledger li{grid-template-columns:auto 1fr}
+  #ledger .meta{grid-column:1/-1}
+}
+</style></head>
 <body>
-<header><strong>10ZEN スタッフ</strong> <span id="who"></span> <button id="logout" hidden>ログアウト</button></header>
-<nav id="nav" hidden>
+<header class="topbar"><img class="logo" src="assets/logo.png" alt="10ZEN"><span id="who"></span> <button id="logout" class="btn-ghost" hidden>ログアウト</button></header>
+<nav id="nav" hidden aria-label="機能">
   <button data-tab="redeem">ポイント使用</button> <button data-tab="members">会員</button> <button data-tab="today">本日の来店</button>
   <button data-tab="dash">集計</button>
 </nav>
@@ -14,12 +168,49 @@
 <script type="module">
 import { createStaffClient, redeemReduce, redeemInitial } from "../app-core/staff-client.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
-const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+const put = (parent, ...kids) => { parent.append(...kids); return parent; };
 const sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
 const staff = createStaffClient({ supabase: sb, qrEndpoint: cfg.staffQrApi });
 let role = null;
 const show = (...n) => app.replaceChildren(...n);
 
+// ---- 表示の小道具 ----
+const DASH = "—";                                                          // 未取得は「—」(0 で埋めない)
+const n = (v) => (typeof v === "number" && Number.isFinite(v) ? v.toLocaleString("ja-JP") : DASH);
+const rankLabel = (c) => (c ? String(c).replace(/_/g, " ").toUpperCase() : DASH);
+const jst = (iso, withTime = true) => {
+  if (!iso) return null; const d = new Date(iso); if (Number.isNaN(d.getTime())) return null;
+  const p = Object.fromEntries(new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(d).map((x) => [x.type, x.value]));
+  return withTime ? `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}` : `${p.year}-${p.month}-${p.day}`;
+};
+const hhmm = (iso) => (jst(iso) ? jst(iso).slice(11) : DASH);
+const SVGNS = "http://www.w3.org/2000/svg";
+const ICONS = {
+  redeem: [["rect", { x: 4, y: 3, width: 16, height: 18, rx: 2 }], ["path", { d: "M9 3v2h6V3" }], ["path", { d: "m8.5 13 2.5 2.5 4.5-5" }]],
+  members: [["circle", { cx: 9, cy: 8, r: 3.5 }], ["path", { d: "M2.5 20a6.5 6.5 0 0 1 13 0" }], ["circle", { cx: 17, cy: 9, r: 2.5 }], ["path", { d: "M15.5 14.5A5 5 0 0 1 22 19" }]],
+  today: [["path", { d: "M4 21V5a2 2 0 0 1 2-2h7v18" }], ["path", { d: "M13 21h7V9h-7" }], ["path", { d: "M9 12h1" }]],
+  dash: [["path", { d: "M4 20h16" }], ["rect", { x: 5, y: 11, width: 3.5, height: 7, rx: 1 }], ["rect", { x: 10.25, y: 6, width: 3.5, height: 12, rx: 1 }], ["rect", { x: 15.5, y: 9, width: 3.5, height: 9, rx: 1 }]],
+};
+function icon(name) {
+  const s = document.createElementNS(SVGNS, "svg");
+  for (const [k, v] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": 1.8, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" })) s.setAttribute(k, v);
+  for (const [tag, attrs] of ICONS[name]) { const c = document.createElementNS(SVGNS, tag); for (const [k, v] of Object.entries(attrs)) c.setAttribute(k, v); s.append(c); }
+  return s;
+}
+const title = (name, text, cls = "") => put(el("h1", undefined, { class: `title ${cls}` }), icon(name), document.createTextNode(text));
+// 結果の表示(色・アイコン・文言)。文言は id つきの <p> に入れる
+const MARK = { ok: "✓", warn: "⚠", bad: "✕", info: "…" };
+function msgBox(kind, text, id, note) {
+  const p = el("p", text, id ? { id } : {}); if (note) p.append(" ", el("span", note, { class: "note" }));
+  return put(el("div", undefined, { class: `msg ${kind}`, role: kind === "bad" || kind === "warn" ? "alert" : "status" }), el("span", MARK[kind], { class: "ic", "aria-hidden": "true" }), p);
+}
+function failView(text, retry) {
+  const b = el("button", "もう一度読み込む", { class: "btn sub", id: "retry" }); b.onclick = retry;
+  return put(el("div", undefined, { class: "panel" }), msgBox("bad", text), b);
+}
+
+// ---- ログイン ----
 async function start() {
   const w = await staff.whoami();
   if (w.kind !== "ok" || !w.data.active) return loginView(w.kind === "ok" ? "このアカウントにはスタッフ権限がありません" : null);
@@ -28,65 +219,231 @@ async function start() {
   document.getElementById("nav").hidden = false; document.getElementById("logout").hidden = false; tab("redeem");
 }
 function loginView(msg) {
-  document.getElementById("nav").hidden = true; document.getElementById("logout").hidden = true;
-  const e = el("input", undefined, { id: "email", type: "email", autocomplete: "username" }), p = el("input", undefined, { id: "password", type: "password", autocomplete: "current-password" }), b = el("button", "ログイン", { id: "login" });
-  const m = el("p", msg || "", { id: "msg" });
-  b.onclick = async () => { const r = await staff.signIn(e.value, p.value); if (r.kind !== "ok") { m.textContent = "ログインできませんでした"; return; } start(); };
-  show(el("h2", "スタッフログイン"), e, p, b, m);
+  document.getElementById("nav").hidden = true; document.getElementById("logout").hidden = true; document.getElementById("who").textContent = "";
+  const e = el("input", undefined, { id: "email", type: "email", autocomplete: "username", class: "input" }), p = el("input", undefined, { id: "password", type: "password", autocomplete: "current-password", class: "input" });
+  const b = el("button", "ログイン", { id: "login", class: "btn" });
+  const m = el("p", msg || "", { id: "msg", role: "alert" });
+  const go = async () => { b.disabled = true; m.textContent = ""; const r = await staff.signIn(e.value, p.value); b.disabled = false; if (r.kind !== "ok") { m.textContent = "ログインできませんでした"; return; } start(); };
+  b.onclick = go; p.onkeydown = (ev) => { if (ev.key === "Enter") go(); };
+  const box = put(el("div", undefined, { class: "panel login" }), el("h2", "スタッフログイン"),
+    put(el("label", "メールアドレス"), e), put(el("label", "パスワード"), p), b, m);
+  show(box);
 }
 document.getElementById("logout").onclick = async () => { await staff.signOut(); loginView(); };
-document.getElementById("nav").onclick = (ev) => { const t = ev.target.dataset?.tab; if (t) tab(t); };
-function tab(t) { ({ redeem: redeemView, members: membersView, today: todayView, dash: dashView })[t](); }
+document.getElementById("nav").onclick = (ev) => { const t = ev.target.closest?.("[data-tab]")?.dataset.tab; if (t) tab(t); };
+function tab(t) {
+  for (const b of document.querySelectorAll("#nav [data-tab]")) { if (b.dataset.tab === t) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
+  window.scrollTo(0, 0);
+  ({ redeem: redeemView, members: membersView, today: todayView, dash: dashView })[t]();
+}
 
+// ---- ポイント使用(ログイン直後の画面: 最上段にコード入力、下に3つの入口) ----
 function redeemView() {
-  let st = redeemInitial; const code = el("input", undefined, { id: "code", inputmode: "numeric", maxlength: "7", placeholder: "お客様のコード(6桁)" }), go = el("button", "確認", { id: "lookup" }), out = el("div", undefined, { id: "redeemOut" });
+  let st = redeemInitial;
+  const code = el("input", undefined, { id: "code", class: "input num", inputmode: "numeric", maxlength: "7", autocomplete: "off", placeholder: "お客様のコード(6桁)", "aria-label": "お客様のコード(6桁)" });
+  const go = el("button", "確認 →", { id: "lookup", class: "btn" }), out = el("div", undefined, { id: "redeemOut" });
+  const stepsEl = el("ol", undefined, { class: "steps", "aria-label": "手順" });
+  const STEPS = ["① コードを入力", "② 内容を確認", "③ 確定"];
   const render = () => {
+    const at = st.step === "confirm" || st.step === "confirming" ? 1 : st.step === "done" ? 2 : 0;
+    stepsEl.replaceChildren(...STEPS.map((s, i) => el("li", s, i === at ? { class: "on", "aria-current": "step" } : {})));
+    go.disabled = st.step === "looking_up" || st.step === "confirming";
     out.replaceChildren();
-    const say = (t, id) => out.append(el("p", t, { id: id || "redeemMsg" }));
+    const say = (kind, t, id) => out.append(msgBox(kind, t, id || "redeemMsg"));
     if (st.step === "confirm" || st.step === "confirming") {
-      say(`${st.member.displayName ?? "会員"}(${st.member.memberNo}) 残高 ${st.member.points}pt`, "rMember"); say(`使用 ${st.request.points}pt = ${st.request.yen}円`, "rAmount");
-      const c = el("button", "確定する", { id: "confirm" }); c.disabled = st.step === "confirming";
+      const who = put(el("p", undefined, { id: "rMember" }), el("span", st.member.displayName ?? "会員", { class: "name" }), el("span", `(${st.member.memberNo})`, { class: "no" }));
+      const amount = put(el("p", undefined, { id: "rAmount", class: "num" }), document.createTextNode(`使用 ${st.request.points}pt`), el("small", ` = ${st.request.yen}円`));
+      const c = el("button", st.step === "confirming" ? "確定しています…" : "✓ 確定する", { id: "confirm" }); c.disabled = st.step === "confirming";
       c.onclick = async () => { st = redeemReduce(st, { type: "confirm_start" }); render(); st = redeemReduce(st, { type: "confirm_result", result: await staff.confirmRedeem(st.request.id) }); render(); };
-      const x = el("button", "取消", { id: "cancelReq" }); x.onclick = async () => { await staff.cancelRedeem(st.request.id); st = redeemInitial; render(); };
-      out.append(c, x);
-    } else if (st.step === "done") say(`確定しました: ${st.points}pt(${st.yen}円分)。残高 ${st.balanceAfter ?? "—"}pt`, "rDone");
-    else if (st.step === "not_found") say("コードが見つかりません(期限切れの可能性があります)");
-    else if (st.step === "expired") say("有効時間が過ぎました。お客様に再申請してもらってください");
-    else if (st.step === "insufficient") say(`残高が足りません(残高 ${st.balance}pt)`);
-    else if (st.step === "cancelled") say("お客様が取り消しました");
-    else if (st.step === "locked") say("入力の間違いが続いたため、しばらく使えません");
-    else if (st.step === "forbidden") say("この操作の権限がありません");
-    else if (st.step === "error") { say("通信できませんでした。もう一度お試しください"); }
+      const x = el("button", "取消", { id: "cancelReq" }); x.disabled = st.step === "confirming";
+      x.onclick = async () => { await staff.cancelRedeem(st.request.id); st = redeemInitial; render(); };
+      out.append(put(el("div", undefined, { class: "confirm" }),
+        put(el("div", undefined, { class: "member" }), who, el("span", `残高 ${n(st.member.points)}pt`, { class: "bal num" })),
+        amount, put(el("div", undefined, { class: "actions" }), x, c)));
+    } else if (st.step === "looking_up") say("info", "確認しています…", "redeemBusy");     // 結果の表示(#redeemMsg)とは別の id
+    else if (st.step === "done") { const b = msgBox("ok", `確定しました: ${st.points}pt(${st.yen}円分)。残高 ${st.balanceAfter ?? DASH}pt`, "rDone"); b.classList.add("done"); out.append(b); }
+    else if (st.step === "not_found") say("bad", "コードが見つかりません(期限切れの可能性があります)");
+    else if (st.step === "expired") say("bad", "有効時間が過ぎました。お客様に再申請してもらってください");
+    else if (st.step === "insufficient") say("bad", `残高が足りません(残高 ${n(st.balance)}pt)`);
+    else if (st.step === "cancelled") say("warn", "お客様が取り消しました");
+    else if (st.step === "locked") say("bad", "入力の間違いが続いたため、しばらく使えません");
+    else if (st.step === "forbidden") say("bad", "この操作の権限がありません");
+    else if (st.step === "error") say("bad", "通信できませんでした。もう一度「確認」を押してください");
   };
-  go.onclick = async () => { st = redeemReduce(st, { type: "lookup_start" }); render(); st = redeemReduce(st, { type: "lookup_result", result: await staff.lookupRedeem(code.value) }); render(); };
-  show(el("h2", "ポイント使用の確認"), code, go, out);
+  const lookup = async () => { if (go.disabled) return; st = redeemReduce(st, { type: "lookup_start" }); render(); st = redeemReduce(st, { type: "lookup_result", result: await staff.lookupRedeem(code.value) }); render(); };
+  go.onclick = lookup; code.onkeydown = (ev) => { if (ev.key === "Enter") lookup(); };
+  render();
+  const hero = put(el("section", undefined, { class: "hero", "aria-labelledby": "redeemTitle" }), title("redeem", "ポイント使用"),
+    el("p", "お客様の画面に表示された6桁のコードを入力してください。", { class: "hint" }), stepsEl,
+    put(el("div", undefined, { class: "row-flex" }), code, go), out);
+  hero.firstChild.id = "redeemTitle";
+  // 下の3つの入口(会員・本日の来店・集計)。件数は集計から(取れなければ「—」)
+  const pills = { members: el("span", `有効 ${DASH} 人`, { class: "pill num" }), today: el("span", `来店 ${DASH} 人`, { class: "pill num" }), dash: el("span", `状態 ${DASH}`, { class: "pill" }) };
+  const card = (t, cls, name, h, go) => { const b = put(el("button", undefined, { class: `card ${cls}`, "data-go": t }), icon(name), el("h2", h), pills[t], el("span", `${go} ›`, { class: "go" })); b.onclick = () => tab(t); return b; };
+  const cards = put(el("section", undefined, { class: "cards", "aria-label": "ほかの機能" }),
+    card("members", "c-purple", "members", "会員", "会員番号・氏名で探す"), card("today", "c-orange", "today", "本日の来店", "今日の来店を見る"), card("dash", "c-blue", "dash", "集計", "今月の付与・使用を見る"));
+  show(hero, cards);
+  staff.dashboard().then((r) => {
+    if (r.kind !== "ok") return;
+    pills.members.textContent = `有効 ${n(r.data.membersActive)} 人`; pills.today.textContent = `来店 ${n(r.data.visitsToday)} 人`; pills.dash.textContent = `状態 ${STATE[r.data.state]?.label ?? DASH}`;
+  });
+  code.focus();
 }
+
+// ---- 会員(紫) ----
 async function membersView(query = "") {
-  const q = el("input", undefined, { id: "q", placeholder: "会員番号・氏名" }), b = el("button", "検索", { id: "search" }), list = el("ul", undefined, { id: "list" });
-  b.onclick = () => membersView(q.value); q.value = query;
-  const r = await staff.listMembers({ query: query || null });
-  if (r.kind === "ok") for (const m of r.data.items) { const li = el("li"), a = el("button", `${m.memberNo} ${m.displayName ?? "—"} ${m.points}pt ${m.rank}`, { "data-id": m.id }); a.onclick = () => detailView(m.id); li.append(a); list.append(li); }
-  show(el("h2", "会員"), q, b, el("p", r.kind === "ok" ? `${r.data.total}件` : "取得できませんでした", { id: "count" }), list);
+  const q = el("input", undefined, { id: "q", class: "input", placeholder: "会員番号・氏名", "aria-label": "会員番号・氏名", enterkeyhint: "search" }), b = el("button", "検索", { id: "search", class: "btn" });
+  const list = el("ul", undefined, { id: "list", class: "list" }), count = el("span", DASH, { id: "count", class: "pill num" }), more = el("button", "さらに表示", { id: "more", class: "btn sub", hidden: "" });
+  b.onclick = () => membersView(q.value); q.onkeydown = (ev) => { if (ev.key === "Enter") membersView(q.value); }; q.value = query;
+  const band = put(el("section", undefined, { class: "band" }), put(el("div", undefined, { class: "head" }), title("members", "会員"), count), put(el("div", undefined, { class: "row-flex" }), q, b));
+  let shown = 0;
+  const load = async () => {
+    more.disabled = true;
+    const r = await staff.listMembers({ query: query || null, offset: shown });
+    more.disabled = false;
+    if (r.kind !== "ok") { if (!shown) show(band, failView("取得できませんでした", () => membersView(query))); return; }
+    count.textContent = `${n(r.data.total)} 件`;
+    for (const m of r.data.items) {
+      const a = put(el("button", undefined, { "data-id": m.id, class: "row num" }), el("span", m.memberNo, { class: "no" }), el("span", m.displayName ?? DASH, { class: "nm" }),
+        el("span", `${n(m.points)}pt`, { class: "pt" }), el("span", rankLabel(m.rank), { class: "rank" }), el("span", "›", { class: "arrow", "aria-hidden": "true" }));
+      a.onclick = () => detailView(m.id, query); list.append(put(el("li"), a));
+    }
+    shown += r.data.items.length; more.hidden = shown >= r.data.total || !r.data.items.length;
+    if (!r.data.total) list.append(put(el("li"), msgBox("info", query ? "該当する会員がいません" : "会員がいません")));
+  };
+  more.onclick = load;
+  show(band, list, more);
+  await load();
 }
-async function detailView(id) {
-  const r = await staff.memberDetail(id); if (r.kind !== "ok" || r.data.status !== "ok") return show(el("p", "取得できませんでした"));
-  const m = r.data.member, ul = el("ul", undefined, { id: "ledger" });
-  for (const l of r.data.ledger) ul.append(el("li", `${l.type} ${l.points > 0 ? "+" : ""}${l.points} (残高 ${l.balanceAfter})${l.reason ? " " + l.reason : ""}`));
-  const nodes = [el("h2", `${m.displayName ?? "—"}(${m.memberNo})`), el("p", `${m.points}pt / ランク ${m.rank} / 累計 ${m.lifetimePoints}${m.lifetimeConfirmed ? "" : "(未確認)"}`, { id: "detail" }), ul];
-  if (role === "manager") {
-    const pts = el("input", undefined, { id: "adjPoints", type: "number" }), why = el("input", undefined, { id: "adjReason", placeholder: "理由(必須)" }), go = el("button", "調整する", { id: "adjust" }), out = el("p", "", { id: "adjOut" });
-    let key = staff.newAdjustKey();                         // 1回の操作につき1つ。通信エラーで再送しても二重にならない
-    go.onclick = async () => { const res = await staff.adjust({ memberId: id, points: Number(pts.value), reason: why.value, key }); if (res.kind === "ok" && (res.data.status === "ok" || res.data.status === "duplicate")) { out.textContent = "調整しました"; key = staff.newAdjustKey(); detailView(id); } else out.textContent = res.kind === "invalid" ? "入力を確認してください(理由は必須)" : res.kind === "ok" ? "残高が足りません" : "実行できませんでした"; };
-    nodes.push(el("h3", "手動調整(店長のみ)"), pts, why, go, out);
+const LEDGER = (l) => l.type === "earn" ? (l.rule === "visit" ? "付与(来店)" : l.rule === "welcome" ? "付与(登録)" : "付与")
+  : l.type === "redeem" ? "使用" : l.type === "adjust" ? "調整" : l.type === "opening_balance" ? "移行時の残高" : l.type === "expire" ? "失効" : l.type;
+async function detailView(id, backQuery = "") {
+  const back = el("button", "‹ 一覧へ戻る", { class: "btn-ghost", id: "back" }); back.onclick = () => membersView(backQuery);
+  const r = await staff.memberDetail(id);
+  if (r.kind !== "ok" || r.data.status !== "ok") return show(back, failView("取得できませんでした", () => detailView(id, backQuery)));
+  const m = r.data.member, ul = el("ul", undefined, { id: "ledger", class: "list" });
+  for (const l of r.data.ledger) {
+    const li = put(el("li", undefined, { class: "num" }), el("span", LEDGER(l), { class: `tag t-${l.type}` }), el("span", `${l.points > 0 ? "+" : ""}${l.points}`, { class: `delta ${l.points > 0 ? "plus" : l.points < 0 ? "minus" : ""}` }),
+      el("span", `残高 ${n(l.balanceAfter)}・${jst(l.at) ?? DASH}`, { class: "meta" }));
+    if (l.reason) li.append(el("span", `理由: ${l.reason}`, { class: "why" }));
+    ul.append(li);
   }
+  if (!r.data.ledger.length) ul.append(put(el("li"), el("span", "履歴はありません", { class: "meta" })));
+  const head = put(el("h2"), document.createTextNode(m.displayName ?? DASH), el("span", `(${m.memberNo})`, { class: "no" }));
+  const panel = put(el("section", undefined, { class: "panel detail" }), put(el("div", undefined, { class: "head" }), back), head,
+    el("p", `${m.points}pt / ランク ${rankLabel(m.rank)} / 累計 ${m.lifetimePoints}${m.lifetimeConfirmed ? "" : "(未確認)"}`, { id: "detail", class: "num" }),
+    el("p", `登録日 ${jst(m.createdAt, false) ?? DASH} / 最終の来店・利用日 ${m.lastActivityOn ?? DASH}`, { class: "hint num" }),
+    el("h3", r.data.ledger.length >= 100 ? "履歴(新しい順・直近100件)" : "履歴(新しい順)"), ul);
+  if (role === "manager") {
+    const pts = el("input", undefined, { id: "adjPoints", type: "number", inputmode: "numeric", class: "input", placeholder: "ポイント(マイナス可)", "aria-label": "ポイント(マイナス可)" });
+    const why = el("input", undefined, { id: "adjReason", class: "input", placeholder: "理由(必須)", "aria-label": "理由(必須)" });
+    const go = el("button", "調整する", { id: "adjust", class: "btn" }), out = el("p", "", { id: "adjOut", role: "status" });
+    let key = staff.newAdjustKey();                         // 1回の操作につき1つ。通信エラーで再送しても二重にならない
+    go.onclick = async () => {
+      go.disabled = true; const res = await staff.adjust({ memberId: id, points: Number(pts.value), reason: why.value, key }); go.disabled = false;
+      if (res.kind === "ok" && (res.data.status === "ok" || res.data.status === "duplicate")) { out.textContent = "調整しました"; key = staff.newAdjustKey(); detailView(id, backQuery); }
+      else { out.style.color = "var(--bad)"; out.textContent = res.kind === "invalid" ? "入力を確認してください(理由は必須)" : res.kind === "ok" ? "残高が足りません" : "実行できませんでした"; }
+    };
+    panel.append(put(el("div", undefined, { class: "adjust" }), el("h3", "手動調整(店長のみ)"), put(el("div", undefined, { class: "row-flex" }), pts, why, go), out));
+  }
+  show(panel);
+}
+
+// ---- 本日の来店(オレンジ) ----
+async function todayView() {
+  const reload = el("button", "更新", { class: "btn sub", id: "reloadToday", style: "--c:var(--orange)" }); reload.onclick = todayView;
+  const r = await staff.todayVisits();
+  const head = put(el("div", undefined, { class: "head" }), title("today", "本日の来店", "c-orange-text"));
+  if (r.kind !== "ok") return show(head, failView("取得できませんでした", todayView));
+  head.append(el("span", `${n(r.data.items.length)} 人`, { class: "pill num" }), el("span", `${jst(new Date().toISOString()).slice(11)} 時点`, { class: "asof num" }), reload);
+  const nodes = [head];
+  if (r.data.suspiciousSlots.length) nodes.push(msgBox("warn", `要確認: 同時刻に ${r.data.suspiciousSlots.map((s) => s.count).join(",")} 人の来店記録があります`, "suspicious", "(QRの写真の拡散などの疑い)"));
+  const ul = el("ul", undefined, { id: "visits", class: "list" });
+  for (const v of r.data.items) ul.append(put(el("li", undefined, { class: "row static num" }), el("span", hhmm(v.at), { class: "time" }), el("span", v.memberNo, { class: "no" }), el("span", v.displayName ?? DASH, { class: "nm" })));
+  if (!r.data.items.length) ul.append(put(el("li"), msgBox("info", "今日の来店記録はまだありません")));
+  nodes.push(ul);
   show(...nodes);
 }
-async function todayView() {
-  const r = await staff.todayVisits(); const ul = el("ul", undefined, { id: "visits" });
-  if (r.kind === "ok") { for (const v of r.data.items) ul.append(el("li", `${v.memberNo} ${v.displayName ?? "—"}`)); if (r.data.suspiciousSlots.length) ul.append(el("li", `要確認: 同時刻に ${r.data.suspiciousSlots.map((s) => s.count).join(",")} 人の来店記録があります`, { id: "suspicious" })); }
-  show(el("h2", "本日の来店"), ul);
+
+// ---- 集計(青) ----
+const STATE = { open: { label: "運用中", cls: "ok" }, test: { label: "試験運用", cls: "warn" }, frozen: { label: "停止中(切替作業)", cls: "bad" } };
+async function dashView() {
+  const reload = el("button", "更新", { class: "btn sub", id: "reloadDash", style: "--c:var(--blue)" }); reload.onclick = dashView;
+  const head = put(el("div", undefined, { class: "head" }), title("dash", "集計", "c-blue-text"));
+  const r = await staff.dashboard();
+  if (r.kind !== "ok") return show(head, failView("取得できませんでした", dashView));
+  const d = r.data, s = STATE[d.state] ?? { label: d.state ?? DASH, cls: "unknown" };
+  head.append(put(el("span", undefined, { class: `state ${s.cls}`, id: "dashState" }), el("i"), document.createTextNode(s.label)), el("span", `${jst(d.asOf) ?? DASH} 時点`, { class: "asof num" }), reload);
+  // 問題は先頭に(赤 → オレンジ → 緑)
+  const bad = [], warn = [], ok = [];
+  if (typeof d.balanceMismatches === "number" && d.balanceMismatches > 0) bad.push(msgBox("bad", `残高と履歴が合いません(${n(d.balanceMismatches)}件)。至急確認`));
+  if (d.backupStale) warn.push(msgBox("warn", d.lastBackupAt ? "バックアップが古い(36時間以上更新なし)" : "バックアップの記録がありません", undefined, d.lastBackupAt ? `最終 ${jst(d.lastBackupAt)}` : ""));
+  if (Array.isArray(d.undecidedPolicies) && d.undecidedPolicies.length) warn.push(msgBox("warn", `未決定の方針が ${d.undecidedPolicies.length} 件あります`, undefined, d.undecidedPolicies.join(", ")));
+  if (typeof d.pendingRedeems === "number") (d.pendingRedeems > 0 ? warn : ok).push(d.pendingRedeems > 0 ? msgBox("warn", `使用の申請中が ${n(d.pendingRedeems)} 件あります(有効時間内)`) : msgBox("ok", "使用の申請中はありません"));
+  if (d.balanceMismatches === 0) ok.push(msgBox("ok", "残高と履歴は一致しています"));
+  const stat = (cls, k, v, unit) => put(el("div", undefined, { class: `stat ${cls}` }), el("div", k, { class: "k" }), put(el("div", n(v), { class: "v num" }), el("small", unit)));
+  const facts = put(el("dl", undefined, { class: "facts num" }), el("dt", "最終バックアップ"), el("dd", jst(d.lastBackupAt) ?? DASH), el("dt", "移行残高の照合"), el("dd", d.reconciled === true ? "済み" : d.reconciled === false ? "未完了" : DASH));
+  const raw = put(el("details"), el("summary", "元のデータ(JSON)を見る"), el("pre", JSON.stringify(d, null, 1), { id: "dash" }));
+  const nodes = [head, put(el("div", undefined, { class: "alerts" }), ...bad, ...warn, ...ok),
+    put(el("div", undefined, { class: "stats" }), stat("p", "有効会員数", d.membersActive, "人"), stat("o", "本日の来店", d.visitsToday, "人"), stat("t", "今月の付与ポイント", d.pointsIssuedThisMonth, "pt"), stat("b", "今月の使用ポイント", d.pointsRedeemedThisMonth, "pt")),
+    put(el("section", undefined, { class: "panel" }), facts, raw)];
+  if (role === "manager") nodes.push(exportBox());                // CSV 出力は店長のみ(既存の API の範囲)
+  show(...nodes);
 }
-async function dashView() { const r = await staff.dashboard(); show(el("h2", "集計"), el("pre", r.kind === "ok" ? JSON.stringify(r.data, null, 1) : "取得できませんでした", { id: "dash" })); }
+
+// ---- 分析用の CSV 出力(店長のみ・既存の API の範囲・出力した時点のデータ) ----
+const csvCell = (v) => { if (v === null || v === undefined) return ""; let s = String(v); if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+const toCsv = (rows) => "﻿" + rows.map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
+const stamp = () => jst(new Date().toISOString()).replace(/[-: ]/g, "").replace(/^(\d{8})(\d{4})$/, "$1-$2");
+function download(name, text) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
+  const a = el("a", undefined, { href: url, download: name }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+const yn = (b) => (b === true ? "はい" : b === false ? "いいえ" : "");
+function exportBox() {
+  const out = el("p", "", { id: "exportOut", role: "status" });
+  const b1 = el("button", "⬇ 集計のスナップショット(CSV)", { class: "btn sub", id: "exportSnapshot" }), b2 = el("button", "⬇ 会員別の利用状況(CSV)", { class: "btn sub", id: "exportMembers" });
+  const busy = (on) => { b1.disabled = on; b2.disabled = on; };
+  b1.onclick = async () => {
+    busy(true); out.style.color = ""; out.textContent = "取得しています…";
+    const r = await staff.dashboard(); busy(false);
+    if (r.kind !== "ok") { out.style.color = "var(--bad)"; out.textContent = "取得できませんでした。出力していません"; return; }
+    const d = r.data;
+    const rows = [["集計の時点", "状態", "移行残高の照合", "有効会員数", "本日の来店", "今月の付与pt", "今月の使用pt", "使用の申請中", "最終バックアップ", "バックアップが古い", "未決定の方針", "残高の不一致件数"],
+      [jst(d.asOf), d.state, yn(d.reconciled), d.membersActive, d.visitsToday, d.pointsIssuedThisMonth, d.pointsRedeemedThisMonth, d.pendingRedeems, jst(d.lastBackupAt), yn(d.backupStale), Array.isArray(d.undecidedPolicies) ? d.undecidedPolicies.join(" ") : "", d.balanceMismatches]];
+    download(`10zen_snapshot_${stamp()}.csv`, toCsv(rows)); out.textContent = `出力しました(${jst(d.asOf)} 時点)`;
+  };
+  b2.onclick = async () => {
+    busy(true); out.style.color = ""; out.textContent = "会員の一覧を取得しています…";
+    const all = []; let total = null;
+    for (let off = 0; total === null || off < total; off += 100) {
+      const r = await staff.listMembers({ query: null, limit: 100, offset: off });
+      if (r.kind !== "ok") { busy(false); out.style.color = "var(--bad)"; out.textContent = "会員の一覧を取得できませんでした。出力していません"; return; }
+      total = r.data.total; all.push(...r.data.items); if (!r.data.items.length) break;
+    }
+    if (!window.confirm(`会員 ${all.length} 人分の詳細を取得して出力します。会員ごとに閲覧の記録が残ります。続けますか?`)) { busy(false); out.textContent = ""; return; }
+    const startedAt = jst(new Date().toISOString());
+    const head = ["会員番号", "会員の状態", "登録日", "最終の来店・利用日", "残高pt", "ランク", "累計付与pt(確認済みのみ。未確認は空欄)", "付与件数(登録)", "付与件数(来店)", "付与件数(その他)", "付与pt合計",
+      "使用件数", "使用pt合計", "調整件数", "調整pt合計", "来店ポイント付与日(台帳より。来店記録そのものではない)", "台帳が100件以上(集計は直近100件のみ・不完全)", "詳細の取得", "出力開始の時点"];
+    const rows = [head]; let failed = 0;
+    for (let i = 0; i < all.length; i++) {
+      const m = all[i]; out.textContent = `会員の詳細を取得しています… ${i + 1} / ${all.length}`;
+      const r = await staff.memberDetail(m.id);
+      if (r.kind !== "ok" || r.data.status !== "ok") { failed++; rows.push([m.memberNo, m.status, "", m.lastActivityOn, m.points, rankLabel(m.rank), "", "", "", "", "", "", "", "", "", "", "", "取得失敗", startedAt]); continue; }
+      const d = r.data.member, L = r.data.ledger, sum = (f) => L.filter(f).reduce((a, l) => a + l.points, 0), cnt = (f) => L.filter(f).length;
+      const earn = (l) => l.type === "earn", visit = (l) => earn(l) && l.rule === "visit", welcome = (l) => earn(l) && l.rule === "welcome";
+      const visitDays = [...new Set(L.filter(visit).map((l) => jst(l.at, false)).filter(Boolean))].sort().join(" ");
+      rows.push([d.memberNo, d.status, jst(d.createdAt, false), d.lastActivityOn, d.points, rankLabel(d.rank), d.lifetimeConfirmed ? d.lifetimePoints : "",
+        cnt(welcome), cnt(visit), cnt((l) => earn(l) && !visit(l) && !welcome(l)), sum(earn), cnt((l) => l.type === "redeem"), -sum((l) => l.type === "redeem"),
+        cnt((l) => l.type === "adjust"), sum((l) => l.type === "adjust"), visitDays, yn(L.length >= 100), "取得済み", startedAt]);
+    }
+    busy(false); download(`10zen_members_${stamp()}.csv`, toCsv(rows));
+    out.style.color = failed ? "var(--warn)" : ""; out.textContent = `出力しました(${all.length} 人・${startedAt} 時点)` + (failed ? `。${failed} 人は詳細を取得できず、その行は「取得失敗」です` : "");
+  };
+  return put(el("section", undefined, { class: "panel", id: "exportBox" }), el("h3", "分析用の出力(CSV・店長のみ)"),
+    el("p", "出力した時点のデータです。氏名・LINE ID は含めません。会員別は会員ごとに詳細を読み込むため、人数が多いと時間がかかります。", { class: "hint" }),
+    put(el("div", undefined, { class: "row-flex" }), b1, b2), out);
+}
 start();
 </script>
 </body></html>
