@@ -1,7 +1,7 @@
 // 本番につながる画面(HTML)を、擬似データで動く1枚の HTML にする。本番には接続しない。
 // 使い方:
 //   node make_preview.mjs --page <画面.html> --mock <擬似データ.js> --out <出力.html>
-//        [--module <importしているmjs>]... [--logo <画像>] [--banner "<上部の帯の文言>"] [--title "<タイトル>"]
+//        [--module <importしているmjs>]... [--logo <画像>] [--banner "<上部の帯の文言>"] [--title "<タイトル>"] [--logo-target <置き換える画像のパス。既定 assets/logo.png>] [--replace <擬似データにする vendor の名前。既定 supabase>]
 // 出力:
 //   <出力.html>      … ブラウザで直接開ける版(画面写真・動作確認用)
 //   <出力>-pub.html  … claude.ai のアーティファクトとして公開する版(文書の骨組みを外し、
@@ -17,10 +17,15 @@ for (const k of ["page", "mock", "out"]) if (!opt[k]) { console.error(`--${k} �
 let html = fs.readFileSync(opt.page, "utf8");
 const mock = fs.readFileSync(opt.mock, "utf8");
 
-// 1) 設定とライブラリの読み込みを、擬似データの代替に置き換える(config.js は消し、最初の vendor/*.js を擬似データにする)
+// 1) 設定とライブラリの読み込みを置き換える。config.js は消す。--replace(既定 supabase)を名前に含む vendor/*.js は擬似データに、
+//    それ以外の vendor/*.js(QR コードのライブラリなど)は、画面と同じフォルダから読んで中に埋め込む
+const pageDir = opt.page.replace(/[^/]*$/, "") || "./", replaceKey = opt.replace || "supabase";
 html = html.replace(/<script src="config\.js"><\/script>\s*/g, "");
 let replaced = false;
-html = html.replace(/<script src="vendor\/[^"]+\.js"><\/script>/g, () => (replaced ? "" : ((replaced = true), `<script>${mock}</script>`)));
+html = html.replace(/<script src="(vendor\/[^"]+\.js)"><\/script>/g, (_m, src) => {
+  if (!replaced && src.includes(replaceKey)) { replaced = true; return `<script>${mock}</script>`; }
+  return `<script>${fs.readFileSync(pageDir + src, "utf8").replace(/<\/script/gi, "<\\/script")}</script>`;
+});
 if (!replaced) html = html.replace(/<script type="module">/, `<script>${mock}</script>\n<script type="module">`);
 
 // 2) import しているモジュールを中に埋め込む(export を外す)
@@ -33,10 +38,14 @@ for (const m of opt.module) {
 }
 if (/^\s*import .* from "/m.test(html.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1] || "")) console.warn("注意: 埋め込んでいない import が残っています(--module で渡す)");
 
-// 3) ロゴなどの画像を埋め込む(--logo を渡したときだけ。src="assets/xxx" の最初の画像)
+// 3) ロゴの画像を埋め込む(--logo を渡したときだけ)。HTML の属性にも、JS の文字列(src: "assets/logo.png")にも効くように、
+//    "<--logo-target。既定 assets/logo.png>" という文字列をすべて data URI に置き換える
 if (opt.logo) {
-  const ext = opt.logo.split(".").pop().toLowerCase(), type = ext === "jpg" ? "jpeg" : ext;
-  html = html.replace(/src="assets\/[^"]+"/, `src="data:image/${type};base64,${fs.readFileSync(opt.logo).toString("base64")}"`);
+  const ext = opt.logo.split(".").pop().toLowerCase(), type = ext === "jpg" ? "jpeg" : ext, target = opt["logo-target"] || "assets/logo.png";
+  const data = `data:image/${type};base64,${fs.readFileSync(opt.logo).toString("base64")}`;
+  const before = html.split(`"${target}"`).length - 1;
+  html = html.split(`"${target}"`).join(`"${data}"`);
+  if (!before) console.warn(`注意: "${target}" が見つかりません(--logo-target で指定する)`);
 }
 
 // 4) プレビューであることを示す帯

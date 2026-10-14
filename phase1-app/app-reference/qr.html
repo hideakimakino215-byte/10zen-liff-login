@@ -1,8 +1,59 @@
 <!doctype html>
-<!-- 店頭タブレット専用ページ(参照実装)。表示するのは店頭QRだけ。会員情報・ポイント・スタッフ操作へのリンクや機能は一切ない。
-     店頭QR専用アカウント(role=kiosk)でログインする(試験・確認用に店長 role=manager も表示できる。staff は不可)。そのアカウントは DB 側でも他の操作がすべて拒否される。最終UIはこのファイルを差し替える。 -->
+<!-- 店頭タブレット専用ページ(B案: 白地+ポイント使用と同じティール)。表示するのは店頭QRだけ。会員情報・ポイント・スタッフ操作へのリンクや機能は一切ない。
+     店頭QR専用アカウント(role=kiosk)でログインする(試験・確認用に店長 role=manager も表示できる。staff は不可)。そのアカウントは DB 側でも他の操作がすべて拒否される。
+     QR 表示中の画面には、操作できる部品(ボタン・入力・リンク)を1つも置かない。描画は textContent のみ。外部の CDN・フォントは使わない。 -->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
-<title>10ZEN 店頭QR</title></head>
+<title>10ZEN 店頭QR</title>
+<style>
+:root{ --bg:#f3f5f8; --card:#fff; --fg:#1c2430; --muted:#5b6675; --line:#e3e7ee; --teal:#0f9d8f; --teal-soft:#e3f5f2; --bad:#c93a3a; --bad-soft:#fde8e8; --warn:#c75f0e; --warn-soft:#fff1e3; color-scheme:light }
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;-webkit-text-size-adjust:100%}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+[hidden]{display:none!important}
+#app{min-height:100%;display:grid;place-items:center;padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom))}
+
+/* ログイン(スタッフが開始するときだけ) */
+.login{width:100%;max-width:420px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px;display:grid;gap:14px}
+.login .logo{height:40px;width:auto;justify-self:start}
+.login h1{margin:0;font-size:22px}
+.login label{display:grid;gap:6px;font-weight:700;font-size:14px}
+.login input{min-height:56px;border:2px solid var(--line);border-radius:14px;padding:0 16px;font-size:18px;width:100%;min-width:0}
+.login input:focus{border-color:var(--teal);outline:none}
+#login{min-height:60px;border:0;border-radius:14px;background:var(--teal);color:#fff;font-size:20px;font-weight:800;cursor:pointer}
+#login:disabled{opacity:.6}
+#msg{margin:0;color:var(--bad);font-weight:700;min-height:1.5em}
+.login .hint{margin:0;color:var(--muted);font-size:13px}
+
+/* QR の表示(お客様が見る画面) */
+.kiosk{width:100%;max-width:980px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:32px;align-items:center;background:var(--card);border:2px solid var(--teal);border-radius:24px;padding:32px}
+.kiosk .logo{height:48px;width:auto;display:block}
+.kiosk h1{margin:16px 0 8px;font-size:32px;line-height:1.3;text-wrap:balance}
+.kiosk .lead{margin:0 0 20px;font-size:18px;color:var(--muted)}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.steps li{display:grid;grid-template-columns:40px minmax(0,1fr);gap:12px;align-items:center;font-size:18px;font-weight:700}
+.steps .n{width:40px;height:40px;border-radius:50%;background:var(--teal-soft);color:var(--teal);display:grid;place-items:center;font-weight:900}
+.qrside{display:grid;justify-items:center;gap:10px}
+#qrImage{background:#fff;border:1px solid var(--line);border-radius:18px;padding:8px;min-width:240px;min-height:240px;display:grid;place-items:center}
+#qrImage svg{display:block;width:min(42vw,52vh,440px);height:auto}
+.refresh{width:100%;max-width:440px;display:grid;gap:6px;font-size:14px;color:var(--muted);text-align:center}
+.bar{height:6px;border-radius:999px;background:var(--teal-soft);overflow:hidden}
+.bar i{display:block;height:100%;width:100%;background:var(--teal);transform-origin:left center}
+#qrMsg{margin:0;min-height:1.5em;font-size:18px;font-weight:800;text-align:center}
+#qrMsg:not(:empty){color:var(--warn);background:var(--warn-soft);border:2px solid var(--warn);border-radius:14px;padding:12px 16px}
+.note{grid-column:1/-1;margin:0;font-size:13px;color:var(--muted);border-top:1px dashed var(--line);padding-top:14px}
+
+@media (max-width:760px),(orientation:portrait) and (max-width:900px){
+  .kiosk{grid-template-columns:minmax(0,1fr);padding:24px;gap:20px;text-align:center}
+  .kiosk .logo{margin:0 auto}
+  .kiosk h1{font-size:26px}
+  .steps{justify-items:center}
+  .steps li{grid-template-columns:36px auto;font-size:16px;text-align:left}
+  #qrImage svg{width:min(78vw,60vh,440px)}
+}
+@media (prefers-reduced-motion:reduce){ .bar i{transition:none!important} }
+</style></head>
 <body>
 <main id="app"></main>
 <script src="config.js"></script>
@@ -11,30 +62,61 @@
 <script type="module">
 import { createStaffClient, createQrKiosk } from "../app-core/staff-client.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
-const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+const put = (parent, ...kids) => { parent.append(...kids); return parent; };
 const sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
 const staff = createStaffClient({ supabase: sb, qrEndpoint: cfg.staffQrApi });
-let kiosk = null;
+let kiosk = null, ticker = null, wake = null;
+const logo = () => el("img", undefined, { class: "logo", src: "assets/logo.png", alt: "10ZEN" });
+
 // URL を QR の SVG にする(ライブラリは同梱の qrcode.js。SVG は数値だけの文字列を DOMParser で読み、文字列を HTML として差し込まない)
 function qrSvg(text) {
   const q = window.qrcode(0, "M"); q.addData(text); q.make();
   const doc = new DOMParser().parseFromString(q.createSvgTag({ cellSize: 8, margin: 16, scalable: true }), "image/svg+xml");
-  const svg = document.importNode(doc.documentElement, true); svg.setAttribute("style", "width:min(80vmin,480px);height:auto;background:#fff"); return svg;
+  return document.importNode(doc.documentElement, true);
 }
+// 店頭のタブレットが眠らないようにする(使えない端末では何もしない)
+async function keepAwake() {
+  try { if ("wakeLock" in navigator && !wake) { wake = await navigator.wakeLock.request("screen"); wake.addEventListener?.("release", () => { wake = null; }); } } catch (_e) { wake = null; }
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && kiosk) keepAwake(); });
+
 async function start() {
   const w = await staff.whoami();
-  if (w.kind !== "ok" || !w.data.active || (w.data.role !== "kiosk" && w.data.role !== "manager")) { if (w.kind === "ok" && w.data.active) await staff.signOut(); return loginView(w.kind === "ok" && w.data.active ? "店頭QR専用のアカウントでログインしてください" : null); }
-  const url = el("pre", "", { id: "qrUrl", hidden: "" }), msg = el("p", "", { id: "qrMsg" }), box = el("div", undefined, { id: "qrImage", role: "img", "aria-label": "来店用のQRコード" });
-  app.replaceChildren(el("h1", "ご来店の方は、このQRコードを LINE で読み取ってください"), box, url, msg);   // URL は画面に出さない(テスト用に非表示で保持)
-  kiosk = createQrKiosk({ getToken: () => staff.qrToken(), onUpdate: (d) => { url.textContent = d.url; msg.textContent = ""; box.replaceChildren(qrSvg(d.url)); }, onHidden: () => { url.textContent = ""; box.replaceChildren(); msg.textContent = "ただいま表示できません。スタッフにお声がけください"; } });
+  if (w.kind !== "ok" || !w.data.active || (w.data.role !== "kiosk" && w.data.role !== "manager")) { if (w.kind === "ok" && w.data.active) await staff.signOut(); return loginView(w.kind === "ok" && w.data.active ? "このアカウントでは表示できません。店頭QR専用のアカウントでログインしてください" : null); }
+  const url = el("pre", "", { id: "qrUrl", hidden: "" }), msg = el("p", "", { id: "qrMsg", role: "status" });
+  const box = el("div", undefined, { id: "qrImage", role: "img", "aria-label": "来店用のQRコード" });
+  const fill = el("i"), left = el("span", "QRコードは30秒ごとに変わります");
+  const refresh = put(el("div", undefined, { class: "refresh", "aria-hidden": "true" }), put(el("div", undefined, { class: "bar" }), fill), left);
+  const steps = put(el("ol", undefined, { class: "steps" }),
+    put(el("li"), el("span", "1", { class: "n" }), el("span", "LINE のカメラで読み取る")),
+    put(el("li"), el("span", "2", { class: "n" }), el("span", "10ZEN の会員証が開きます")),
+    put(el("li"), el("span", "3", { class: "n" }), el("span", "来店ポイントがたまります")));
+  const info = put(el("section"), logo(), el("h1", "ご来店ありがとうございます"), el("p", "このQRコードを LINE で読み取ってください。", { class: "lead" }), steps);
+  const qr = put(el("section", undefined, { class: "qrside" }), box, refresh, msg);
+  app.replaceChildren(put(el("div", undefined, { class: "kiosk" }), info, qr, el("p", "初めての方も、読み取るとその場で会員登録できます。ご不明な点はスタッフにお声がけください。", { class: "note" })), url);   // URL は画面に出さない(テスト用に非表示で保持)
+  let nextAt = 0;
+  const tick = () => { const ms = nextAt - Date.now(); const ratio = nextAt ? Math.max(0, Math.min(1, ms / 30000)) : 0; fill.style.transform = `scaleX(${ratio})`; };
+  ticker = setInterval(tick, 250);
+  kiosk = createQrKiosk({
+    getToken: () => staff.qrToken(),
+    onUpdate: (d) => { url.textContent = d.url; msg.textContent = ""; refresh.hidden = false; box.replaceChildren(qrSvg(d.url)); nextAt = Number(d.nextChangeAt) || 0; tick(); },
+    onHidden: () => { url.textContent = ""; box.replaceChildren(); refresh.hidden = true; nextAt = 0; msg.textContent = "ただいま表示できません。スタッフにお声がけください"; },
+  });
   kiosk.start();
+  keepAwake();
 }
 function loginView(msg) {
   if (kiosk) { kiosk.stop(); kiosk = null; }
-  const e = el("input", undefined, { id: "email", type: "email", autocomplete: "username" }), p = el("input", undefined, { id: "password", type: "password", autocomplete: "current-password" }), b = el("button", "開始", { id: "login" });
-  const m = el("p", msg || "", { id: "msg" });
-  b.onclick = async () => { const r = await staff.signIn(e.value, p.value); if (r.kind !== "ok") { m.textContent = "ログインできませんでした"; return; } start(); };
-  app.replaceChildren(e, p, b, m);
+  if (ticker) { clearInterval(ticker); ticker = null; }
+  const e = el("input", undefined, { id: "email", type: "email", autocomplete: "username" }), p = el("input", undefined, { id: "password", type: "password", autocomplete: "current-password" });
+  const b = el("button", "表示を開始", { id: "login" });
+  const m = el("p", msg || "", { id: "msg", role: "alert" });
+  const go = async () => { b.disabled = true; m.textContent = ""; const r = await staff.signIn(e.value, p.value); b.disabled = false; if (r.kind !== "ok") { m.textContent = "ログインできませんでした"; return; } start(); };
+  b.onclick = go; p.onkeydown = (ev) => { if (ev.key === "Enter") go(); };
+  app.replaceChildren(put(el("div", undefined, { class: "login" }), logo(), el("h1", "店頭QRの表示"),
+    el("p", "店頭QR専用のアカウントでログインすると、お客様向けの来店QRを表示します。", { class: "hint" }),
+    put(el("label", "メールアドレス"), e), put(el("label", "パスワード"), p), b, m));
 }
 start();
 </script>
