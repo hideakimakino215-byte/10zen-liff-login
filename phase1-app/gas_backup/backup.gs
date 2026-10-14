@@ -2,7 +2,8 @@
  * 10ZEN 会員DB の毎日バックアップ(Google Apps Script)。新しい秘密は増やさない: 既存のスクリプトプロパティ CHECKIN_SECRET から合言葉を計算する。
  * 必要なスクリプトプロパティ: CHECKIN_SECRET(既存)、BACKUP_URL(Supabase の backup-export 関数の URL)、任意: BACKUP_NOTIFY(失敗の通知先メール。省略時は実行ユーザー)
  * 動作: DB の全データ+設定を JSON で取得 → SHA-256 を再計算して照合 → 自分の Google ドライブ「10ZEN_backup」フォルダへ保存 → 結果を DB に記録。
- *       失敗したら、記録(失敗)とメール通知。トリガー自体が動かない場合は、店長画面の集計に『バックアップが古い』と出る(36時間以上更新なし)。
+ *       失敗したら、記録(失敗)とメール通知。トリガー自体が動かない場合は、別の Google プロジェクトの見張り役(watchdog.gs)が毎朝確認し、
+ *       36時間以上成功していなければメールで知らせる。見張り役に渡すトークンは showWatchdogToken() で表示する(状態の確認にしか使えない)。
  * 注意: 保存先には個人情報(LINE ID・氏名・ポイント)が入る。フォルダは共有しない。古いバックアップの削除は自動では行わない(手動で整理)。
  */
 function backupFolder_() {
@@ -78,4 +79,11 @@ function installBackupTrigger() {
   ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === "dailyBackup") ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger("dailyBackup").timeBased().everyDays(1).atHour(3).inTimezone("Asia/Tokyo").create();
   return "daily trigger installed";
+}
+// 見張り役(watchdog.gs)に設定するトークンを表示する(所有者のみ)。このトークンでできるのは「最後に成功した時刻」の確認だけ。
+function showWatchdogToken() {
+  assertOwner_();
+  var t = toHex_(Utilities.computeHmacSha256Signature("backup-status-v1", PropertiesService.getScriptProperties().getProperty("CHECKIN_SECRET")));
+  console.log("見張り役のスクリプトプロパティ BACKUP_STATUS_TOKEN に設定する値: " + t);
+  return t;
 }
