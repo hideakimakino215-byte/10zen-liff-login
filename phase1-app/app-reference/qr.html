@@ -26,31 +26,45 @@ button,input{font:inherit;color:inherit}
 #msg{margin:0;color:var(--bad);font-weight:700;min-height:1.5em}
 .login .hint{margin:0;color:var(--muted);font-size:13px}
 
-/* QR の表示(お客様が見る画面) */
-.kiosk{width:100%;max-width:980px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:32px;align-items:center;background:var(--card);border:2px solid var(--teal);border-radius:24px;padding:32px}
-.kiosk .logo{height:48px;width:auto;display:block}
-.kiosk h1{margin:16px 0 8px;font-size:32px;line-height:1.3;text-wrap:balance}
-.kiosk .lead{margin:0 0 20px;font-size:18px;color:var(--muted)}
-.steps{list-style:none;margin:0;padding:0;display:grid;gap:12px}
-.steps li{display:grid;grid-template-columns:40px minmax(0,1fr);gap:12px;align-items:center;font-size:18px;font-weight:700}
-.steps .n{width:40px;height:40px;border-radius:50%;background:var(--teal-soft);color:var(--teal);display:grid;place-items:center;font-weight:900}
+/* QR の表示(お客様が見る画面)。スタッフに聞かなくても「何か・何がもらえるか・どうするか」が分かるように */
+.kiosk{width:100%;max-width:1080px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:28px 36px;align-items:center;background:var(--card);border:2px solid var(--teal);border-radius:24px;padding:28px 32px}
+.kiosk .logo{height:44px;width:auto;display:block}
+.kiosk h1{margin:14px 0 4px;font-size:34px;line-height:1.25;text-wrap:balance}
+.kiosk .lead{margin:0 0 18px;font-size:17px;color:var(--muted)}
+.perks{list-style:none;margin:0 0 20px;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.perk{background:var(--teal-soft);border-radius:16px;padding:14px 14px 12px;display:grid;gap:2px;align-content:start}
+.perk .k{font-size:13px;font-weight:700;color:var(--teal)}
+.perk .v{font-size:24px;font-weight:900;line-height:1.2;font-variant-numeric:tabular-nums}
+.perk .d{font-size:13px;color:var(--muted);line-height:1.45}
+.howto{display:grid;gap:8px}
+.howto h2{margin:0;font-size:15px;color:var(--muted)}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:10px;width:fit-content}
+.steps li{display:grid;grid-template-columns:36px auto;gap:12px;align-items:center;font-size:18px;font-weight:700;text-align:left}
+.steps .n{width:36px;height:36px;border-radius:50%;background:var(--teal);color:#fff;display:grid;place-items:center;font-weight:900}
+.steps small{display:block;font-size:13px;font-weight:500;color:var(--muted)}
 .qrside{display:grid;justify-items:center;gap:10px}
+.qrside .cap{margin:0;font-size:16px;font-weight:800;color:var(--teal)}
 #qrImage{background:#fff;border:1px solid var(--line);border-radius:18px;padding:8px;min-width:240px;min-height:240px;display:grid;place-items:center}
-#qrImage svg{display:block;width:min(42vw,52vh,440px);height:auto}
-.refresh{width:100%;max-width:440px;display:grid;gap:6px;font-size:14px;color:var(--muted);text-align:center}
+#qrImage svg{display:block;width:min(36vw,48vh,400px);height:auto}
+.refresh{width:100%;max-width:400px;display:grid;gap:6px;font-size:13px;color:var(--muted);text-align:center}
 .bar{height:6px;border-radius:999px;background:var(--teal-soft);overflow:hidden}
 .bar i{display:block;height:100%;width:100%;background:var(--teal);transform-origin:left center}
 #qrMsg{margin:0;min-height:1.5em;font-size:18px;font-weight:800;text-align:center}
 #qrMsg:not(:empty){color:var(--warn);background:var(--warn-soft);border:2px solid var(--warn);border-radius:14px;padding:12px 16px}
-.note{grid-column:1/-1;margin:0;font-size:13px;color:var(--muted);border-top:1px dashed var(--line);padding-top:14px}
+.note{grid-column:1/-1;margin:0;font-size:13px;color:var(--muted);border-top:1px dashed var(--line);padding-top:12px;display:flex;flex-wrap:wrap;gap:4px 20px}
 
 @media (max-width:760px),(orientation:portrait) and (max-width:900px){
-  .kiosk{grid-template-columns:minmax(0,1fr);padding:24px;gap:20px;text-align:center}
+  .kiosk{grid-template-columns:minmax(0,1fr);padding:20px;gap:14px;text-align:center}
   .kiosk .logo{margin:0 auto}
-  .kiosk h1{font-size:26px}
-  .steps{justify-items:center}
-  .steps li{grid-template-columns:36px auto;font-size:16px;text-align:left}
-  #qrImage svg{width:min(78vw,60vh,440px)}
+  .kiosk h1{font-size:27px}
+  .perks{grid-template-columns:minmax(0,1fr);gap:8px;text-align:left}
+  .perk{grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:12px}
+  .perk .k{grid-column:1} .perk .v{grid-column:2;grid-row:1/span 2;font-size:22px} .perk .d{grid-column:1}
+  .howto{justify-items:center}
+  .steps li{font-size:16px}
+  #qrImage svg{width:min(70vw,34vh,360px)}
+  .kiosk h1{margin-top:8px}
+  .note{justify-content:center;text-align:center}
 }
 @media (prefers-reduced-motion:reduce){ .bar i{transition:none!important} }
 </style></head>
@@ -68,6 +82,23 @@ const sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
 const staff = createStaffClient({ supabase: sb, qrEndpoint: cfg.staffQrApi });
 let kiosk = null, ticker = null, wake = null;
 const logo = () => el("img", undefined, { class: "logo", src: "assets/logo.png", alt: "10ZEN" });
+// お客様に見せる文言。数字は DB の設定(point_rules の visit・welcome、app_settings の yen_per_100pt)と、
+// 会員証(card.html)のランク特典に合わせる。変えるときは両方を直す(tools/test_kiosk_copy.mjs が食い違いを検出する)。
+const KIOSK_COPY = {
+  title: "10ZEN の LINE 会員証",
+  lead: "LINE で読み取るだけ。アプリのダウンロードや入力はいりません。",
+  perks: [
+    { k: "ご来店ごとに", v: "100pt", d: "1日1回、このQRを読み取るとたまります" },
+    { k: "お会計で使える", v: "100pt=10円", d: "会員証の「ポイントを使う」から" },
+    { k: "ランクアップ特典", v: "薬膳茶など", d: "累計ポイントでランクが上がり、季節の薬膳茶や限定スイーツなどの特典" },
+  ],
+  steps: [
+    ["このQRを読み取る", "LINE のQRコードリーダー、またはスマホのカメラで"],
+    ["10ZEN の会員証が開く", "はじめての方は、その場で登録(100pt プレゼント)"],
+    ["来店ポイントがたまる", "会員証で残高・ランク・特典をいつでも確認"],
+  ],
+  notes: ["会員証から「30秒体質チェック」もできます", "ポイントの使い方は会員証の画面でご確認いただけます"],
+};
 
 // URL を QR の SVG にする(ライブラリは同梱の qrcode.js。SVG は数値だけの文字列を DOMParser で読み、文字列を HTML として差し込まない)
 function qrSvg(text) {
@@ -88,13 +119,12 @@ async function start() {
   const box = el("div", undefined, { id: "qrImage", role: "img", "aria-label": "来店用のQRコード" });
   const fill = el("i"), left = el("span", "QRコードは30秒ごとに変わります");
   const refresh = put(el("div", undefined, { class: "refresh", "aria-hidden": "true" }), put(el("div", undefined, { class: "bar" }), fill), left);
-  const steps = put(el("ol", undefined, { class: "steps" }),
-    put(el("li"), el("span", "1", { class: "n" }), el("span", "LINE のカメラで読み取る")),
-    put(el("li"), el("span", "2", { class: "n" }), el("span", "10ZEN の会員証が開きます")),
-    put(el("li"), el("span", "3", { class: "n" }), el("span", "来店ポイントがたまります")));
-  const info = put(el("section"), logo(), el("h1", "ご来店ありがとうございます"), el("p", "このQRコードを LINE で読み取ってください。", { class: "lead" }), steps);
-  const qr = put(el("section", undefined, { class: "qrside" }), box, refresh, msg);
-  app.replaceChildren(put(el("div", undefined, { class: "kiosk" }), info, qr, el("p", "初めての方も、読み取るとその場で会員登録できます。ご不明な点はスタッフにお声がけください。", { class: "note" })), url);   // URL は画面に出さない(テスト用に非表示で保持)
+  const C = KIOSK_COPY;
+  const perks = put(el("ul", undefined, { class: "perks", "aria-label": "会員の特典" }), ...C.perks.map((x) => put(el("li", undefined, { class: "perk" }), el("span", x.k, { class: "k" }), el("span", x.v, { class: "v" }), el("span", x.d, { class: "d" }))));
+  const steps = put(el("ol", undefined, { class: "steps" }), ...C.steps.map(([t, sub], i) => put(el("li"), el("span", String(i + 1), { class: "n", "aria-hidden": "true" }), put(el("span", t), el("small", sub)))));
+  const info = put(el("section"), logo(), el("h1", C.title), el("p", C.lead, { class: "lead" }), perks, put(el("div", undefined, { class: "howto" }), el("h2", "使い方"), steps));
+  const qr = put(el("section", undefined, { class: "qrside" }), el("p", "こちらを LINE で読み取り", { class: "cap" }), box, refresh, msg);
+  app.replaceChildren(put(el("div", undefined, { class: "kiosk" }), info, qr, put(el("p", undefined, { class: "note" }), ...C.notes.map((t) => el("span", "・" + t)))), url);   // URL は画面に出さない(テスト用に非表示で保持)
   let nextAt = 0;
   const tick = () => { const ms = nextAt - Date.now(); const ratio = nextAt ? Math.max(0, Math.min(1, ms / 30000)) : 0; fill.style.transform = `scaleX(${ratio})`; };
   ticker = setInterval(tick, 250);
