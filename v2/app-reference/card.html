@@ -91,8 +91,8 @@ const BENEFITS = [["white_opal", "WHITE OPAL", "100pt = 10円としてお会計�
   ["ruby", "RUBY", "100,000pt達成:お会計5%OFF & 特別席優先案内"], ["onyx", "ONYX", "200,000pt達成:新メニュー特別試食会ご招待 & 特別優待"]];
 
 // 表面(会員証: ロゴ・氏名・会員番号・ランク+生薬の飾り)と裏面(店舗情報)。タップで裏返る。リンクのタップでは裏返らない
-const HERBS = [["chili", "right:19%;top:-5%;width:25%"], ["chenpi", "right:3%;top:5%;width:20%"], ["goji", "right:17%;top:28%;width:22%"], ["anise", "right:1%;top:41%;width:22%"],
-  ["green", "right:3%;bottom:4%;width:27%"], ["jujube", "right:34%;bottom:5%;width:19%"]];   // 水彩の生薬6種(位置と大きさ。画像は assets/herb-名前.webp)
+const HERBS = [["chili", "right:21%;top:5%;width:18%"], ["chenpi", "right:4%;top:6%;width:16%"], ["goji", "right:23%;top:34%;width:16%"], ["anise", "right:4%;top:43%;width:16%"],
+  ["lotus", "right:5%;bottom:5%;width:20%"], ["jujube", "right:30%;bottom:15%;width:14%"]];   // 水彩の生薬6種(位置と大きさ。画像は assets/herb-名前.webp)
 function cardFace(view) {
   const rank = view ? view.rank : "white_opal";
   const front = el("div", undefined, { class: "face front" }), fin = el("div", undefined, { class: "in" });
