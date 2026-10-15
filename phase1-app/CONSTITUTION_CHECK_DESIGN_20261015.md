@@ -106,3 +106,67 @@
 - 正式な名称と、五巡茶とタイプの対応表(薬日本堂の方)。
 - 結果・お茶・メニューの文章(薬日本堂の表現チェックの部署)。
 - 食事の気分の選択肢と、おすすめ表(メニューが決まってから)。
+
+## 10. 実装メモ(2026-10-15)
+
+- **状態:** 実装とローカルの自動テストまで。**本番の DB には適用していない**(公開・デプロイもしていない)。適用は 100・101・102 の後に `db/103_constitution_check.sql`。戻しは `db/103_constitution_check_DOWN.sql`(結果・同意・今日の体調・クリックの記録も消えるので、先に `export_backup()` で保管する)。
+
+### DB(`db/103_constitution_check.sql`)
+
+- **新しい表**(4つとも行レベルセキュリティあり。anon・authenticated から直接は触れない。service_role は読み取りと追記だけ)
+  - `constitution_consents`: 同意(会員×版。版は `constitution_v1`・同意した日時)。
+  - `constitution_checks`: 1回=1行。15問の回答(`answers`)・食事の気分(`mood`)・五行ごとの点数(`score_wood` 〜 `score_water`)・主な五行(`primary_element`)・バランス良好(`balanced`)・実施した季節(`season_key`。例 2026-autumn)・その日の季節の五行(`season_element`)・日時。
+  - `constitution_daily_conditions`: 今日の体調(会員×日本時間の日付で1行)。A=`temp`(cold/hot/normal)・B=`energy`(tired/stress/fine)・C=`concern`(dry/swelling/none)・今日のおすすめの五行(`focus_element`)・もとにした結果(`check_id`)。
+  - `constitution_referral_clicks`: 「薬日本堂の漢方相談へ」が押された記録(会員・最新の結果・日時)。
+  - `app_settings` に `constitution_moods`(食事の気分のコード。仮)を追加。
+- **判定の関数**(誰からも直接は呼べない): `_season_element`(季節の五行)・`_cc_pick`(一番高い五行と同点の決め方)・`_cc_result`(15問→点数・タイプ・バランス良好)・`_cc_focus`(今日の体調の足し算)・`_tea_of_day`(五巡茶の日替わり)・`_constitution_snapshot`(会員証に出す情報)。
+- **お客様向けの関数(Edge Function の service_role からだけ)**
+  - `app_constitution_submit(issuer, subject, answers int[15], mood, consent, now)`: 点数・タイプは受け取らず、回答から計算する。同意の行がなく `consent` が true でなければ `consent_required`(記録しない)。不正な回答は `invalid_answers`、設定にない気分は `invalid_mood`。1時間に20回まで。
+  - `app_condition_submit(issuer, subject, temp, energy, concern, now)`: 日本時間の1日に1回(2回目は `already_answered`)。結果がまだなければ `no_check`。
+  - `app_referral_click(issuer, subject, now)`: 押された数を記録(1時間に30回を超えた分は数えない)。
+  - `app_me` は `_member_view` の置き換えで、`constitution`(最新の結果の要約と `seasonChanged`)・`constitutionConsent`・`todayCondition`・`todayTea`・`yourTea`・`season` を返す(チケットの関数の応答にも入る)。
+  - member-api の `action`: `constitution_submit`(`answers` は 0〜2 の整数15個・`mood` はコードの形・`consent` は真偽値のみ。それ以外は 400。`scores` などを送っても使わない)・`condition_submit`・`referral_click`。同意がないときと、回答済み・未実施のときは 409。
+- **スタッフ向けの関数:** `staff_constitution_stats()`。店長・閲覧(本部)は `scope: "full"` で、実施人数・実施率・タイプ別・五行ごとの平均・再来店率と来店頻度の比較・相談ボタンの数(累計・今月)・今週の体調。スタッフは `scope: "limited"` で今週の体調(`week`)だけ(ほかの項目は応答に含めない)。店頭タブレット・スタッフ以外は拒否。いまの状態の会員だけ(試験運用中は試験会員だけ)を数え、個人の結果は返さない。
+- **バックアップ/復元:** `export_backup` / `restore_backup` に4つの表を追加。103 より前のバックアップも復元できる。
+
+### 決め方(設計書に書いていなかった細かい点)
+
+- **土用の日付:** 立春・立夏・立秋・立冬の前の約18日を、年によらない固定の日付で近似した(1/17〜2/3・4/17〜5/4・7/20〜8/6・10/20〜11/6、両端を含む。日本時間)。実際の土用の入りは年により1日ほど前後する。
+- **同点:** 季節の五行が同点に入っていればそれ、入っていなければ 木・火・土・金・水 の順で先のもの。今日の体調の足し算も同じ。
+- **バランス良好の「あなたのお茶」:** 同じ決め方で選んだ五行のお茶(全部同点なら季節の五行)。正式名称は出さない。
+- **季節が変わったときの案内:** 春夏秋冬(12〜2月=冬。102 の季節と同じ)で比べる。土用では案内しない(18日ほどで二度出さないため)。
+- **今週の体調の傾向:** 直近7日(日本時間・今日を含む)。
+- **再来店率・来店頻度:** 直近60日(日本時間・今日を含む)に来店記録が2日以上ある会員の割合と、来店記録の日数の平均。登録日の来店扱い(`register_counts_as_visit`)も1日と数える。実施した/していないは「一度でも実施したか」。タイプ別・平均は会員ごとの最新の結果。
+- **今日の体調を出す場面:** 会員証で、その日に来店記録があり(`visitedToday`)、体質チェック済みで、今日まだ答えていないとき。DB は来店を必須にしていない(任意の回答のため)。
+- **今日のおすすめの一品:** 今日の体調に答えていればその五行、なければ体質の五行 × 食事の気分。
+- **水の五巡茶の「温かいほうで」:** 承認済みのお茶のひとことに含まれるので、別の注記は重ねて出さない。
+- **同意の文:** 設計書の「お店の改善に使います」は、言葉づかいのきまり(「改善」を使わない)に合わせて「結果を会員証に記録し、おすすめとお店づくりに役立てます。」に言い換えた(確認前)。
+
+### 画面
+
+- **体質チェック(`app-reference/check.html`、新規):** 会員証と同じ世界観。初回は同意(`ccConsent` `ccConsentText` `ccAgree`)、2回目以降は `ccIntro` `ccStart`。質問は1問1画面(`ccProgress` `ccStep` `ccQuestion` `ccOptions` の各ボタンに `data-value`、`ccBack`)。結果は `ccResult` `ccTypeName` `ccTypeLine` `ccRadar`(inline SVG)`ccDetailToggle` `ccDetail` `ccFormal` `ccDish` `ccYourTea` `ccYourTeaDay` `ccTodayTea` `ccSeason` `ccNihondo`(押すと記録し、別のタブで開く)`ccDisclaimer` `ccToCard` `ccRetake`。`?view=result` で実施済みの結果を出す。
+- **会員証(card.html):** ポイントの下に `ccCard`。入口 `ccEntry`(未実施=「1分体質チェック」、実施済み=「結果を見る」)、季節の案内 `ccSeasonPrompt`、今日の体調の3問 `ccCondition`(各ボタンに `data-q` `data-value`。3つ選ぶと送る)、回答後の `ccFocus`、今日の五巡茶 `ccTodayTea`。裏面の「30秒体質チェック」(Tally、`storeQuiz`)は変えていない。
+- **スタッフ画面(staff.html):** タブ `data-tab="constitution"`(「体質チェック」)とホームの入口のカード(`data-go="constitution"`・件数 `ccPill`)を追加。集計は `ccReach` `ccRate` `ccReferral` `ccTypes` `ccAvgRadar`(五角形)`ccRevisit` `ccWeek` `ccWeekFocus`。スタッフには `ccWeek` だけを出す(ほかは DOM にもない)。依頼書の追補で守る ID・文言と B案の色はそのまま(体質チェックはセージ色を追加)。
+- **共通のモジュール:** `app-core/constitution.mjs`(判定。DB と同じ決め方)・`app-core/constitution-content.mjs`(説明文)・`app-core/radar.mjs`(五角形の座標と SVG の組み立て。createElementNS と textContent だけ)・`screens.mjs` の `constitutionCardView` / `constitutionResultView` / `checkSubmitScreen` / `conditionScreen`・`member-client.mjs` の `constitutionSubmit` / `conditionSubmit` / `referralClick`・`staff-client.mjs` の `constitutionStats`。配信物(`tools/build_v2.mjs`)に check.html を追加。
+
+### 差し替える文とデータの場所
+
+- **承認済み(牧野さん 2026-10-15・薬日本堂の表現チェック前):** `app-core/constitution-content.mjs` の `TYPE_LINES`(タイプのひとこと)・`TEA_LINES`(五巡茶のひとこと)・`SEASON_LINES`(季節のひとこと)。
+- **仮:** 同じファイルの `MOODS`(食事の気分。お粥・スープ・一人鍋・麺・みんなで鍋)・`RECOMMENDATIONS`(五行×気分の料理名。すべて「(仮)」)・`DISH_REASONS`。気分のコードを変えるときは DB の `app_settings` の `constitution_moods` も同じにする(テストが一致を確認)。
+- **確認前:** 同じファイルの `CONSENT_TEXT`・`INTRO_TEXT`・`CONDITION_INTRO`。
+- **仮の行き先:** `app-core/store-info.mjs` の `NIHONDO_CONSULT_URL`(薬日本堂のトップページ。TODO: 正式な相談の案内先・案内コードが決まったら差し替える)。
+- 正式名称・質問の文は `app-core/constitution.mjs`(設計書のとおり)。
+
+### テスト
+
+- `patches/test_constitution.mjs`(11件・実 PostgreSQL): 適用/戻し・権限、採点とバランス良好・不正な回答、同点と季節・土用の境目(日本時間)、同意、会員証の情報(今日のお茶・あなたのお茶・季節の変化)、今日の体調(1日1回)、案内のクリック、集計の権限(スタッフは体調だけ・店頭タブレットは拒否)と値(試験運用中のデータで数を確認)、凍結、バックアップ/復元。
+- `app-core/test_constitution.mjs`(6件): 判定、DB との一致(600通りの回答×日付・今日の体調 540通り・3年分の毎日の季節と五巡茶)、言葉づかい(説明文・質問・check.html に「治る・効く・改善」などがない)と承認済みの文、五角形の座標、画面用データ、クライアント → member-api → DB(点数を送っても使わない)。
+- `app-reference/test_e2e.mjs` に2件(会員証→同意→15問→結果→薬日本堂→今日の体調、スタッフ画面の権限別の表示)。`tools/test_build_v2.mjs`・`tools/test_built_e2e.mjs` に check.html と 103 を追加。
+- `run_tests.sh` の最小件数は 195(freeze の非公開ソースが必要な1スイートは SKIP 可)。
+
+### まだのもの
+
+- 薬日本堂の方の確認(正式名称・五巡茶とタイプの対応)と、表現チェックの部署の確認。食事の気分・おすすめ表(メニューが決まってから)。同意の文の確認。
+- 薬日本堂で実際に相談・購入した人数の記録(会員番号か案内コードか。薬日本堂との相談で決める)・薬日本堂で見せる画面。
+- 旧版(Tally の「30秒体質チェック」・`diagnosis_patterns`)からの切り替えと、会員証の裏面のリンクの扱い。旧版の結果の移行はしない。
+- 本物の Supabase・実機(LINE の中のブラウザ)での確認。
