@@ -13,6 +13,7 @@ import { rpcOver } from "../patches/pgrpc.mjs";
 import { makeJwt, lineVerify } from "../patches/jwtstub.mjs";
 import { handle as memberApi } from "../functions/member-api/handler.ts";
 import { handle as staffQrApi } from "../functions/staff-qr/handler.ts";
+import { makeToken } from "../functions/member-api/qr.ts";
 import { RECOMMENDATIONS, DISCLAIMER } from "../app-core/constitution-content.mjs";
 import { ELEMENTS, ELEMENT_COLORS, ELEMENT_TEXT_COLORS } from "../app-core/constitution.mjs";
 const rgb = (h) => `rgb(${[0, 2, 4].map((i) => parseInt(h.slice(1 + i, 3 + i), 16)).join(", ")})`;   // #rrggbb → ブラウザの計算値の形
@@ -74,6 +75,7 @@ try {
   pg.loadFile("103_constitution_check.sql");                                                                            // 103: 1分体質チェック
   pg.loadFile("104_member_constitution_link.sql");                                                                      // 104: 会員の詳細・一覧に体質(店長・スタッフのみ)
   pg.loadFile("105_kpi.sql");                                                                                           // 105: 目標と KPI(店長・閲覧のみ)
+  pg.loadFile("106_referral.sql");                                                                                      // 106: 友だち紹介と月次レポート
   pg.exec(`update system_state set state='open';`);
   pg.exec(`update app_settings set value='false' where key='register_counts_as_visit';`);   // 登録日の扱い(既定=来店日として扱う)は DB テストと下の専用ケースで検証。ここでは来店の流れを見るため解除
   pg.exec(`insert into auth.users(id) values ${Object.values(U).map((u) => `('${u}')`).join(",")};
@@ -375,6 +377,74 @@ try {
     assert.equal(sDenied, 400);
     ok("目標とKPI(権限): 閲覧(本部)は同じ数字と色を見られるが、本番開始日・目標・取り込み・手入力の部品は DOM になく、関数を直接呼んでも変えられない。スタッフにはタブ・ホームのカードが DOM になく、集計の関数も拒否される"); }
 
+  // ---- 友だち紹介: 会員証の「友だちを招待」(LINE の「送る」画面・コピー・shareTargetPicker)→ 友だちが招待のリンク(liff.state の形)から登録 → 初来店 → 紹介者に1回だけお知らせ ----
+  const freshQs = async () => `?action=visit&t=${(await makeToken(SECRET, UNIT, Date.now())).token}`;
+  await cust.goto(`${BASE}/app-reference/card.html`); await cust.waitForSelector("#invite");
+  assert.equal(await text(cust, "#inviteCount"), "今月の招待 0/5人"); assert.match(await text(cust, "#inviteText"), /お二人に「ディナーの五巡茶 1杯」のチケット/);
+  assert.equal(await cust.getAttribute("#inviteShare", "data-mode"), "line-share");                                       // shareTargetPicker が使えない環境: LINE の「送る」画面へのリンク
+  const shareHref = await cust.getAttribute("#inviteShare", "href"); assert.match(shareHref, /^https:\/\/line\.me\/R\/share\?text=/);
+  const shareText = decodeURIComponent(shareHref.split("text=")[1]), inviteLink = shareText.match(/https:\/\/liff\.line\.me\/\S+/)[0];
+  const refCode = new URL(inviteLink).searchParams.get("ref"); assert.match(refCode, /^[A-Za-z0-9_-]{12}$/); assert.equal(inviteLink, `https://liff.line.me/x?ref=${refCode}`);
+  assert.doesNotMatch(shareText, /user\d{5}/); assert.equal(await cust.getAttribute("#inviteShare", "rel"), "noopener noreferrer");
+  await cust.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (t) => { window.__copied = t; } } }));
+  await cust.click("#inviteCopy"); await cust.waitForSelector("#inviteOut:has-text('リンクをコピーしました')"); assert.equal(await cust.evaluate(() => window.__copied), inviteLink);
+  await cust.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new Error("denied"); } } }));
+  await cust.click("#inviteCopy"); await cust.waitForSelector("#inviteUrl"); assert.equal(await text(cust, "#inviteUrl"), inviteLink); assert.match(await text(cust, "#inviteOut"), /コピーできませんでした/);
+  // LINE アプリの中(shareTargetPicker が使える): 友だちを選んで LINE のメッセージで送る
+  const picker = await newPage(tokFor(sub("a"), "試験 太郎"));
+  await picker.addInitScript(() => { let l; Object.defineProperty(window, "liff", { configurable: true, get: () => l,
+    set: (v) => { l = Object.assign(v, { isApiAvailable: (n) => n === "shareTargetPicker", shareTargetPicker: async (msgs) => { window.__shared = msgs; return { status: "success" }; } }); } }); });
+  await picker.goto(`${BASE}/app-reference/card.html`); await picker.waitForSelector("#inviteShare[data-mode=picker]");
+  await picker.click("#inviteShare"); await picker.waitForSelector("#inviteOut:has-text('招待を送りました')");
+  const shared = await picker.evaluate(() => window.__shared); assert.equal(shared.length, 1); assert.equal(shared[0].type, "text"); assert.equal(shared[0].text, shareText);
+  // 友だち: 招待のリンクを開く(LIFF は最初に ?liff.state= の形で渡す)→ 登録ボタンだけ(何も入力しない)
+  const fr = await newPage(tokFor(sub("9"), "紹介 友子"));
+  await fr.goto(`${BASE}/app-reference/card.html?liff.state=${encodeURIComponent(`?ref=${refCode}`)}`); await fr.waitForSelector("#register");
+  assert.match(await text(fr, "#inviteWelcome"), /お友だちからの招待です/);
+  await fr.click("#register"); await fr.waitForSelector("#inviteReferred");
+  assert.equal(await text(fr, "#notice"), "招待を受け付けました。初めてのご来店で特典チケットをお届けします"); assert.equal(await text(fr, "#points"), `${welcomeExpected} pt`);
+  assert.match(await text(fr, "#inviteReferred"), /初めてのご来店で「ディナーの五巡茶 1杯」のチケット/); assert.equal(await fr.evaluate(() => location.search), "");
+  assert.equal(await fr.locator("#tickets").count(), 0);                                                                     // 登録の時点では特典なし
+  assert.equal(pg.exec(`select count(*) from member_referrals;`), "1");
+  // 初来店(店頭QR)→ 友だちに特典チケット
+  await fr.goto(`${BASE}/app-reference/card.html${await freshQs()}`); await fr.waitForSelector("#notice");
+  assert.match(await text(fr, "#notice"), /100pt を付与しました。お友だち紹介の特典チケット「お友だち紹介・ディナーの五巡茶 1杯」をお届けしました/);
+  await fr.waitForSelector("#tickets"); assert.match(await text(fr, "#tickets"), /お友だち紹介・ディナーの五巡茶 1杯/);
+  // 紹介者: 次に会員証を開いたとき1回だけ「お友だちが来店しました」
+  await cust.goto(`${BASE}/app-reference/card.html`); await cust.waitForSelector("#inviteNotice");
+  assert.equal(await text(cust, "#inviteNotice"), "お友だちが来店しました。チケットが届いています"); assert.equal(await text(cust, "#inviteCount"), "今月の招待 1/5人");
+  assert.match(await text(cust, "#tickets"), /お友だち紹介・ディナーの五巡茶 1杯/);
+  for (let i = 0; i < 50 && pg.exec(`select count(*) from member_referrals where referrer_seen_at is not null;`) !== "1"; i++) await new Promise((r) => setTimeout(r, 100));
+  await cust.reload(); await cust.waitForSelector("#invite"); assert.equal(await cust.locator("#inviteNotice").count(), 0);
+  // すでに会員の人が招待のリンクを開いても、ふつうの会員証(紹介にはならない)。上限に達したら送れない
+  await tk.goto(`${BASE}/app-reference/card.html?ref=${refCode}`); await tk.waitForSelector("#invite"); assert.equal(await tk.locator("#register").count(), 0);
+  pg.exec(`update app_settings set value='1' where key='referral_monthly_cap';`);
+  await cust.reload(); await cust.waitForSelector("#inviteFull"); assert.equal(await text(cust, "#inviteCount"), "今月の招待 1/1人");
+  assert.equal(await cust.locator("#inviteShare").count(), 0); assert.equal(await cust.locator("#inviteCopy").count(), 0);
+  pg.exec(`update app_settings set value='5' where key='referral_monthly_cap';`);
+  assert.equal(pg.exec(`select count(*) from member_referrals;`), "1"); assert.equal(pg.exec(`select count(*) from point_ledger where rule_code in ('referral_referrer','referral_welcome');`), "0");
+  assert.equal(await cust.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+  ok("友だち紹介(会員証): 『友だちを招待』は LINE の中では shareTargetPicker で送り、使えなければ LINE の「送る」画面へのリンク。リンクのコピー(できなければリンクを表示)。リンクに会員番号は出ない。友だちは招待のリンク(liff.state の形)から登録ボタンを押すだけで紹介になり、初来店(店頭QR)で特典チケット。紹介者の会員証に『お友だちが来店しました。チケットが届いています』が1回だけ出て『今月の招待 1/5人』。すでに会員の人は紹介にならず、上限に達したら招待のボタンを出さない");
+
+  // ---- 友だち紹介(スタッフ画面): 集計に紹介の数、目標とKPI の会員来店率のカードに『紹介からの新規来店』、店長だけ五巡茶の出し方を切り替え ----
+  await mgr.click("[data-tab=redeem]"); await mgr.waitForSelector("#code"); await mgr.click("[data-tab=kpi]"); await mgr.waitForSelector("#kpiReferralVisits");
+  assert.equal(await text(mgr, "#kpiReferralVisits"), "紹介からの新規来店 1人"); assert.equal(await text(mgr, "#kpiReferralRegs"), "紹介からの登録 1人");
+  assert.equal(await mgr.locator("#kpiCard-member_visit_rate #kpiReferralVisits").count(), 1);
+  await view.click("[data-tab=redeem]"); await view.waitForSelector("#code"); await view.click("[data-tab=kpi]"); await view.waitForSelector("#kpiReferralVisits"); assert.equal(await text(view, "#kpiReferralVisits"), "紹介からの新規来店 1人");
+  await mgr.click("[data-tab=dash]"); await mgr.waitForSelector("#referralStats");
+  assert.match(await text(mgr, "#referralStats"), /紹介からの登録1人.*紹介からの新規来店1人.*初来店待ち\(累計\)0人/);
+  await mgr.waitForSelector("#teaModeBox"); assert.equal(await mgr.$eval("#teaMode", (x) => x.value), "cup"); assert.match(await text(mgr, "#teaModeLabel"), /ディナーの五巡茶 1杯/);
+  await mgr.selectOption("#teaMode", "free_flow"); await mgr.click("#teaModeSave"); await mgr.waitForSelector("#teaModeOut.c-ok");
+  assert.match(await text(mgr, "#teaModeOut"), /ディナーの五巡茶 飲み放題/); assert.equal(pg.exec(`select value from app_settings where key='dinner_tea_mode';`), "free_flow");
+  await fr.goto(`${BASE}/app-reference/card.html`); await fr.waitForSelector("#tickets"); assert.match(await text(fr, "#tickets"), /お友だち紹介・ディナーの五巡茶 飲み放題/);
+  await mgr.selectOption("#teaMode", "cup"); await mgr.click("#teaModeSave"); await mgr.waitForSelector("#teaModeOut:has-text('1杯')");
+  for (const p of [stf, view]) { await p.click("[data-tab=dash]"); await p.waitForSelector("#referralStats"); assert.equal(await p.locator("#teaModeBox").count(), 0); assert.equal(await p.locator("#teaMode").count(), 0); }
+  const sTea = await stf.evaluate(async () => { const s = JSON.parse(localStorage.getItem("sess"));
+    const r = await fetch("/rpc/manager_set_dinner_tea_mode", { method: "POST", headers: { "x-test-uid": s.user.id, "content-type": "application/json" }, body: JSON.stringify({ p_mode: "free_flow" }) }); return r.status; });
+  assert.equal(sTea, 400); assert.equal(pg.exec(`select value from app_settings where key='dinner_tea_mode';`), "cup");
+  assert.equal(await mgr.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+  ok("友だち紹介(スタッフ画面): 集計に今月の紹介からの登録・新規来店・初来店待ち。目標とKPI の会員来店率のカードに『紹介からの新規来店』『紹介からの登録』(店長・閲覧)。五巡茶の出し方(1杯/飲み放題)は店長だけが切り替えられ、友だちのチケットの名前も変わる。スタッフ・閲覧には部品がなく、関数を直接呼んでも変えられない");
+
   // ---- 表示の安全性 ----
   const evil = await newPage(tokFor(sub("b"), "<img src=x onerror=window.__x=1><script>window.__x=2</script>"));
   await evil.goto(`${BASE}/app-reference/card.html`); await evil.waitForSelector("#register"); await evil.click("#register"); await evil.waitForSelector("#name");
@@ -382,7 +452,7 @@ try {
   await mgr.click("[data-tab=members]"); await mgr.fill("#q", "img"); await mgr.click("#search"); await mgr.waitForSelector("#list button"); assert.equal(await mgr.evaluate(() => window.__x), undefined);
   ok("表示名にHTML/スクリプトがあっても実行されず、文字として表示される(お客様画面・スタッフ画面とも)");
   const ptsNoOverflow = await cust.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth); assert.ok(ptsNoOverflow);
-  for (const p of [cust, stf, mgr, view, evil, tk, cc]) assert.deepEqual(p.errs, [], p.errs.join("|"));
+  for (const p of [cust, stf, mgr, view, evil, tk, cc, picker, fr]) assert.deepEqual(p.errs, [], p.errs.join("|"));
   assert.equal(await tk.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
   assert.equal(Number(pg.exec(`select count(*) from public.verify_balances();`)), 0);
   ok("ブラウザのエラーなし・横スクロールなし・全会員で残高=台帳の合計");

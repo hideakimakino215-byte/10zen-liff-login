@@ -142,6 +142,13 @@ h1,h2,h3{margin:0}
 .stat .v small{font-size:14px;font-weight:700;color:var(--muted);margin-left:4px}
 .stat.t .v{color:var(--teal)} .stat.p .v{color:var(--purple)} .stat.o .v{color:var(--orange)} .stat.b .v{color:var(--blue)}
 #exportBox{--c:var(--blue);border-color:var(--blue)}
+/* 友だち紹介(集計の中。紫=会員の色) */
+#referralStats{display:grid;gap:10px}
+#referralStats h2{font-size:17px;display:flex;align-items:center;gap:8px;color:var(--purple)}
+#referralStats h2 svg{width:24px;height:24px}
+#teaModeBox{--c:var(--purple);border-color:var(--purple)}
+#teaModeBox select{min-height:48px;border:2px solid var(--line);border-radius:12px;padding:0 10px;font-size:16px;background:var(--card);max-width:100%}
+#teaModeOut{margin:0;font-weight:700}
 #exportOut{margin:0;font-weight:700}
 
 /* 体質チェック(セージ) */
@@ -229,6 +236,7 @@ h1,h2,h3{margin:0}
 .targets th:first-child,.targets td:first-child{text-align:left}
 .out{margin:0;font-weight:700}
 .out.ok{color:var(--ok)} .out.bad{color:var(--bad)} .out.warn{color:var(--warn)}
+.c-ok{color:var(--ok)} .c-bad{color:var(--bad)}
 .pick{display:flex;gap:12px;flex-wrap:wrap;font-size:14px}
 .pick label{display:grid;gap:4px;font-weight:700}
 .pick select{min-height:44px;border:2px solid var(--line);border-radius:10px;padding:0 8px;font-size:15px;max-width:16em;background:var(--card)}
@@ -315,6 +323,7 @@ const ICONS = {
   dash: [["path", { d: "M4 20h16" }], ["rect", { x: 5, y: 11, width: 3.5, height: 7, rx: 1 }], ["rect", { x: 10.25, y: 6, width: 3.5, height: 12, rx: 1 }], ["rect", { x: 15.5, y: 9, width: 3.5, height: 9, rx: 1 }]],
   ticket: [["path", { d: "M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z" }], ["path", { d: "M14 6v12", "stroke-dasharray": "2 2" }]],
   constitution: [["path", { d: "M12 3 20.5 9.2 17.3 19.2H6.7L3.5 9.2z" }], ["path", { d: "M12 7.5 16 10.6 14.5 15.5h-5L8 10.6z" }]],
+  invite: [["circle", { cx: 9, cy: 8, r: 3.5 }], ["path", { d: "M2.5 20a6.5 6.5 0 0 1 13 0" }], ["path", { d: "M19 8v6M16 11h6" }]],
   kpi: [["circle", { cx: 12, cy: 12, r: 8.5 }], ["circle", { cx: 12, cy: 12, r: 4.5 }], ["circle", { cx: 12, cy: 12, r: 1 }], ["path", { d: "M12 3.5V1.5M20.5 12h2" }]],
 };
 function icon(name) {
@@ -525,7 +534,7 @@ const STATE = { open: { label: "運用中", cls: "ok" }, test: { label: "試験�
 async function dashView() {
   const reload = el("button", "更新", { class: "btn sub", id: "reloadDash", style: "--c:var(--blue)" }); reload.onclick = dashView;
   const head = put(el("div", undefined, { class: "head" }), title("dash", "集計", "c-blue-text"));
-  const [r, tv, tk] = await Promise.all([staff.dashboard(), staff.todayVisits(), staff.ticketStats()]);
+  const [r, tv, tk, rf] = await Promise.all([staff.dashboard(), staff.todayVisits(), staff.ticketStats(), staff.referralStats()]);
   if (r.kind !== "ok") return show(head, failView("取得できませんでした", dashView));
   const d = r.data, s = STATE[d.state] ?? { label: d.state ?? DASH, cls: "unknown" };
   head.append(put(el("span", undefined, { class: `state ${s.cls}`, id: "dashState" }), el("i"), document.createTextNode(s.label)), el("span", `${jst(d.asOf) ?? DASH} 時点`, { class: "asof num" }), reload);
@@ -544,8 +553,29 @@ async function dashView() {
   // 特典チケット(累計): 発行数・使用数・使用率(使用数÷発行数)。取れなければ出さない
   if (tk.kind === "ok") nodes.push(put(el("section", undefined, { id: "ticketStats", "aria-label": "特典チケット" }), put(el("h2"), icon("ticket"), document.createTextNode("特典チケット(累計)")),
     put(el("div", undefined, { class: "stats three" }), stat("t", "発行", tk.data.issued, "枚"), stat("t", "使用", tk.data.used, "枚"), stat("t", "使用率", tk.data.usageRatePercent, "%"))));
+  // 友だち紹介(今月・日本時間): 紹介からの登録・紹介からの新規来店(初来店がこの月)・初来店待ち。取れなければ(106 が未適用など)出さない
+  if (rf.kind === "ok") nodes.push(put(el("section", undefined, { id: "referralStats", "aria-label": "お友だち紹介" }), put(el("h2"), icon("invite"), document.createTextNode(`お友だち紹介(${rf.data.month ?? "今月"})`)),
+    put(el("div", undefined, { class: "stats three" }), stat("p", "紹介からの登録", rf.data.referralRegistrations, "人"), stat("p", "紹介からの新規来店", rf.data.referralFirstVisits, "人"),
+      stat("p", "初来店待ち(累計)", rf.data.waitingFirstVisit, "人"))));
+  if (rf.kind === "ok" && role === "manager" && rf.data.canEdit) nodes.push(teaModeBox(rf.data));     // ディナーの五巡茶の出し方は店長だけ(ほかには DOM ごと出さない)
   if (role === "manager") nodes.push(exportBox());                // CSV 出力は店長のみ(既存の API の範囲)
   show(...nodes);
+}
+
+// 店長だけ: ディナーの五巡茶の出し方(お友だち紹介のチケットの名前)。運営変更で飲み放題が始まったら切り替える
+const TEA_MODES = [["cup", "1杯(運営変更の前)"], ["free_flow", "飲み放題(運営変更の後)"]];
+function teaModeBox(d) {
+  const sel = el("select", undefined, { id: "teaMode", "aria-label": "ディナーの五巡茶の出し方" });
+  for (const [v, label] of TEA_MODES) { const o = el("option", label, { value: v }); if (v === d.dinnerTeaMode) o.selected = true; sel.append(o); }
+  const b = el("button", "保存", { id: "teaModeSave", class: "btn sub" }), o = el("p", "", { id: "teaModeOut", role: "status" }), cur = el("p", `いまのチケットの名前: ${d.ticketLabel ?? DASH}`, { class: "hint", id: "teaModeLabel" });
+  b.onclick = async () => {
+    b.disabled = true; const x = await staff.setDinnerTeaMode(sel.value); b.disabled = false;
+    if (x.kind !== "ok") { o.className = "c-bad"; o.textContent = x.kind === "forbidden" || x.kind === "not_staff" ? "この操作の権限がありません" : x.kind === "invalid" ? "選び直してください" : "通信できませんでした。もう一度押してください"; return; }
+    o.className = "c-ok"; o.textContent = `保存しました: ${x.data.label}(まだ使っていない紹介のチケット ${n(x.data.retitled)} 枚の名前も変えました)`; cur.textContent = `いまのチケットの名前: ${x.data.label}`;
+  };
+  return put(el("section", undefined, { class: "panel", id: "teaModeBox" }), el("h3", "お友だち紹介のチケット(店長のみ)"),
+    el("p", "紹介した人・された人に届くチケット(友だちの初来店のとき)は「ディナーの五巡茶」です。運営変更で飲み放題が始まったら切り替えてください", { class: "hint" }),
+    put(el("div", undefined, { class: "row-flex" }), sel, b), cur, o);
 }
 
 // ---- 体質チェック(セージ)。権限は DB(staff_constitution_stats)が判定: 店長・閲覧=すべて、スタッフ=今週の体調の傾向だけ ----
@@ -688,7 +718,10 @@ function kpiDataNodes(d) {
   out.push(put(el("div", undefined, { class: "kpi-cards", id: "kpiCards" }),
     card("member_visit_rate", [subP("新規登録", `${fmtValue("new_members", nm.actual)}`, "kpiNewMembers"),
       put(el("p", undefined, { class: "sub num" }), document.createTextNode(nm.target == null ? "新規登録の目標なし" : `新規登録の目標 ${fmtValue("new_members", nm.target)}${nm.prorated ? `(日割り ${fmtValue("new_members", nm.targetCompared)})` : ""} `),
-        stChip(nmSt, nm.achievementPercent != null ? `${nm.achievementPercent}%` : nm.target != null ? "実績なし" : STATUS_LABELS.none, "kpiAch-new_members"))]),
+        stChip(nmSt, nm.achievementPercent != null ? `${nm.achievementPercent}%` : nm.target != null ? "実績なし" : STATUS_LABELS.none, "kpiAch-new_members")),
+      // 友だち紹介(db/106): 紹介された人の初来店がこの月の人数と、紹介からの登録数。106 が未適用なら「—」
+      subP("紹介からの新規来店", typeof sp.referralFirstVisits === "number" ? `${n(sp.referralFirstVisits)}人` : DASH, "kpiReferralVisits"),
+      subP("紹介からの登録", typeof sp.referralRegistrations === "number" ? `${n(sp.referralRegistrations)}人` : DASH, "kpiReferralRegs")]),
     card("check_rate", [subP("季節の再チェック率", sp.seasonRecheckPercent == null ? DASH : `${sp.seasonRecheckPercent.toFixed(1)}%`), subP("実施", `${n(sp.checkedMembers)} 人 / 有効 ${n(sp.activeMembers)} 人`)]),
     card("revisit_rate", [subP(`直近${sp.revisitWindowDays ?? 60}日に来た会員のうち2日以上`, sp.revisitAmongVisitorsPercent == null ? DASH : `${sp.revisitAmongVisitorsPercent.toFixed(1)}%`)]),
     card("referral_clicks", [subP("実施した会員あたり", sp.referralPerCheckedPercent == null ? DASH : `${sp.referralPerCheckedPercent.toFixed(1)}%`)])));
