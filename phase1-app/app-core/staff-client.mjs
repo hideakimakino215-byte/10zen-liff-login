@@ -82,6 +82,7 @@ export function createStaffClient({ supabase, qrEndpoint, fetchFn = (...a) => fe
 //   idle → (入力) → looking_up → confirm(内容を確認して確定を押す) → confirming → done / または not_found・expired・insufficient・locked・error
 //   特典チケットのコード(lookupCode の結果が kind="ticket")のときは state に kind:"ticket" と ticket(title など)が付き、
 //   確定の結果は done(title)/ expired(コードの期限)/ ticket_used(使用済み)/ ticket_expired(チケットの期限)/ cancelled / not_found
+//   ポイント・チケットとも、コードを出した後に会員が停止されたときは member_inactive(DB が申請を取り消す。db/109)
 export const redeemInitial = { step: "idle" };
 export function redeemReduce(state, ev) {
   switch (ev.type) {
@@ -100,12 +101,13 @@ export function redeemReduce(state, ev) {
       const st = r.data.status;
       if (ticket) {
         if (st === "confirmed" || st === "already_confirmed") return { step: "done", kind: "ticket", title: r.data.title ?? state.ticket?.title ?? null };
-        if (st === "expired" || st === "ticket_used" || st === "ticket_expired") return { step: st };
+        if (st === "expired" || st === "ticket_used" || st === "ticket_expired" || st === "member_inactive") return { step: st };
         return { step: st === "cancelled" ? "cancelled" : "not_found" };
       }
       if (st === "confirmed" || st === "already_confirmed") return { step: "done", points: r.data.points, yen: r.data.yen, balanceAfter: r.data.balanceAfter ?? null };
       if (st === "expired") return { step: "expired" };
       if (st === "insufficient_balance") return { step: "insufficient", balance: r.data.points };
+      if (st === "member_inactive") return { step: "member_inactive" };
       return { step: st === "cancelled" ? "cancelled" : "not_found" };
     }
     case "reset": return redeemInitial;

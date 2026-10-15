@@ -406,6 +406,7 @@ function redeemView() {
     else if (st.step === "done") { const b = msgBox("ok", `確定しました: ${st.points}pt(${st.yen}円分)。残高 ${st.balanceAfter ?? DASH}pt`, "rDone"); b.classList.add("done"); out.append(b); }
     else if (st.step === "ticket_used") say("bad", "このチケットは使用済みです");
     else if (st.step === "ticket_expired") say("bad", "このチケットは有効期限が切れています");
+    else if (st.step === "member_inactive") say("bad", "この会員は停止中のため確定できません(申請は取り消しました)");
     else if (st.step === "not_found") say("bad", "コードが見つかりません(期限切れの可能性があります)");
     else if (st.step === "expired") say("bad", "有効時間が過ぎました。お客様に再申請してもらってください");
     else if (st.step === "insufficient") say("bad", `残高が足りません(残高 ${n(st.balance)}pt)`);
