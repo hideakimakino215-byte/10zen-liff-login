@@ -4,6 +4,7 @@
  * 動作: DB の全データ+設定を JSON で取得 → SHA-256 を再計算して照合 → 自分の Google ドライブ「10ZEN_backup」フォルダへ保存 → 結果を DB に記録。
  *       失敗したら、記録(失敗)とメール通知。トリガー自体が動かない場合は、別の Google プロジェクトの見張り役(watchdog.gs)が毎朝確認し、
  *       36時間以上成功していなければメールで知らせる。見張り役に渡すトークンは showWatchdogToken() で表示する(状態の確認にしか使えない)。
+ *       同じ見張り役のプロジェクトの月次レポート(monthly_report.gs)に渡すトークンは showReportToken() で表示する(月次レポートの取得にしか使えない)。
  * 注意: 保存先には個人情報(LINE ID・氏名・ポイント)が入る。フォルダは共有しない。古いバックアップの削除は自動では行わない(手動で整理)。
  */
 function backupFolder_() {
@@ -85,5 +86,12 @@ function showWatchdogToken() {
   assertOwner_();
   var t = toHex_(Utilities.computeHmacSha256Signature("backup-status-v1", PropertiesService.getScriptProperties().getProperty("CHECKIN_SECRET")));
   console.log("見張り役のスクリプトプロパティ BACKUP_STATUS_TOKEN に設定する値: " + t);
+  return t;
+}
+// 月次レポート(monthly_report.gs。見張り役と同じプロジェクト)に設定するトークンを表示する(所有者のみ)。このトークンでできるのは、集計の数字だけの月次レポートの取得だけ。
+function showReportToken() {
+  assertOwner_();
+  var t = toHex_(Utilities.computeHmacSha256Signature("monthly-report-v1", PropertiesService.getScriptProperties().getProperty("CHECKIN_SECRET")));
+  console.log("月次レポートのスクリプトプロパティ REPORT_TOKEN に設定する値: " + t);
   return t;
 }
