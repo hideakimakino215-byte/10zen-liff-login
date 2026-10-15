@@ -101,7 +101,7 @@
 - 中身(**集計の数字だけ。氏名・会員番号・LINE ID は含まない**):
   1. 4つの KPI の実績 / 目標 / 達成率と、前の月との差。
   2. 会員: 新規登録数・紹介からの新規来店数・ランク別の人数。
-  3. 体質チェック: タイプ別の人数・今日の体調でいちばん多い答え。
+  3. 体質チェック: タイプ別の人数・**チェック結果の傾向**(その月のチェックの回数とタイプの分布)・**来店時の実施率**(2026-10-15 の変更。下の B-7)。
   4. 特典: チケットの発行数・使用数・使用率。
   5. 1行の注意(例: 会員来店率が目標の80%未満・レジの客数が未取り込み)。
   6. スタッフ画面へのリンク(URL はスクリプト プロパティ)。
@@ -115,7 +115,7 @@
 - **KPI の値:** 105 の `_kpi_overview` を「その月の最後の時刻(日本時間)」で計算したもの(スタッフ画面の月の表と同じ値)。数の KPI の目標は日割りしない(月が終わっているため)。前の月との差は、率は % の差(メールでは pt)、数は件数の差。どちらかの月の実績がない(レジの客数が未取り込みなど)ときは「—」。
 - **新規登録数**は KPI と同じ(移行で取り込んだ会員を除く)。4つの KPI と並べて「(補助)」として載せ、目標と達成率もつける。
 - **ランク別:** 月末までに登録した有効会員を、**今の**ランクで数える(ランクの履歴は持っていない)。
-- **体質のタイプ別:** 会員ごとの、月末までの最新の結果。**今日の体調:** その月の回答で、3つの問いそれぞれのいちばん多い答え(同数は選択肢の並びの先)。
+- **体質のタイプ別:** 会員ごとの、月末までの最新の結果。**チェック結果の傾向:** その月(日本時間)に行われたチェック1回ずつの主なタイプの分布(バランス良好は別)と回数・人数。**来店時の実施率:** その月の会員の来店日(1会員1日1行)のうち、同じ日(日本時間)にその会員がチェックした日の割合(目標と KPI の補助の数字と同じ)。**今日の体調は載せない**(2026-10-15 に廃止。B-7)。
 - **チケット:** その月の発行数(種類別: 到達のお祝い・季節の豆花・お友だち紹介)と使用数(その月に使った数)。**使用率は月末までの累計**(使用 ÷ 発行。スタッフ画面の「特典チケット(累計)」と同じ考え方)。
 - **注意の行:** 目標のある KPI(4つと新規登録数)のうち、達成率が80%未満のもの(ちょうど80%・目標なしは除く)を1行ずつ。レジの客数が未取り込みなら1行。なければ「特になし」。
 - **送れなかったとき:** 取得できない(通信エラー・HTTP のエラー・応答の形の違い・設定漏れ)ときは、**所有者だけ**に「【10ZEN】月次レポートを作れませんでした(YYYY年M月)」と直し方を送る(店長を送り先に足しても、技術的な知らせは所有者だけ)。直ったら `monthlyReport` を実行すると、その月の分を送る。
@@ -126,7 +126,7 @@
 
 - **DB(106 に含む):** `report_monthly(p_month text, p_now timestamptz default now())`(service_role だけ。`p_now` はテスト用で、Edge Function は渡さない)。
   - 省略のとき: `{ month, skipped: true, reason: 'no_launch_date' | 'before_launch' | 'month_not_finished' }`(`before_launch` は `launchDate` も)。月の形の違いは `invalid_month`(22023)。
-  - それ以外: `{ month, skipped: false, scope('production'|'test'), state, generatedAt, launchDate, monthIndex, milestone, previousMonth, kpis{ member_visit_rate・new_members・check_rate・revisit_rate・referral_clicks: { actual, target, achievementPercent, previous, change } }, pos{ customers, source, days, missing }, members{ newRegistrations, referralRegistrations, referralFirstVisits, activeMembers, memberVisits, byRank{ white_opal…onyx } }, constitution{ checkedMembers, checksInMonth, checkRatePercent, byType{ wood, fire, earth, metal, water, balanced }, conditions{ answers, counts{ temp, energy, concern }, top{ temp, energy, concern } } }, tickets{ issued, used, issuedByKind{ milestone, seasonal, referral }, cumulativeIssued, cumulativeUsed, usageRatePercent } }`。会員の ID・氏名・会員番号・LINE の ID・招待コードは含まない(テストで確認)。
+  - それ以外: `{ month, skipped: false, scope('production'|'test'), state, generatedAt, launchDate, monthIndex, milestone, previousMonth, kpis{ member_visit_rate・new_members・check_rate・revisit_rate・referral_clicks: { actual, target, achievementPercent, previous, change } }, pos{ customers, source, days, missing }, members{ newRegistrations, referralRegistrations, referralFirstVisits, activeMembers, memberVisits, byRank{ white_opal…onyx } }, constitution{ checkedMembers, checksInMonth, checkRatePercent, byType{ wood, fire, earth, metal, water, balanced }, checkResults{ checks, members, byType{ wood…water, balanced } }, visitCheckRate{ visitDays, checkedVisitDays, ratePercent } }(107 から。106 では checkResults・visitCheckRate の代わりに conditions{ answers, counts, top } だった), tickets{ issued, used, issuedByKind{ milestone, seasonal, referral }, cumulativeIssued, cumulativeUsed, usageRatePercent } }`。会員の ID・氏名・会員番号・LINE の ID・招待コードは含まない(テストで確認)。
 - **Edge Function `backup-export`:** `action: "monthly_report", month: "YYYY-MM"`。トークン: 月次レポート用(`reportToken` = HMAC(秘密, "monthly-report-v1"))と全体のトークンで 200。見張り用のトークンでは 403。月次レポート用のトークンで `status`・`export`・`record` は 403。月の形の違いは 400、DB のエラーは 500。
 - **GAS `gas_backup/monthly_report.gs`**(見張り役と同じプロジェクト。関数・変数の名前は `watchdog.gs` と重ならない)
   - `monthlyReport()`(トリガーの入口)・`monthlyReport_(nowMs)`(テストできる本体)・`buildReportMail_(json, staffUrl)`(件名・本文・注意の行)・`installMonthlyReportTrigger()`(所有者のみ。毎月1日 9時 Asia/Tokyo。何度実行しても1つ)・`monthlyReportSelfTest()`(所有者のみ。所有者だけに【試験】のメール。送った記録は残さない)。
@@ -141,6 +141,14 @@
 ### B-5. 本番の設定(承認を得てから)
 
 `gas_backup/WATCHDOG_SETUP.md` の「月次レポート」の節の手順(DB 106 の適用と backup-export の更新 → 本体で `showReportToken` → 見張り役のプロジェクトに `monthly_report.gs` とスクリプト プロパティ → `installMonthlyReportTrigger` → `monthlyReportSelfTest`)。本番開始日が未設定の間は、トリガーを入れても毎月何も送らない(自動で始まる)。
+
+### B-7. 体質チェックを来店のたびに(任意)へ変えたことによる変更(2026-10-15・db/107)
+
+- 牧野さんの決定で「今日の体調」(3問)をやめ、1分体質チェックを来店のたびに任意でできるようにした(`CONSTITUTION_CHECK_DESIGN_20261015.md` の 12章)。
+- **月次レポートの体質チェックの欄:** 「今日の体調でいちばん多い答え」を外し、「チェック結果の傾向」(この月のチェックの回数と、1回ずつのタイプの分布)と「来店時の実施率」(会員の来店日のうち、同じ日にチェックした日の割合と、その日数)を載せる。
+  - メールの行: 「・チェック結果の傾向(この月のチェック N回): 木 モヤモヤ渋滞タイプ N回 / … / バランス良好 N回」(チェックがない月は「この月のチェックはありません」)、「・来店時の実施率: 50.0%(会員の来店 2日のうち、同じ日にチェックした日 1日)」(来店がない月は「—」)。
+- **DB:** `report_monthly` を 107 で置き換え(署名・権限は同じ)。応答の `constitution.conditions` をなくし、`checkResults`・`visitCheckRate` を足した。ほかの項目は 106 と同じ。戻しは `db/107_constitution_each_visit_DOWN.sql`(106 の内容に戻る)。
+- **テスト:** `gas_backup/test_monthly_report.mjs`(9件のまま。文面・値を変更)、`patches/test_constitution_each_visit.mjs` の 7件目(値・日本時間の月の境目・106 のほかの項目がそのまま)。
 
 ### B-6. まだのもの・確かめたいこと
 

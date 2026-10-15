@@ -18,7 +18,7 @@
 | # | KPI(コード) | 決め方 | 補助の数字 |
 |---|---|---|---|
 | 1 | **会員来店率**(`member_visit_rate`。主な KPI) | その月の会員の来店数 ÷ レジの客数 × 100 | **新規登録数**(`new_members`。その月に登録した会員。目標も持つ) |
-| 2 | **体質チェック実施率**(`check_rate`) | 月末(今月は今)の有効会員のうち、体質チェックを1回以上した会員の割合 | 季節の再チェック率(実施した会員のうち、最新の結果がその時点の季節のものの割合) |
+| 2 | **体質チェック実施率**(`check_rate`) | 月末(今月は今)の有効会員のうち、体質チェックを1回以上した会員の割合 | 来店時の実施率(その月の会員の来店日のうち、同じ日にチェックした日の割合。2026-10-15 に「季節の再チェック率」から画面の表示を差し替え。季節の再チェック率は応答に残す) |
 | 3 | **再来店率**(`revisit_rate`) | 月末(今月は今日)までの直近60日に、来店が2日以上ある会員 ÷ 有効会員 | 60日の間に来店した会員のうち、2日以上来た会員の割合 |
 | 4 | **薬日本堂への送客**(`referral_clicks`) | その月の「薬日本堂の漢方相談へ」が押された数 | 押された数 ÷ 体質チェックを実施した会員 |
 
@@ -112,7 +112,7 @@
 
 - 表: `kpi_settings`(1行。`launch_date`)・`kpi_targets`(`kpi_code` × `milestone` 3/6/12 → `value`。null=目標なし)・`pos_daily_customers`(`is_test`・`business_date`・`customers`・`source`(ファイル名)・`imported_at`・`imported_by`)・`pos_monthly_customers`(`is_test`・`month`(月初)・`customers`・`entered_at`・`entered_by`)。すべて行レベルセキュリティつきで、anon/authenticated は直接触れない。service_role は読み取りだけ。
 - 関数(ログイン済みだけが呼べ、権限は中で確認):
-  - `staff_kpi_overview(p_months int default 13)` … 店長・閲覧。1〜36か月(今月まで)。戻り値は `launchDate`・`targets`・`months[]`(各月: `month`・`isCurrent`・`asOfDate`・`elapsedDays`・`daysInMonth`・`monthIndex`・`milestone`・`pos{customers, source(daily/manual/null), days, manualCustomers, lastImportedAt, lastSource, missing}`・`memberVisits`・`memberVisitsOnPosDays`・`kpis{コード: {actual, target, targetCompared, prorated, achievementPercent}}`・`supporting{activeMembers, checkedMembers, seasonRecheckPercent, seasonKey, revisitWindowDays, revisitMembers, visitorsInWindow, revisitAmongVisitorsPercent, referralPerCheckedPercent}`)・`state`・`canEdit`。
+  - `staff_kpi_overview(p_months int default 13)` … 店長・閲覧。1〜36か月(今月まで)。戻り値は `launchDate`・`targets`・`months[]`(各月: `month`・`isCurrent`・`asOfDate`・`elapsedDays`・`daysInMonth`・`monthIndex`・`milestone`・`pos{customers, source(daily/manual/null), days, manualCustomers, lastImportedAt, lastSource, missing}`・`memberVisits`・`memberVisitsOnPosDays`・`kpis{コード: {actual, target, targetCompared, prorated, achievementPercent}}`・`supporting{activeMembers, checkedMembers, seasonRecheckPercent, seasonKey, revisitWindowDays, revisitMembers, visitorsInWindow, revisitAmongVisitorsPercent, referralPerCheckedPercent}`。106 で `referralRegistrations`・`referralFirstVisits`、107 で `visitDays`・`checkedVisitDays`・`visitCheckRatePercent`(来店時の実施率)を追加)・`state`・`canEdit`。
   - `manager_set_launch_date(p_date date)`(null で未設定)・`manager_set_kpi_target(p_kpi text, p_milestone int, p_value numeric)`(率は 0〜100・小数1桁まで、数は 0〜100000 の整数、null=目標なし)・`manager_import_pos_customers(p_rows jsonb, p_source text default null)`(`[{"date":"YYYY-MM-DD","customers":整数}]`。1〜400行・同じ日付は1回まで・2000-01-01〜今日・客数 0〜100000 の整数)・`manager_set_pos_monthly(p_month text 'YYYY-MM', p_customers int)`(今月まで。null で消す)。
   - 内部: `_kpi_overview(p_tst, p_months, p_now)`(基準の時刻を固定して計算できる。テストで使う)・`_kpi_ach`・`_kpi_is_rate`。誰からも直接は呼べない。
   - エラー: `invalid_rows`・`invalid_date`・`invalid_customers`・`invalid_month`・`invalid_target`・`invalid_kpi`・`invalid_milestone`(errcode 22023)。権限は `not_staff`・`forbidden`(42501)。
