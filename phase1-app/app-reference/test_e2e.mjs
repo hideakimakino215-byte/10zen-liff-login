@@ -155,7 +155,7 @@ try {
   pg.exec(`select public._grant(m.id, 'earn', 'visit', 1000 - public._effective_lifetime(m), 'e2e:amber', 'test', null, now()) from members m where display_name = '試験 花子';`);
   await tk.reload(); await tk.waitForSelector("#tickets button[data-ticket-id]");
   assert.match(await text(tk, "#rank"), /AMBER/); assert.match(await text(tk, "#tickets"), /AMBER 到達のお祝い・豆花 1つ/); assert.match(await text(tk, "#tickets"), /まで/);
-  assert.match(await text(tk, "#rankPerks"), /ディナーの漢方茶 無料/); assert.doesNotMatch(await text(tk, "#rankPerks"), /薬日本堂/);   // 薬日本堂のご優待は EMERALD から
+  assert.match(await text(tk, "#rankPerks"), /ディナーの五巡茶 無料/); assert.doesNotMatch(await text(tk, "#rankPerks"), /薬日本堂/);   // 薬日本堂のご優待は EMERALD から
   assert.match(await text(tk, "#benefits"), /1,000pt達成/); assert.doesNotMatch(await tk.textContent("body"), /5%OFF/);
   assert.match(await text(tk, "#next"), /EMERALDまで あと 2,000 pt/); assert.match(await text(tk, "#lifetime"), /1,000 \/ 3,000 pt/);
   await tk.click("#tickets button[data-ticket-id]"); await tk.waitForSelector("#ticketCode");
@@ -171,7 +171,7 @@ try {
   await tk.emulateMedia({ reducedMotion: "reduce" });                                                                // 動きを減らす設定: 模様は止まり、時刻は更新し続ける
   assert.equal(await tk.evaluate(() => getComputedStyle(document.querySelector(".front .in"), "::after").animationName), "none");
   const clock2 = await text(tk, "#liveClock"); await tk.waitForFunction((c) => document.getElementById("liveClock")?.textContent !== c, clock2, { timeout: 3000 });
-  ok("特典チケット: AMBER に上がると会員証にお祝いのチケットと『ディナーの漢方茶 無料』が出る→『使う』で6桁コード→スタッフ画面の同じ入力欄でチケットと判定・確定→お客様の画面に自動で『ご利用いただきました』。使い終えたコードは再利用できず、集計に発行・使用・使用率。表面に毎秒の時刻と動く模様(動きを減らす設定では模様だけ止まる)");
+  ok("特典チケット: AMBER に上がると会員証にお祝いのチケットと『ディナーの五巡茶 無料』が出る→『使う』で6桁コード→スタッフ画面の同じ入力欄でチケットと判定・確定→お客様の画面に自動で『ご利用いただきました』。使い終えたコードは再利用できず、集計に発行・使用・使用率。表面に毎秒の時刻と動く模様(動きを減らす設定では模様だけ止まる)");
 
   // ---- 店長の手動調整・閲覧のみの制限 ----
   const mgr = await newPage(); await mgr.goto(`${BASE}/app-reference/staff.html`); await mgr.fill("#email", "mgr@t"); await mgr.fill("#password", "pw"); await mgr.click("#login"); await mgr.waitForSelector("#who:has-text('manager')");

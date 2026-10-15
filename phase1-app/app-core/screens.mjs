@@ -47,7 +47,7 @@ const codeText = (c) => `${c.slice(0, 3)} ${c.slice(3)}`;
 //   small: true は小さく添える行(薬日本堂のご優待は暫定。中身は未定なので表示だけ)
 const RANK_ORDER = ["white_opal", "amber", "emerald", "ruby", "onyx"];
 export const RANK_PERKS = [
-  ["amber", "ディナーの漢方茶 無料"],
+  ["amber", "ディナーの五巡茶 無料"],
   ["emerald", "季節の豆花チケット(季節ごとに1枚)"],
   ["ruby", "席・予約の優先案内"],
   ["onyx", "新メニュー試食会へご招待"],
