@@ -19,6 +19,13 @@ assert.match(copy, new RegExp(`v: "100pt=${yen}円"`)); assert.match(card, new R
 ok(`ポイントの価値(100pt=${yen}円)が、DB の app_settings と会員証の表示と同じ`);
 
 for (const word of ["薬膳茶", "スイーツ"]) { assert.ok(copy.includes(word), `QR 画面に ${word} がない`); assert.ok(card.includes(word), `会員証の特典に ${word} がない(QR 画面の宣伝と食い違う)`); }
+// 会員証の見本で順に見せるランクと特典: ランク名と特典の要点が、会員証の特典の一覧(BENEFITS)にそのままある
+const benefits = card.slice(card.indexOf("const BENEFITS"), card.indexOf("]];", card.indexOf("const BENEFITS")));
+const ranks = [...copy.matchAll(/\["(\w+)", "([A-Z ]+)", "([^"]+)"\]/g)].map((m) => ({ code: m[1], label: m[2], text: m[3] }));
+assert.deepEqual(ranks.map((r) => r.code), ["white_opal", "amber", "emerald", "ruby", "onyx"]);
+const keys = { white_opal: "10円", amber: "薬膳茶", emerald: "スイーツ", ruby: "5%OFF", onyx: "試食会" };
+for (const r of ranks) { assert.ok(benefits.includes(`"${r.code}", "${r.label}"`), `会員証の特典に ${r.label} がない`); const line = benefits.slice(benefits.indexOf(`"${r.code}"`), benefits.indexOf("]", benefits.indexOf(`"${r.code}"`)));
+  assert.ok(r.text.includes(keys[r.code]) && line.includes(keys[r.code]), `${r.label} の特典が会員証と食い違う: ${r.text}`); }
 assert.ok(!/キャンペーン/.test(copy), "期間限定のキャンペーンは常設の画面に書かない");
-ok("ランク特典の例(薬膳茶・スイーツ)が会員証の特典にある。期間限定のキャンペーンは書いていない");
+ok("ランク特典の例(薬膳茶・スイーツ)と、見本で順に見せる5ランクの特典が、会員証の特典と同じ。期間限定のキャンペーンは書いていない");
 console.log(`\n${n} kiosk copy checks passed`);
