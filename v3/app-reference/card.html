@@ -1,0 +1,342 @@
+<!doctype html>
+<!-- 会員証(両面)。見た目だけを持つ。業務処理は ../app-core のクライアントと画面状態(screens.mjs)・店舗情報(store-info.mjs)に集約されている。
+     UI が守ること: 画面は cardScreen/checkinScreen/redeemScreen が返す screen 名で分岐し、表示は view の項目をそのまま使う。値の未取得は『—』。値は textContent で入れる(innerHTML 不可)。
+     素材: assets/logo.png(店のロゴ・透過)と assets/herb-*.webp(水彩の生薬イラスト。白背景を透過に加工)。 -->
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
+<title>10ZEN 会員証</title>
+<style>
+:root { --r1:#e9e7e1; --r2:#bfbcb3; --r3:#fbfaf6; --on:#3b3935; --tint:#fdfcf9; --ink:#2b2926; --sub:#7a746b; --line:#e7e1d8; --bg:#f7f4ee; --paper:#fffefb; --accent:#8a6a3b; --ok:#2f6b4f; --warn:#a4452c; }
+* { box-sizing:border-box; }
+html, body { margin:0; background:var(--bg); color:var(--ink); font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Noto Sans JP",system-ui,sans-serif; -webkit-text-size-adjust:100%; }
+main { max-width:440px; margin:0 auto; padding:20px 16px 40px; }
+h1, h2, p { margin:0; }
+a { color:inherit; }
+.serif { font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; }
+.notice { background:#fff; border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:8px; padding:12px 14px; margin:0 0 16px; font-size:14px; line-height:1.6; }
+/* ---- カード(タップで裏返る)。ランクごとに枠・帯・バッジの色が変わる ---- */
+.scene { perspective:1200px; }
+.card { position:relative; width:100%; aspect-ratio:1.3 / 1; cursor:pointer; transform-style:preserve-3d; transition:transform .6s cubic-bezier(.2,.7,.2,1); outline-offset:4px; border-radius:16px;
+ }
+.rank-amber { --r1:#f3c27a; --r2:#b45309; --r3:#fff7ea; --on:#7c3a06; --tint:#fff9ef; }
+.rank-emerald { --r1:#5fbf97; --r2:#064e3b; --r3:#f1faf5; --on:#064e3b; --tint:#f4fbf7; }
+.rank-ruby { --r1:#e07a9e; --r2:#831843; --r3:#fdf2f6; --on:#831843; --tint:#fef5f8; }
+.rank-onyx { --r1:#4b5160; --r2:#0b1220; --r3:#f3f3f6; --on:#d4af37; --tint:#f7f6f2; }
+.card.flipped { transform:rotateY(180deg); }
+.face { position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; border-radius:16px; overflow:hidden; box-shadow:0 12px 30px rgba(60,45,20,.18), 0 1px 3px rgba(60,45,20,.14);
+  background:linear-gradient(135deg,var(--r1),var(--r2)); padding:5px; }
+.face .in { position:relative; width:100%; height:100%; border-radius:12px; background:var(--tint); overflow:hidden; }
+.face.back { transform:rotateY(180deg); }
+.logo { display:block; height:auto; }
+.herb { position:absolute; height:auto; pointer-events:none; filter:drop-shadow(0 2px 3px rgba(60,40,20,.18)); }
+.front .logo { position:absolute; left:6.5%; top:9%; width:38%; }
+.who { position:absolute; left:7%; bottom:8.5%; right:44%; min-width:0; }
+.who h1 { font-size:20px; font-weight:600; letter-spacing:.03em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.who p { font-size:14px; font-weight:600; color:#3f3b35; letter-spacing:.06em; margin-top:4px; font-variant-numeric:tabular-nums; }
+.chip { display:inline-block; font-size:11px; letter-spacing:.14em; padding:5px 11px; border-radius:999px; font-weight:700; color:#fff; background:linear-gradient(135deg,var(--r1),var(--r2)); border:1px solid rgba(0,0,0,.08); text-shadow:0 1px 1px rgba(0,0,0,.2); }
+.rank-white_opal.chip { color:#4a4843; text-shadow:none; background:linear-gradient(135deg,#f6f5f1,#d8d5cc); }
+.rank-onyx.chip { color:#d4af37; text-shadow:none; background:linear-gradient(135deg,#2a3142,#0b1220); border-color:#d4af37; }
+.front .chip { position:absolute; left:7%; top:44%; }
+.hint { text-align:center; font-size:11px; color:var(--sub); margin:12px 0 0; letter-spacing:.08em; }
+/* ---- 裏面(店舗情報。中央揃え) ---- */
+.back .in { display:flex; flex-direction:column; align-items:center; text-align:center; padding:16px 14px 12px; }
+.back .logo { width:40%; }
+.back .branch { font-size:12px; letter-spacing:.42em; margin-top:7px; color:var(--sub); }
+.back .hours, .back .addr, .back .tel { font-size:14.5px; line-height:1.5; margin-top:7px; }
+.back .tel a, .back .addr a { text-decoration:none; border-bottom:1px solid var(--line); }
+.back .actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; width:100%; margin-top:auto; padding-top:10px; }
+.back .btn { display:flex; align-items:center; justify-content:center; text-align:center; min-height:44px; padding:6px 8px; border:1px solid var(--ink); border-radius:10px; font-size:13.5px; font-weight:600; text-decoration:none; background:#fff; color:var(--ink); }
+.back .back-note { font-size:10.5px; color:var(--sub); margin-top:7px; letter-spacing:.08em; }
+/* ---- ポイント ---- */
+.panel { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:18px 18px 16px; margin-top:20px; }
+.label { font-size:11px; letter-spacing:.14em; color:var(--sub); }
+.points { font-size:42px; font-weight:600; letter-spacing:.01em; line-height:1.15; margin-top:4px; font-variant-numeric:tabular-nums; }
+.yen { font-size:13px; color:var(--sub); margin-top:2px; }
+.bar { height:8px; background:#ece6dc; border-radius:999px; overflow:hidden; margin-top:16px; }
+.bar > i { display:block; height:100%; background:linear-gradient(90deg,#b99256,#8a6a3b); border-radius:999px; }
+.nextrow { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-top:9px; font-size:13px; }
+.nextrow .life { color:var(--sub); font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.meta { font-size:12px; color:var(--sub); margin-top:8px; line-height:1.6; }
+.pending { text-align:center; }
+.code { font-size:44px; letter-spacing:.14em; font-weight:700; margin:10px 0 4px; font-variant-numeric:tabular-nums; }
+.row { display:flex; gap:8px; margin-top:14px; }
+input[type=number] { flex:1; min-width:0; height:46px; border:1px solid var(--line); border-radius:10px; padding:0 12px; font-size:16px; background:#fff; color:var(--ink); }
+button { font-family:inherit; }
+.primary, .ghost { height:46px; border-radius:10px; padding:0 14px; font-size:15px; font-weight:600; cursor:pointer; }
+.primary { border:0; background:var(--ink); color:#fff; } .ghost { border:1px solid var(--ink); background:#fff; color:var(--ink); }
+.full { width:100%; margin-top:16px; }
+.msg { text-align:center; font-size:15px; line-height:1.7; margin:24px 0 8px; }
+details.benefits { margin-top:16px; border:1px solid var(--line); border-radius:12px; background:var(--paper); padding:2px 16px; }
+details.benefits summary { cursor:pointer; padding:14px 0; font-size:14px; font-weight:600; list-style:none; }
+details.benefits summary::-webkit-details-marker { display:none; }
+.benefit { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); font-size:12.5px; line-height:1.5; }
+.benefit .chip { min-width:112px; text-align:center; white-space:nowrap; font-size:10.5px; padding:5px 8px; }
+.ticket { margin-top:16px; text-align:center; background:#0f172a; color:#d4af37; border-radius:12px; padding:14px; font-size:14px; font-weight:600; line-height:1.6; }
+.ticket small { display:block; font-weight:400; font-size:12px; color:#e2e8f0; }
+.benefit-note { font-size:11.5px; color:var(--sub); line-height:1.6; padding:10px 0 12px; border-top:1px solid var(--line); }
+/* ---- 画面写真の使い回し対策: 表面に今の時刻(毎秒更新)と、ゆっくり動く模様 ---- */
+.who .clock { display:inline-flex; align-items:center; gap:6px; margin-top:5px; font-size:12px; font-weight:600; letter-spacing:.08em; color:var(--on); font-variant-numeric:tabular-nums; }
+.who .clock::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor; animation:blink 2s ease-in-out infinite; }
+.front .in::after { content:""; position:absolute; inset:-40%; pointer-events:none; z-index:0; opacity:.5;
+  background:repeating-linear-gradient(115deg, rgba(255,255,255,0) 0 20px, rgba(255,255,255,.55) 20px 24px, rgba(255,255,255,0) 24px 48px);
+  animation:drift 16s linear infinite; }
+.front .in > * { z-index:1; }
+@keyframes drift { from { transform:translate3d(0,0,0); } to { transform:translate3d(43.5px,20.3px,0); } }   /* 模様の1周期ぶん(48px)を斜めに動かして継ぎ目なく繰り返す */
+@keyframes blink { 50% { opacity:.25; } }
+/* ---- ランクの特典・特典チケット ---- */
+.perks { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:6px; }
+.perks li { font-size:13.5px; line-height:1.5; padding-left:16px; position:relative; }
+.perks li::before { content:""; position:absolute; left:2px; top:.55em; width:7px; height:7px; border-radius:50%; background:linear-gradient(135deg,var(--r1),var(--r2)); }
+.perks li.small { font-size:11.5px; color:var(--sub); }
+.tickets { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:8px; }
+.tickets li { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px dashed var(--accent); border-radius:10px; background:#fff; }
+.tickets .tt { flex:1; min-width:0; }
+.tickets .tt b { display:block; font-size:14px; font-weight:600; line-height:1.45; overflow-wrap:anywhere; }
+.tickets .tt small { font-size:11.5px; color:var(--sub); }
+.tickets .use { height:40px; min-width:72px; border-radius:10px; border:0; background:var(--ink); color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
+.tickets .use:disabled { opacity:.4; cursor:default; }
+/* ---- 1分体質チェック(入口・来店した日の「今日の1分体質チェック」・今日の傾向・あなたの体質・今日のおすすめ) ---- */
+.cc .cc-entry { display:flex; align-items:center; justify-content:center; min-height:48px; margin-top:12px; border-radius:10px; border:1px solid var(--ink); background:#fff; color:var(--ink); font-size:15px; font-weight:600; text-decoration:none; }
+.cc .cc-entry.first { background:var(--ink); color:#fff; border:0; }
+.cc .cc-prompt { margin-top:10px; padding:14px; border:1.5px solid var(--accent); border-radius:12px; background:#fbf6ec; }
+.cc .cc-prompt h2 { font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; font-size:18px; font-weight:600; letter-spacing:.04em; }
+.cc .cc-prompt p { font-size:13px; line-height:1.7; margin-top:6px; color:var(--sub); }
+.cc .cc-prompt .cc-entry { margin-top:10px; }
+.cc .cc-skip { display:block; width:100%; min-height:44px; margin-top:8px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--sub); font-size:14px; font-weight:600; cursor:pointer; }
+.cc .cc-line { margin-top:10px; font-size:14px; line-height:1.7; }
+.cc .cc-line b { font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; font-weight:600; font-size:16px; }
+.cc .cc-tea { margin-top:8px; font-size:13px; line-height:1.6; color:var(--sub); }
+/* ---- 友だち紹介(招待のリンクを LINE で送る・今月の人数) ---- */
+.invite .inv-text { font-size:13.5px; line-height:1.6; margin-top:8px; }
+.invite .inv-count { font-size:15px; font-weight:700; margin-top:8px; font-variant-numeric:tabular-nums; }
+.invite .inv-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
+.invite .inv-actions .primary, .invite .inv-actions .ghost { width:100%; display:flex; align-items:center; justify-content:center; text-decoration:none; padding:0 8px; }
+.invite .inv-url { overflow-wrap:anywhere; font-size:12px; -webkit-user-select:all; user-select:all; }
+@media (max-width:340px) { .points { font-size:36px; } .code { font-size:36px; } .back .in { padding:12px 10px 8px; } .back .hours, .back .addr, .back .tel { font-size:12.5px; margin-top:5px; } .back .btn { font-size:11.5px; min-height:38px; padding:4px; } .who h1 { font-size:16px; } }
+/* 動きを減らす設定では模様と点滅を止める(時刻は更新し続ける) */
+@media (prefers-reduced-motion: reduce) { .card { transition:none; } .front .in::after, .who .clock::before { animation:none; } }
+</style></head>
+<body>
+<main id="app" aria-live="polite"><p id="loading" class="msg">読み込み中…</p></main>
+<script src="config.js"></script>
+<script src="vendor/liff.js"></script>
+<script type="module">
+import { createMemberClient, qrTokenFromLocation, inviteCodeFromLocation, isInviteCode, inviteUrl } from "../app-core/member-client.mjs";
+import { cardScreen, checkinScreen, redeemScreen, redeemWatch, ticketScreen, ticketWatch, messages, lineShareUrl, registerNotice, ccPromptVisible, CC_SKIP_KEY } from "../app-core/screens.mjs";
+import { TODAY_CHECK_TITLE, TODAY_CHECK_TEXT, TODAY_START, TODAY_SKIP, PROFILE_LABEL } from "../app-core/constitution-content.mjs";
+import { STORE, quizUrl, flowFromLocation } from "../app-core/store-info.mjs";
+const cfg = window.APP_CONFIG, app = document.getElementById("app");
+const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+const kids = (parent, ...nodes) => { for (const n of nodes) if (n) parent.append(n); return parent; };
+const show = (...nodes) => { app.replaceChildren(...nodes); };
+let client, prevView = null, poll = null, notice = null, lineUserId = null, flipped = false;
+// 友だち紹介(db/106): 招待のリンク(?ref=コード。LIFF の liff.state の形も)で開いたら、登録のときにコードを送る(友だちは何も入力しない)。
+// LINE のログインで画面が移っても失われないよう、このタブの sessionStorage にも置く(使えない端末では置かない)。会員証のお知らせは1回だけ出す
+const M = messages.ja, REF_KEY = "10zen_invite_ref";
+const keepRef = (c) => { try { if (c) sessionStorage.setItem(REF_KEY, c); else sessionStorage.removeItem(REF_KEY); } catch (_e) { /* 使えない端末 */ } };
+const savedRef = () => { try { const c = sessionStorage.getItem(REF_KEY); return isInviteCode(c) ? c : null; } catch (_e) { return null; } };
+let inviteRef = inviteCodeFromLocation(location.search) || savedRef(), inviteNote = null, inviteAcked = null;
+if (inviteRef) keepRef(inviteRef);
+async function registerNow() {
+  const prof = await window.liff.getProfile?.().catch?.(() => null);
+  const r = await client.register({ displayName: prof?.displayName, inviteCode: inviteRef || undefined });
+  const t = registerNotice(r); if (t) notice = t;
+  if (r.kind === "ok") { inviteRef = null; keepRef(null); }
+  return r;
+}
+// ランク特典(RANK_PERKS_DESIGN_20261015.md)。店頭QR画面(qr.html の KIOSK_COPY)と DB の基準(db/102_rank_perks.sql)に合わせる。食い違いは tools/test_kiosk_copy.mjs が検出する
+const BENEFITS = [["white_opal", "WHITE OPAL", "100pt = 10円としてお会計時にいつでも利用可能"], ["amber", "AMBER", "1,000pt達成:豆花を1つプレゼント・ディナーの五巡茶 無料"],
+  ["emerald", "EMERALD", "3,000pt達成:持ち帰り用のお茶を1袋プレゼント・季節ごとに豆花チケット(年4枚)"], ["ruby", "RUBY", "6,000pt達成:持ち帰り用のお茶を1袋プレゼント・席・予約の優先案内"],
+  ["onyx", "ONYX", "10,000pt達成:持ち帰り用のお茶を1袋プレゼント・新メニュー試食会へご招待"]];
+const BENEFIT_NOTE = "上のランクでは、下のランクの特典も続けてご利用いただけます。ランクは累計ポイントで決まり、下がりません。到達のお祝いのチケットは発行から60日間、季節の豆花チケットはその季節の終わりまで有効です。";
+// 今の時刻(日本時間 HH:MM:SS)。会員証の表面に出し、毎秒更新する(画面写真の使い回し対策)
+const clockFmt = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+const clockText = () => clockFmt.format(new Date());
+setInterval(() => { const c = document.getElementById("liveClock"); if (c) c.textContent = clockText(); }, 1000);
+
+// 表面(会員証: ロゴ・氏名・会員番号・ランク+生薬の飾り)と裏面(店舗情報)。タップで裏返る。リンクのタップでは裏返らない
+const HERBS = [["chili", "right:21%;top:5%;width:18%"], ["chenpi", "right:4%;top:6%;width:16%"], ["goji", "right:23%;top:34%;width:16%"], ["anise", "right:4%;top:43%;width:16%"],
+  ["lotus", "right:5%;bottom:5%;width:20%"], ["jujube", "right:30%;bottom:15%;width:14%"]];   // 水彩の生薬6種(位置と大きさ。画像は assets/herb-名前.webp)
+function cardFace(view) {
+  const rank = view ? view.rank : "white_opal";
+  const front = el("div", undefined, { class: "face front" }), fin = el("div", undefined, { class: "in" });
+  fin.append(el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT", class: "logo", width: "1400", height: "518", decoding: "async" }));
+  for (const [name, pos] of HERBS) fin.append(el("img", undefined, { src: `assets/herb-${name}.webp`, alt: "", "aria-hidden": "true", class: "herb", style: pos, decoding: "async" }));
+  if (view) {
+    fin.append(el("span", view.rankLabel, { id: "rank", class: `chip rank-${view.rank}` }));
+    kids(fin, kids(el("div", undefined, { class: "who" }), el("h1", view.displayName, { id: "name" }), el("p", `会員番号 ${view.memberNo}`, { id: "memberNo" }),
+      el("p", clockText(), { id: "liveClock", class: "clock", "aria-label": "現在の時刻" })));
+  }
+  front.append(fin);
+  const back = el("div", undefined, { class: "face back" }), bin = el("div", undefined, { class: "in" });
+  const link = (text, href, id, cls, ext) => el("a", text, { id, href, ...(cls ? { class: cls } : {}), ...(ext ? { target: "_blank", rel: "noopener noreferrer" } : {}) });
+  kids(bin, el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT", class: "logo", width: "1400", height: "518", decoding: "async" }), el("h2", "青山店", { id: "storeName", class: "branch" }), el("p", STORE.hoursText, { id: "storeHours", class: "hours" }),
+    kids(el("p", undefined, { class: "tel" }), link(`TEL ${STORE.telText}`, STORE.telHref, "storeTel")),
+    kids(el("p", undefined, { class: "addr" }), link(`📍 ${STORE.addressText}`, STORE.mapUrl, "storeMap", "", true)),
+    kids(el("div", undefined, { class: "actions" }), link("WEBご予約", STORE.bookingUrl, "storeBooking", "btn", true), link("30秒体質チェック", quizUrl(lineUserId), "storeQuiz", "btn", true)),
+    el("p", "タップで表面へ", { class: "back-note" }));
+  back.append(bin);
+  const card = el("div", undefined, { class: `card rank-${rank}` + (flipped ? " flipped" : ""), role: "button", tabindex: "0", "aria-label": "会員証。タップで表裏を切り替え", "aria-pressed": String(flipped) });
+  const sync = () => { card.classList.toggle("flipped", flipped); card.setAttribute("aria-pressed", String(flipped)); (flipped ? front : back).setAttribute("inert", ""); (flipped ? back : front).removeAttribute("inert"); };
+  const flip = () => { flipped = !flipped; sync(); };
+  card.addEventListener("click", (ev) => { if (ev.target.closest("a")) return; flip(); });
+  card.addEventListener("keydown", (ev) => { if ((ev.key === "Enter" || ev.key === " ") && ev.target === card) { ev.preventDefault(); flip(); } });
+  card.append(front, back); sync();
+  const scene = el("div", undefined, { class: "scene" }); scene.append(card);
+  return scene;
+}
+
+// 1分体質チェック(db/103・db/107): 初めての方は入口(「1分体質チェック」)だけ。実施済みの方は、来店した日(visitedToday)にまだ今日チェックしていなければ
+// 「今日の1分体質チェック」(はじめる・今日はスキップ)を出す。スキップはその日(日本時間)のあいだ出さない(端末の localStorage に日付を覚える。使えない端末ではこの画面を開いている間だけ)。
+// 今日チェック済みなら今日の傾向、いつもあなたの体質(最新3回の平均)・今日のおすすめ(最新の結果から)・今日の五巡茶を出す。103 が未適用なら何も出さない
+let ccSkipMem = null;
+const ccSkippedOn = () => { try { return localStorage.getItem(CC_SKIP_KEY) || ccSkipMem; } catch (_e) { return ccSkipMem; } };
+const ccSkip = (d) => { ccSkipMem = d; try { localStorage.setItem(CC_SKIP_KEY, d); } catch (_e) { /* 使えない端末: この画面の間だけ隠す */ } };
+const ccLine = (id, label, strong, extra) => kids(el("p", undefined, { id, class: "cc-line" }), document.createTextNode(`${label}: `), el("b", strong), extra ? el("span", extra, { class: "meta" }) : null);
+function checkNodes(view) {
+  const c = view.check; if (!c) return null;
+  const box = el("section", undefined, { class: "panel cc", id: "ccCard" });
+  box.append(el("p", "1分体質チェック", { class: "label" }));
+  if (!c.done) { box.append(el("a", c.entryLabel, { id: "ccEntry", href: c.entryHref, class: "cc-entry first" })); return box; }
+  if (ccPromptVisible(c, ccSkippedOn())) {
+    const skip = el("button", TODAY_SKIP, { id: "ccSkip", class: "cc-skip", type: "button" });
+    skip.onclick = () => { ccSkip(c.todayStr); if (prevView) show(...cardNodes(prevView)); };
+    box.append(kids(el("div", undefined, { id: "ccTodayPrompt", class: "cc-prompt" }), el("h2", TODAY_CHECK_TITLE), el("p", TODAY_CHECK_TEXT),
+      el("a", TODAY_START, { id: "ccTodayStart", href: c.startHref, class: "cc-entry first" }), skip));
+  }
+  if (c.checkedToday && c.result) box.append(ccLine("ccToday", c.latestLabel, c.result.typeName));
+  if (c.profile) box.append(ccLine("ccProfile", PROFILE_LABEL, c.profile.typeName, `(${c.profile.basisText})`));
+  if (c.result?.dish) box.append(ccLine("ccTodayDish", "今日のおすすめ", c.result.dish.name));
+  if (c.todayTea) box.append(el("p", `今日の五巡茶: ${c.todayTea.name}・${c.todayTea.line}`, { id: "ccTodayTea", class: "cc-tea" }));
+  box.append(el("a", c.entryLabel, { id: "ccEntry", href: c.entryHref, class: "cc-entry" }));
+  return box;
+}
+
+// 友だち紹介: 今月の人数(上限つき)・特典の説明・招待のリンクを LINE で送る(shareTargetPicker が使えなければ LINE の「送る」画面)・リンクのコピー
+function inviteNodes(view) {
+  const iv = view.invite; if (!iv) return null;
+  const box = el("section", undefined, { class: "panel invite", id: "invite" });
+  kids(box, el("p", M.invite_title, { class: "label" }), el("p", iv.rewardText, { id: "inviteText", class: "inv-text" }), el("p", iv.countText, { id: "inviteCount", class: "inv-count" }));
+  if (iv.referredText) box.append(el("p", iv.referredText, { id: "inviteReferred", class: "meta" }));
+  const url = inviteUrl(cfg.liffId, iv.code), text = iv.shareText(url), out = el("p", "", { id: "inviteOut", class: "meta", role: "status" });
+  if (iv.full) box.append(el("p", iv.fullText, { id: "inviteFull", class: "meta" }));
+  else {
+    let share;
+    if (window.liff?.isApiAvailable?.("shareTargetPicker")) {
+      share = el("button", M.invite_title, { id: "inviteShare", class: "primary", type: "button", "data-mode": "picker" });
+      share.onclick = async () => {
+        try { const r = await window.liff.shareTargetPicker([{ type: "text", text }]); if (r) out.textContent = M.invite_sent; }
+        catch (_e) { location.href = lineShareUrl(text); }                       // 送れなかったときは LINE の「送る」画面
+      };
+    } else share = el("a", M.invite_title, { id: "inviteShare", class: "primary", href: lineShareUrl(text), target: "_blank", rel: "noopener noreferrer", "data-mode": "line-share" });
+    const copy = el("button", "リンクをコピー", { id: "inviteCopy", class: "ghost", type: "button" });
+    copy.onclick = async () => {
+      try { await navigator.clipboard.writeText(url); out.textContent = M.invite_copied; }
+      catch (_e) { out.replaceChildren(document.createTextNode(M.invite_copy_failed), el("br"), el("span", url, { id: "inviteUrl", class: "inv-url" })); }
+    };
+    box.append(kids(el("div", undefined, { class: "inv-actions" }), share, copy));
+  }
+  box.append(out);
+  return box;
+}
+
+function cardNodes(view) {
+  const n = [];
+  if (inviteNote) n.push(el("p", inviteNote, { id: "inviteNotice", role: "status", class: "notice" }));
+  if (notice) n.push(el("p", notice, { id: "notice", role: "status", class: "notice" }));
+  n.push(cardFace(view), el("p", "タップで表裏を切り替え", { class: "hint" }));
+  const pts = el("section", undefined, { class: "panel" });
+  kids(pts, el("p", "保有ポイント", { class: "label" }), el("p", view.pointsText, { id: "points", class: "points" }), el("p", view.yenText, { id: "yen", class: "yen" }));
+  const bar = el("div", undefined, { class: "bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(view.next.percent ?? 0), "aria-label": "次のランクまで" });
+  const fill = el("i"); fill.style.width = `${Math.max(0, Math.min(100, Number(view.next.percent) || 0))}%`; bar.append(fill);
+  const target = view.next.target, life = String(view.lifetimeText || "—").replace(/ pt$/, "");     // 次のランクの基準は DB から(rank_thresholds)
+  const row = el("div", undefined, { class: "nextrow" });
+  kids(row, el("span", view.next.label ? `${view.next.label}まで ${view.next.remainingText}` : view.next.remainingText, { id: "next" }),
+    el("span", target ? `累計 ${life} / ${target.toLocaleString("ja-JP")} pt` : `累計 ${view.lifetimeText}`, { id: "lifetime", class: "life" }));
+  kids(pts, bar, row);
+  if (view.lifetimeNote) pts.append(el("p", view.lifetimeNote, { id: "lifetimeNote", class: "meta" }));
+  if (view.lastRedeem) pts.append(el("p", view.lastRedeem.message, { id: "lastRedeem", class: "meta" }));
+  n.push(pts);
+  const cc = checkNodes(view); if (cc) n.push(cc);
+  if (view.pending) {
+    const p = view.pending, box = el("section", undefined, { class: "panel pending" });
+    kids(box, el("p", `使用の申請中: ${p.points}pt(${p.yen}円分)`, { id: "pendingInfo", class: "label" }), el("p", p.codeText, { id: "pendingCode", class: "code" }), el("p", `あと ${p.secondsLeft} 秒`, { id: "pendingLeft", class: "meta" }));
+    const c = el("button", "申請を取り消す", { id: "cancel", class: "ghost full" }); c.onclick = async () => { await client.redeemCancel(); load(); }; box.append(c); n.push(box);
+  } else if (view.canRedeem) {
+    const box = el("section", undefined, { class: "panel" }), row = el("div", undefined, { class: "row" });
+    const i = el("input", undefined, { id: "amount", type: "number", inputmode: "numeric", min: String(view.redeemUnit), step: String(view.redeemUnit), placeholder: String(view.redeemUnit), "aria-label": "使うポイント" });
+    const b = el("button", "ポイントを使う", { id: "redeem", class: "primary" });
+    b.onclick = async () => { const s = redeemScreen(await client.redeemRequest(Number(i.value)), Date.now()); if (s.error) { notice = s.error; } else { notice = s.notice || null; } load(); };
+    kids(row, i, b); kids(box, el("p", `ポイントを使う(${view.redeemUnit}pt単位)`, { class: "label" }), row); n.push(box);
+  }
+  // 特典チケット(1回で終わる特典)。「使う」→6桁コード→スタッフが確定(ポイント使用と同じ流れ)
+  if (view.pendingTicket) {
+    const p = view.pendingTicket, box = el("section", undefined, { class: "panel pending", id: "ticketPending" });
+    kids(box, el("p", `チケットを使用中: ${p.title}`, { id: "ticketPendingInfo", class: "label" }), el("p", p.codeText, { id: "ticketCode", class: "code" }),
+      el("p", `あと ${p.secondsLeft} 秒・スタッフにこのコードをお見せください`, { id: "ticketLeft", class: "meta" }));
+    const c = el("button", "使用を取り消す", { id: "ticketCancel", class: "ghost full" }); c.onclick = async () => { await client.ticketCancel(); load(); }; box.append(c); n.push(box);
+  }
+  if (view.tickets.length || view.lastTicket) {
+    const box = el("section", undefined, { class: "panel", id: "tickets" }), ul = el("ul", undefined, { class: "tickets" });
+    box.append(el("p", "特典チケット", { class: "label" }));
+    for (const t of view.tickets) {
+      const b = el("button", "使う", { class: "use", "data-ticket-id": t.id, "aria-label": `${t.title}を使う` });
+      if (view.pendingTicket) b.disabled = true;                                  // コードを表示中は、ほかのチケットを使えない(先に取り消す)
+      b.onclick = async () => { b.disabled = true; const s = ticketScreen(await client.ticketRequest(t.id), Date.now()); notice = s.error || s.message || null; load(); };
+      ul.append(kids(el("li"), kids(el("div", undefined, { class: "tt" }), el("b", t.title), el("small", t.validThroughText)), b));
+    }
+    if (view.tickets.length) box.append(ul); else box.append(el("p", "使えるチケットはありません", { class: "meta" }));
+    if (view.lastTicket) box.append(el("p", view.lastTicket.message, { id: "lastTicket", class: "meta" }));
+    n.push(box);
+  }
+  const inv = inviteNodes(view); if (inv) n.push(inv);
+  const d = el("details", undefined, { class: "benefits", id: "benefits" }); d.append(el("summary", "会員ランク特典"));
+  // いまのランクで使える特典(来るたびに使える特典。下のランクの分も含む)
+  if (view.perks.length) {
+    const sec = el("div", undefined, { class: "benefit", id: "rankPerks" }), ul = el("ul", undefined, { class: `perks rank-${view.rank}` });
+    for (const p of view.perks) ul.append(el("li", p.text, p.small ? { class: "small" } : {}));
+    sec.style.display = "block"; kids(sec, el("span", `${view.rankLabel} のいまの特典`, { class: "label" }), ul); d.append(sec); d.open = true;
+  }
+  for (const [code, label, text] of BENEFITS) { const r = el("div", undefined, { class: "benefit" }); kids(r, el("span", label, { class: `chip rank-${code}` }), el("span", text)); d.append(r); }
+  d.append(el("p", BENEFIT_NOTE, { class: "benefit-note" }));
+  n.push(d);
+  if (view.rank === "onyx") { const t = el("div", "ONYX 会員特別ご招待", { id: "specialTicket", class: "ticket" }); t.append(el("small", "新メニュー試食会へご招待します。ご案内は LINE でお送りします")); n.push(t); }
+  return n;
+}
+async function load() {
+  clearTimeout(poll);
+  const s = cardScreen(await client.me(), Date.now());
+  if (s.screen === "card") {
+    const w = redeemWatch(prevView, s.view); if (w.change === "confirmed" || w.change === "cancelled" || w.change === "expired") notice = w.message || notice;
+    const wt = ticketWatch(prevView, s.view); if (wt.change === "confirmed" || wt.change === "cancelled" || wt.change === "expired") notice = wt.message || notice;
+    if (inviteRef) { inviteRef = null; keepRef(null); }                          // すでに会員: 招待のリンクから開いても紹介にはならない
+    const nt = s.view.invite?.notice, ack = nt && inviteAcked !== nt.until;
+    if (ack) { inviteNote = nt.text; inviteAcked = nt.until; }                     // 紹介者へのお知らせ(1回だけ): 表示してから既読にする
+    prevView = s.view; show(...cardNodes(s.view));
+    if (ack) client.inviteSeen(nt.until);
+    if (s.view.pending || s.view.pendingTicket) poll = setTimeout(load, 3000);
+  } else if (s.screen === "register") {
+    const b = el("button", "会員登録する", { id: "register", class: "primary full" }); b.onclick = async () => { b.disabled = true; await registerNow(); load(); };
+    show(cardFace(null), ...(inviteRef ? [el("p", M.invite_register, { id: "inviteWelcome", class: "notice" })] : []), el("p", s.message, { id: "msg", class: "msg" }), b);
+  } else if (s.screen === "needs_login") { show(el("p", s.message, { id: "msg", class: "msg" })); window.liff.login?.(); }
+  else { const b = el("button", "もう一度試す", { id: "retry", class: "primary full" }); b.onclick = load; show(el("p", s.message, { id: "msg", class: "msg" }), ...(s.retry ? [b] : [])); }
+}
+(async () => {
+  try { await window.liff.init({ liffId: cfg.liffId }); } catch (_e) { return show(el("p", "LINE アプリで開いてください", { id: "msg", class: "msg" })); }
+  if (!window.liff.isLoggedIn()) { window.liff.login(); return; }
+  lineUserId = (await window.liff.getProfile?.().catch?.(() => null))?.userId || null;
+  client = createMemberClient({ endpoint: cfg.memberApi, getIdToken: async () => window.liff.getIDToken() });
+  const qr = qrTokenFromLocation(location.search), flow = flowFromLocation(location.search);
+  if (qr) {                                    // 店頭QRから開いた: 来店を記録してから会員証を出す
+    const r = await client.checkin(qr);
+    if (r.kind === "not_registered") { await registerNow(); const r2 = await client.checkin(qr); const s2 = checkinScreen(r2); notice = s2.message; }
+    else { const s = checkinScreen(r); notice = s.message; }
+    history.replaceState(null, "", location.pathname);     // 再読み込みで同じQRを再送しない(送っても付与は1回)
+  } else if (inviteCodeFromLocation(location.search)) history.replaceState(null, "", location.pathname);   // 招待のコードは覚えたので、URL からは消す
+  if (flow === "quiz") {                                                         // 旧仕様: 来店・登録の処理のあと、そのまま体質チェックへ
+    if (!qr && cardScreen(await client.me(), Date.now()).screen === "register") await registerNow();
+    location.href = quizUrl(lineUserId); return;
+  }
+  load();
+})();
+</script>
+</body></html>

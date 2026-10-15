@@ -1,0 +1,208 @@
+<!doctype html>
+<!-- 店頭タブレット専用ページ(お客様が見る画面。会員証と同じ世界観: 和紙色の地・明朝の見出し・水彩の生薬・ランク色の枠)。表示するのは店頭QRだけ。会員情報・ポイント・スタッフ操作へのリンクや機能は一切ない。
+     店頭QR専用アカウント(role=kiosk)でログインする(試験・確認用に店長 role=manager も表示できる。staff は不可)。そのアカウントは DB 側でも他の操作がすべて拒否される。
+     QR 表示中の画面には、操作できる部品(ボタン・入力・リンク)を1つも置かない。描画は textContent のみ。外部の CDN・フォントは使わない。 -->
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
+<title>10ZEN 店頭QR</title>
+<style>
+:root{ --bg:#f7f4ee; --paper:#fffefb; --card:#fff; --fg:#2b2926; --ink:#2b2926; --muted:#7a746b; --line:#e7e1d8; --accent:#8a6a3b; --teal:#0f9d8f; --teal-soft:#e3f5f2; --bad:#c93a3a; --bad-soft:#fde8e8; --warn:#a4452c; --warn-soft:#fbefe9;
+  --r1:#e9e7e1; --r2:#bfbcb3; --tint:#fdfcf9; --on:#4a4843; color-scheme:light }
+.serif{font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;-webkit-text-size-adjust:100%}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+#app{min-height:100%;display:grid;place-items:center;padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom))}
+
+/* ログイン(スタッフが開始するときだけ) */
+.login{width:100%;max-width:420px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px;display:grid;gap:14px}
+.login .logo{height:40px;width:auto;justify-self:start}
+.login h1{margin:0;font-size:22px}
+.login label{display:grid;gap:6px;font-weight:700;font-size:14px}
+.login input{min-height:56px;border:2px solid var(--line);border-radius:14px;padding:0 16px;font-size:18px;width:100%;min-width:0}
+.login input:focus{border-color:var(--accent);outline:none}
+#login{min-height:60px;border:0;border-radius:14px;background:var(--ink);color:#fff;font-size:20px;font-weight:800;cursor:pointer}
+#login:disabled{opacity:.6}
+#msg{margin:0;color:var(--bad);font-weight:700;min-height:1.5em}
+.login .hint{margin:0;color:var(--muted);font-size:13px}
+
+/* QR の表示(お客様が見る画面)。会員証そのものを見せて、「何か・何がもらえるか・どうするか」を画面だけで伝える */
+#app:has(.kiosk){padding:clamp(16px,3vh,32px) clamp(16px,3vw,40px)}
+.kiosk{width:100%;max-width:1180px;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);grid-template-areas:"head qr" "show qr" "note note";gap:20px 40px;align-items:start}
+.head{grid-area:head;text-align:center}
+.head .logo{height:40px;width:auto;display:block;margin:0 auto}
+.head h1{margin:14px 0 6px;font-size:clamp(28px,3.4vw,40px);line-height:1.3;font-weight:600;letter-spacing:.04em;text-wrap:balance}
+.head .lead{margin:0;font-size:17px;color:var(--muted)}
+.show{grid-area:show;display:grid;gap:18px;justify-items:center;text-align:center}
+/* 会員証の見本(会員証の画面と同じ作り。ランクの色が順に変わる) */
+.mcard{position:relative;text-align:left;width:min(100%,460px);aspect-ratio:1.3/1;border-radius:18px;padding:6px;background:linear-gradient(135deg,var(--r1),var(--r2));box-shadow:0 16px 36px rgba(60,45,20,.2),0 1px 3px rgba(60,45,20,.14);transition:background .8s}
+.mcard .in{position:relative;width:100%;height:100%;border-radius:13px;background:var(--tint);overflow:hidden;transition:background .8s}
+.mcard .mlogo{position:absolute;left:6.5%;top:9%;width:38%;height:auto}
+.mcard .herb{position:absolute;height:auto;filter:drop-shadow(0 2px 3px rgba(60,40,20,.18))}
+.mcard .chip{position:absolute;left:7%;top:44%;font-size:12px;letter-spacing:.14em;padding:5px 12px;border-radius:999px;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--r1),var(--r2));border:1px solid rgba(0,0,0,.08)}
+.mcard .who{position:absolute;left:7%;bottom:9%;right:44%}
+.mcard .who b{display:block;font-size:19px;font-weight:600;letter-spacing:.03em}
+.mcard .who span{font-size:13px;color:#3f3b35;letter-spacing:.06em}
+.r-white_opal{--r1:#e9e7e1;--r2:#bfbcb3;--tint:#fdfcf9} .r-white_opal .chip{color:#4a4843;background:linear-gradient(135deg,#f6f5f1,#d8d5cc)}
+.r-amber{--r1:#f3c27a;--r2:#b45309;--tint:#fff9ef} .r-emerald{--r1:#5fbf97;--r2:#064e3b;--tint:#f4fbf7} .r-ruby{--r1:#e07a9e;--r2:#831843;--tint:#fef5f8}
+.r-onyx{--r1:#4b5160;--r2:#0b1220;--tint:#f7f6f2} .r-onyx .chip{color:#d4af37;background:linear-gradient(135deg,#2a3142,#0b1220);border-color:#d4af37}
+.rankcap{margin:0;font-size:15px;color:var(--muted);min-height:1.5em;text-align:center}
+.rankcap b{color:var(--ink);letter-spacing:.08em;margin-right:8px}
+.perks{list-style:none;margin:0;padding:0;width:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.perk{padding:14px 14px 12px;display:grid;gap:2px;align-content:start;justify-items:center;text-align:center}
+.perk + .perk{border-left:1px solid var(--line)}
+.perk .k{font-size:13px;color:var(--accent);font-weight:700;letter-spacing:.04em}
+.perk .v{font-size:26px;font-weight:600;line-height:1.25;font-variant-numeric:tabular-nums}
+.perk .d{font-size:12.5px;color:var(--muted);line-height:1.5}
+/* QR の面 */
+.qrside{grid-area:qr;background:var(--paper);border:1px solid var(--line);border-radius:22px;padding:22px 22px 18px;display:grid;justify-items:center;gap:12px;box-shadow:0 10px 30px rgba(60,45,20,.08)}
+.qrside .cap{margin:0;font-size:20px;font-weight:600;letter-spacing:.06em}
+#qrImage{background:#fff;border-radius:14px;padding:6px;min-width:240px;min-height:240px;display:grid;place-items:center}
+#qrImage svg{display:block;width:min(30vw,44vh,380px);height:auto}
+.refresh{width:100%;max-width:380px;display:grid;gap:6px;font-size:12.5px;color:var(--muted);text-align:center}
+.bar{height:4px;border-radius:999px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;width:100%;background:var(--accent);transform-origin:left center}
+#qrMsg{margin:0;min-height:1.5em;font-size:18px;font-weight:800;text-align:center}
+#qrMsg:not(:empty){color:var(--warn);background:var(--warn-soft);border:2px solid var(--warn);border-radius:14px;padding:12px 16px}
+.steps{list-style:none;margin:4px 0 0;padding:14px 0 0;border-top:1px dashed var(--line);display:grid;gap:10px;width:100%}
+.steps li{display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px;align-items:center;font-size:16px;font-weight:700;text-align:left}
+.steps .n{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--accent);color:var(--accent);display:grid;place-items:center;font-weight:800;font-size:14px}
+.steps small{display:block;font-size:12.5px;font-weight:500;color:var(--muted)}
+.note{grid-area:note;margin:0;font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 24px;justify-content:center}
+
+@media (max-width:760px),(orientation:portrait) and (max-width:900px){
+  .kiosk{grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "show" "qr" "note";gap:16px;text-align:center}
+  .head .logo{margin:0 auto}
+  /* 縦置き: 会員証の見本と特典を横に、QR と使い方を横に並べて1画面に収める */
+  .show{grid-template-columns:minmax(0,46%) minmax(0,1fr);gap:8px 20px;align-items:center;text-align:center}
+  .mcard{width:100%;grid-column:1}
+  .rankcap{grid-column:1;font-size:13px;text-align:center}
+  .perks{grid-column:2;grid-row:1/span 2;grid-template-columns:minmax(0,1fr);border-bottom:0}
+  .perk + .perk{border-left:0;border-top:1px solid var(--line)}
+  .perk{padding:10px 4px}
+  .perk .v{font-size:21px}
+  .qrside{grid-template-columns:auto minmax(0,1fr);grid-template-areas:"cap cap" "img steps" "bar steps" "msg msg";column-gap:22px;justify-items:stretch;text-align:left}
+  .qrside .cap{grid-area:cap;text-align:center}
+  #qrImage{grid-area:img} .refresh{grid-area:bar} #qrMsg{grid-area:msg}
+  .steps{grid-area:steps;align-self:center;border-top:0;padding-top:0;margin:0}
+  #qrImage svg{width:min(48vw,32vh,360px)}
+}
+/* スマホ幅: すべて1列 */
+@media (max-width:600px){
+  .show{grid-template-columns:minmax(0,1fr);justify-items:center}
+  .mcard{width:min(100%,340px)}
+  .rankcap{text-align:center}
+  .perks{grid-column:1;grid-row:auto;width:100%;border-bottom:1px solid var(--line)}
+  .qrside{grid-template-columns:minmax(0,1fr);grid-template-areas:"cap" "img" "bar" "msg" "steps";justify-items:center}
+  .steps{border-top:1px dashed var(--line);padding-top:14px}
+  #qrImage svg{width:min(72vw,360px)}
+}
+@media (prefers-reduced-motion:reduce){ .bar i,.mcard,.mcard .in{transition:none!important} }
+</style></head>
+<body>
+<main id="app"></main>
+<script src="config.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script type="module">
+import { createStaffClient, createQrKiosk } from "../app-core/staff-client.mjs";
+const cfg = window.APP_CONFIG, app = document.getElementById("app");
+const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+const put = (parent, ...kids) => { parent.append(...kids); return parent; };
+const sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
+const staff = createStaffClient({ supabase: sb, qrEndpoint: cfg.staffQrApi });
+let kiosk = null, ticker = null, wake = null, rankTimer = null;
+const logo = () => el("img", undefined, { class: "logo", src: "assets/logo.png", alt: "10ZEN" });
+// お客様に見せる文言。数字は DB の設定(point_rules の visit・welcome、app_settings の yen_per_100pt)と、
+// 会員証(card.html)のランク特典に合わせる。変えるときは両方を直す(tools/test_kiosk_copy.mjs が食い違いを検出する)。
+const KIOSK_COPY = {
+  title: "スマホに、10ZEN の会員証を。",
+  lead: "LINE で読み取るだけ。アプリのダウンロードや入力はいりません。",
+  perks: [
+    { k: "ご来店ごとに", v: "100pt", d: "1日1回、このQRを読み取るとたまります" },
+    { k: "お会計で使える", v: "100pt=10円", d: "会員証の「ポイントを使う」から" },
+    { k: "ランクアップ特典", v: "豆花・お茶など", d: "累計ポイントでランクが上がり、豆花や持ち帰り用のお茶、ディナーの五巡茶などの特典" },
+  ],
+  // 会員証の見本で順に見せるランクと特典(会員証 card.html の特典と同じ内容。短く言い換えたもの)
+  ranks: [
+    ["white_opal", "WHITE OPAL", "100pt=10円でお会計に使える"],
+    ["amber", "AMBER", "豆花のお祝い・ディナーの五巡茶 無料"],
+    ["emerald", "EMERALD", "持ち帰り用のお茶・季節ごとの豆花チケット"],
+    ["ruby", "RUBY", "持ち帰り用のお茶・席と予約の優先案内"],
+    ["onyx", "ONYX", "持ち帰り用のお茶・新メニュー試食会へご招待"],
+  ],
+  steps: [
+    ["このQRを読み取る", "LINE のQRコードリーダー、またはスマホのカメラで"],
+    ["10ZEN の会員証が開く", "はじめての方は、その場で登録(100pt プレゼント)"],
+    ["来店ポイントがたまる", "会員証で残高・ランク・特典をいつでも確認"],
+  ],
+  notes: ["ポイントの使い方は会員証の画面でご確認いただけます"],
+};
+// 会員証の見本に置く水彩の生薬(会員証 card.html と同じ配置)
+const HERBS = [["chili", "right:21%;top:5%;width:18%"], ["chenpi", "right:4%;top:6%;width:16%"], ["goji", "right:23%;top:34%;width:16%"], ["anise", "right:4%;top:43%;width:16%"],
+  ["lotus", "right:5%;bottom:5%;width:20%"], ["jujube", "right:30%;bottom:15%;width:14%"]];
+
+// URL を QR の SVG にする(ライブラリは同梱の qrcode.js。SVG は数値だけの文字列を DOMParser で読み、文字列を HTML として差し込まない)
+function qrSvg(text) {
+  const q = window.qrcode(0, "M"); q.addData(text); q.make();
+  const doc = new DOMParser().parseFromString(q.createSvgTag({ cellSize: 8, margin: 16, scalable: true }), "image/svg+xml");
+  return document.importNode(doc.documentElement, true);
+}
+// 店頭のタブレットが眠らないようにする(使えない端末では何もしない)
+async function keepAwake() {
+  try { if ("wakeLock" in navigator && !wake) { wake = await navigator.wakeLock.request("screen"); wake.addEventListener?.("release", () => { wake = null; }); } } catch (_e) { wake = null; }
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && kiosk) keepAwake(); });
+
+async function start() {
+  const w = await staff.whoami();
+  if (w.kind !== "ok" || !w.data.active || (w.data.role !== "kiosk" && w.data.role !== "manager")) { if (w.kind === "ok" && w.data.active) await staff.signOut(); return loginView(w.kind === "ok" && w.data.active ? "このアカウントでは表示できません。店頭QR専用のアカウントでログインしてください" : null); }
+  const url = el("pre", "", { id: "qrUrl", hidden: "" }), msg = el("p", "", { id: "qrMsg", role: "status" });
+  const box = el("div", undefined, { id: "qrImage", role: "img", "aria-label": "来店用のQRコード" });
+  const fill = el("i"), left = el("span", "QRコードは30秒ごとに変わります");
+  const refresh = put(el("div", undefined, { class: "refresh", "aria-hidden": "true" }), put(el("div", undefined, { class: "bar" }), fill), left);
+  const C = KIOSK_COPY;
+  // 会員証の見本: ランクの色が数秒ごとに変わり、そのランクの特典を下に出す(動きを減らす設定の端末では変えない)
+  const chip = el("span", "", { class: "chip" }), inner = put(el("div", undefined, { class: "in" }), el("img", undefined, { class: "mlogo", src: "assets/logo.png", alt: "" }),
+    ...HERBS.map(([n, pos]) => el("img", undefined, { class: "herb", src: `assets/herb-${n}.webp`, alt: "", style: pos, decoding: "async" })), chip,
+    put(el("div", undefined, { class: "who" }), el("b", "あなたのお名前"), el("span", "会員番号 ・・・・")));
+  const mcard = put(el("div", undefined, { class: "mcard", role: "img", "aria-label": "10ZEN の会員証の見本" }), inner);
+  const cap = el("p", "", { class: "rankcap", "aria-live": "off" });
+  let ri = 0; const showRank = () => { const [code, label, text] = C.ranks[ri]; mcard.className = `mcard r-${code}`; chip.textContent = label; cap.replaceChildren(el("b", label), document.createTextNode(text)); };
+  showRank();
+  if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) rankTimer = setInterval(() => { ri = (ri + 1) % C.ranks.length; showRank(); }, 3500);
+  const perks = put(el("ul", undefined, { class: "perks", "aria-label": "会員の特典" }), ...C.perks.map((x) => put(el("li", undefined, { class: "perk" }), el("span", x.k, { class: "k" }), el("span", x.v, { class: "v serif" }), el("span", x.d, { class: "d" }))));
+  const steps = put(el("ol", undefined, { class: "steps", "aria-label": "使い方" }), ...C.steps.map(([t, sub], i) => put(el("li"), el("span", String(i + 1), { class: "n", "aria-hidden": "true" }), put(el("span", t), el("small", sub)))));
+  const head = put(el("header", undefined, { class: "head" }), logo(), el("h1", C.title, { class: "serif" }), el("p", C.lead, { class: "lead" }));
+  const show = put(el("section", undefined, { class: "show" }), mcard, cap, perks);
+  const qr = put(el("section", undefined, { class: "qrside" }), el("p", "読み取って、はじめる", { class: "cap serif" }), box, refresh, msg, steps);
+  app.replaceChildren(put(el("div", undefined, { class: "kiosk" }), head, show, qr, put(el("p", undefined, { class: "note" }), ...C.notes.map((t) => el("span", "・" + t)))), url);   // URL は画面に出さない(テスト用に非表示で保持)
+  let nextAt = 0;
+  const tick = () => { const ms = nextAt - Date.now(); const ratio = nextAt ? Math.max(0, Math.min(1, ms / 30000)) : 0; fill.style.transform = `scaleX(${ratio})`; };
+  ticker = setInterval(tick, 250);
+  kiosk = createQrKiosk({
+    getToken: () => staff.qrToken(),
+    onUpdate: (d) => { url.textContent = d.url; msg.textContent = ""; refresh.hidden = false; box.replaceChildren(qrSvg(d.url)); nextAt = Number(d.nextChangeAt) || 0; tick(); },
+    onHidden: () => { url.textContent = ""; box.replaceChildren(); refresh.hidden = true; nextAt = 0; msg.textContent = "ただいま表示できません。スタッフにお声がけください"; },
+  });
+  kiosk.start();
+  keepAwake();
+}
+function loginView(msg) {
+  if (kiosk) { kiosk.stop(); kiosk = null; }
+  if (ticker) { clearInterval(ticker); ticker = null; }
+  if (rankTimer) { clearInterval(rankTimer); rankTimer = null; }
+  const e = el("input", undefined, { id: "email", type: "email", autocomplete: "username" }), p = el("input", undefined, { id: "password", type: "password", autocomplete: "current-password" });
+  const b = el("button", "表示を開始", { id: "login" });
+  const m = el("p", msg || "", { id: "msg", role: "alert" });
+  const go = async () => { b.disabled = true; m.textContent = ""; const r = await staff.signIn(e.value, p.value); b.disabled = false; if (r.kind !== "ok") { m.textContent = "ログインできませんでした"; return; } start(); };
+  b.onclick = go; p.onkeydown = (ev) => { if (ev.key === "Enter") go(); };
+  app.replaceChildren(put(el("div", undefined, { class: "login" }), logo(), el("h1", "店頭QRの表示"),
+    el("p", "店頭QR専用のアカウントでログインすると、お客様向けの来店QRを表示します。", { class: "hint" }),
+    put(el("label", "メールアドレス"), e), put(el("label", "パスワード"), p), b, m));
+}
+start();
+</script>
+</body></html>
