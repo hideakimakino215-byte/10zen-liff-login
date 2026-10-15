@@ -28,6 +28,7 @@ run patches audit_additive.mjs 6
 run patches test_sample_delete_restore.mjs 3
 run patches test_rank_perks.mjs 13
 run patches test_constitution.mjs 11
+run patches test_member_constitution.mjs 5
 run functions/member-api test.mjs 19
 run app-core test.mjs 10
 run app-core test_store_info.mjs 3
