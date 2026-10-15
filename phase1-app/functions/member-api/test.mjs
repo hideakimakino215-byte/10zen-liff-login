@@ -97,10 +97,13 @@ try {
   r = await call("me"); assert.equal(r.status, 200); assert.equal(r.body.member.points, 100);
   r = await call("me", {}, { token: `tok:${sub("b")}:花子` }); assert.equal(r.status, 404);
   ok("登録・表示: 氏名は検証済みトークンの値を優先(クライアントの偽名は使わない)・初回201/再登録200・他人のIDでは見えない");
+  // 友だち紹介は招待コード(db/106。test_referral.mjs・app-core/test_referral.mjs で検証)。旧ルールの会員番号での紹介(referrerMemberNo)は受け付けない(会員番号をリンクに出さない)
   r = await call("register", { referrerMemberNo: "user00001" }, { token: `tok:${sub("b")}:花子` }); assert.equal(r.status, 201); assert.equal(r.body.member.points, 100);
-  assert.equal((await call("me")).body.member.points, 200);
-  r = await call("register", { referrerMemberNo: "x; drop table members" }, { token: `tok:${sub("c")}:太郎` }); assert.equal(r.body.member.points, 100);
-  ok("紹介コード: 紹介者+100。不正な文字を含むコードは無視して通常登録");
+  assert.equal((await call("me")).body.member.points, 100);
+  assert.equal(pg.exec(`select count(*) from point_ledger where rule_code like 'referral%';`), "0");
+  r = await call("register", { referrerMemberNo: "x; drop table members", inviteCode: "x'; drop table members; --" }, { token: `tok:${sub("c")}:太郎` }); assert.equal(r.status, 201); assert.equal(r.body.member.points, 100);
+  pg.exec(`select public._grant(id, 'adjust', 'manual', 100, 'test:keep-balance', 'test', null, now()) from members where member_no = 'user00001';`);   // 以降の検証の残高を従来(旧ルールで +100)と同じにする擬似の調整
+  ok("紹介: 会員番号での紹介(旧ルール)は無視して通常の登録(紹介者に付かない)。形の違う招待コードも無視して通常の登録(106 より前の DB でも登録できる)");
 
   // ---- 来店(店頭QR) ----
   r = await call("checkin", {}); assert.equal(r.status, 400); assert.equal(r.body.error, "invalid_qr");

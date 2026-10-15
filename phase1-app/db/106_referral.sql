@@ -240,7 +240,7 @@ begin
   return jsonb_build_object('status', 'created', 'member', public._member_view(mid, p_now), 'invite', inv);
 end $$;
 
--- 来店記録: 100 の app_checkin に「紹介の初来店の特典」を足したもの(それ以外は同じ)。
+-- 来店記録: 100 の app_checkin に「紹介の初来店の特典」を足し、応答の会員の情報を _member_view(チケット・紹介の情報つき)にしたもの(それ以外は同じ)。
 --  店頭QRの検証を通った来店記録の最初の1回で特典を出す。登録した日の「付与済み」(registered_today)でも、QR を読んで店にいたことが確かめられるので出す。
 create or replace function public.app_checkin(p_issuer text, p_subject text, p_token_slot bigint default null, p_now timestamptz default now()) returns jsonb
 language plpgsql security definer set search_path = public as $$
@@ -256,7 +256,7 @@ begin
   if found then
     rw := public._referral_reward(m.id, p_now);
     return jsonb_build_object('status', 'already_today', 'reason', case when v.source = 'register' then 'registered_today' else 'visited_today' end,
-                              'granted', 0, 'referral', rw, 'member', public._snapshot(m.id, p_now));
+                              'granted', 0, 'referral', rw, 'member', public._member_view(m.id, p_now));
   end if;
   pts := public._rule_points('visit', d);
   insert into public.visits(member_id, visit_on, token_slot) values (m.id, d, p_token_slot) returning id into vid;
@@ -266,7 +266,7 @@ begin
   update public.members set last_activity_on = d where id = m.id;
   rw := public._referral_reward(m.id, p_now);
   perform public._mirror(m.id, d, p_now);
-  return jsonb_build_object('status', 'counted', 'granted', coalesce(pts, 0), 'referral', rw, 'member', public._snapshot(m.id, p_now));
+  return jsonb_build_object('status', 'counted', 'granted', coalesce(pts, 0), 'referral', rw, 'member', public._member_view(m.id, p_now));
 end $$;
 
 -- 紹介のお知らせを見た(会員証が「お友だちが来店しました」を表示したあとに呼ぶ)。p_until までに特典を出した分を既読にする

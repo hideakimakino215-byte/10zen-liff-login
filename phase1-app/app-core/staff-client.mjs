@@ -8,7 +8,8 @@ export function mapError(err) {
   if (/reason_required/.test(msg)) return { kind: "invalid", code: "reason_required" };
   if (/invalid_points|invalid_key/.test(msg)) return { kind: "invalid", code: msg.match(/invalid_\w+/)[0] };
   // 目標と KPI(db/105)の入力の誤り: 取り込みの行・日付・客数・月・目標・KPI・段階
-  if (/invalid_(rows|date|customers|month|target|kpi|milestone)\b/.test(msg)) return { kind: "invalid", code: msg.match(/invalid_(rows|date|customers|month|target|kpi|milestone)\b/)[0] };
+  // 友だち紹介(db/106)のディナーの五巡茶の出し方: invalid_mode
+  if (/invalid_(rows|date|customers|month|target|kpi|milestone|mode)\b/.test(msg)) return { kind: "invalid", code: msg.match(/invalid_(rows|date|customers|month|target|kpi|milestone|mode)\b/)[0] };
   if (/JWT|expired|not authenticated/i.test(msg)) return { kind: "auth_required" };
   return { kind: "error", retryable: true };
 }
@@ -39,6 +40,10 @@ export function createStaffClient({ supabase, qrEndpoint, fetchFn = (...a) => fe
     ticketStats: () => rpc("staff_ticket_stats"),
     // 1分体質チェックの集計(db/103)。data.scope が "full"(店長・閲覧)なら全項目、"limited"(スタッフ)なら今週の体調の傾向(data.week)だけ
     constitutionStats: () => rpc("staff_constitution_stats"),
+    // 友だち紹介の集計(db/106)。閲覧以上(店頭タブレットは forbidden)。個人の情報は返らない。data.canEdit が true なのは店長だけ
+    referralStats: () => rpc("staff_referral_stats"),
+    // 店長のみ: ディナーの五巡茶の出し方 "cup"(1杯)/ "free_flow"(飲み放題)。まだ使っていない紹介のチケットの名前も変わる
+    setDinnerTeaMode: (mode) => rpc("manager_set_dinner_tea_mode", { p_mode: mode }),
     // 目標と KPI(db/105)。集計は店長・閲覧(本部)だけ(スタッフ・店頭タブレットは forbidden)。data.canEdit が true なのは店長だけ
     kpiOverview: (months = 13) => rpc("staff_kpi_overview", { p_months: months }),
     // 以下は店長のみ。日付は 'YYYY-MM-DD'(null で未設定)、月は 'YYYY-MM'、目標は null で「目標なし」

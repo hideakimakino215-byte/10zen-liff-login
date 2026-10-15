@@ -37,6 +37,23 @@ export const messages = {
     cc_invalid: "回答を送れませんでした。最初からもう一度お試しください",
     cc_condition_already: "今日の体調は回答済みです",
     cc_condition_no_check: "先に体質チェックをしてください",
+    // 友だち紹介(db/106)
+    invite_title: "友だちを招待",
+    invite_count: (n, cap) => `今月の招待 ${n}/${cap}人`,
+    invite_reward_ticket: (tea) => `お友だちが初めてご来店されると、お二人に「${tea}」のチケットをお届けします`,
+    invite_reward_points: (tea, pts) => `お友だちが初めてご来店されると、お友だちに「${tea}」のチケット、あなたに ${pts}pt をお届けします`,
+    invite_full: (cap) => `今月の招待は上限(${cap}人)に達しました。来月また招待できます`,
+    invite_referred_waiting: (tea) => `お友だちの招待で登録されました。初めてのご来店で「${tea}」のチケットをお届けします`,
+    invite_notice_ticket: "お友だちが来店しました。チケットが届いています",
+    invite_notice_points: (pts) => `お友だちが来店しました。${pts}ptを付けました`,
+    invite_notice_both: (pts) => `お友だちが来店しました。チケットが届いています。${pts}ptを付けました`,
+    invite_register: "お友だちからの招待です。登録して初めてご来店いただくと、特典チケットをお届けします",
+    invite_linked: "招待を受け付けました。初めてのご来店で特典チケットをお届けします",
+    invite_first_visit: (title) => `お友だち紹介の特典チケット「${title}」をお届けしました`,
+    invite_share_text: (tea, url) => `10ZEN の LINE 会員証にご招待します。登録して初めてご来店いただくと「${tea}」のチケットをお届けします。\n${url}`,
+    invite_copied: "リンクをコピーしました",
+    invite_copy_failed: "コピーできませんでした。下のリンクを長押ししてコピーしてください",
+    invite_sent: "招待を送りました",
   },
 };
 const fmt = (n) => (n === null || n === undefined ? "—" : Number(n).toLocaleString("ja-JP"));
@@ -87,7 +104,34 @@ export function memberView(member, nowMs = Date.now(), lang = "ja") {
     lastTicket: lt ? { ...lt, message: lt.status === "confirmed" ? m.ticket_done(lt.title) : lt.status === "cancelled" ? m.ticket_cancelled : m.ticket_code_expired } : null,
     // 1分体質チェック(db/103)。103 が未適用の応答では null(会員証は従来どおり)
     check: constitutionCardView(member, nowMs),
+    // 友だち紹介(db/106)。106 が未適用の応答では null(招待の欄を出さない)
+    invite: inviteView(member, lang),
   };
+}
+
+// ---- 友だち紹介(db/106) ----
+// 会員証の招待の欄: 今月の人数と上限・特典の説明・(紹介で登録した人には)初来店でチケットが届くこと・紹介者へのお知らせ(1回だけ)
+export function inviteView(member, lang = "ja") {
+  const iv = member?.invite, m = messages[lang];
+  if (!iv || typeof iv.code !== "string") return null;
+  const cap = Number(iv.monthlyCap) || 0, count = Number(iv.monthCount) || 0, tea = iv.teaLabel || "特典";
+  const nt = member.inviteNotice;
+  const noticeText = !nt ? null : nt.tickets > 0 && nt.points > 0 ? m.invite_notice_both(nt.points) : nt.points > 0 ? m.invite_notice_points(nt.points) : m.invite_notice_ticket;
+  return {
+    code: iv.code, count, cap, full: cap > 0 && count >= cap, teaLabel: tea,
+    countText: m.invite_count(count, cap),
+    rewardText: iv.referrerReward === "points" ? m.invite_reward_points(tea, iv.rewardPoints ?? 100) : m.invite_reward_ticket(tea),
+    fullText: m.invite_full(cap),
+    referredText: iv.referred?.status === "waiting_first_visit" ? m.invite_referred_waiting(tea) : null,
+    notice: noticeText ? { text: noticeText, until: nt.until } : null,
+    shareText: (url) => m.invite_share_text(tea, url),
+  };
+}
+// LINE の「送る」画面の URL(shareTargetPicker が使えないときの代わり)
+export const lineShareUrl = (text) => `https://line.me/R/share?text=${encodeURIComponent(text)}`;
+// 登録の結果(register())→ 会員証に出す文言(招待が受け付けられたときだけ)
+export function registerNotice(res, lang = "ja") {
+  return res?.kind === "ok" && res.data?.invite === "linked" ? messages[lang].invite_linked : null;
 }
 
 // ---- 1分体質チェック(db/103) ----
@@ -177,8 +221,10 @@ export function checkinScreen(res, nowMs = Date.now(), lang = "ja") {
   if (res.kind === "ok" && res.status === "outside_hours") return { screen: "checkin_outside_hours", message: m.checkin_outside_hours };
   if (res.kind === "ok") {
     const view = memberView(res.data.member, nowMs, lang);
-    return res.status === "counted" ? { screen: "checkin_success", granted: res.data.granted, message: m.checkin_counted(res.data.granted), view }
-                                    : { screen: "checkin_already", reason: res.data.reason, message: res.data.reason === "registered_today" ? m.checkin_registered_today : m.checkin_already, view };
+    // 友だち紹介の初来店(db/106): 特典チケットを届けたことを添える
+    const ref = res.data.referral?.ticket ? `。${m.invite_first_visit(res.data.referral.ticket)}` : "";
+    return res.status === "counted" ? { screen: "checkin_success", granted: res.data.granted, message: m.checkin_counted(res.data.granted) + ref, view, referral: res.data.referral ?? null }
+                                    : { screen: "checkin_already", reason: res.data.reason, message: (res.data.reason === "registered_today" ? m.checkin_registered_today : m.checkin_already) + ref, view, referral: res.data.referral ?? null };
   }
   if (res.kind === "bad_request") return res.code === "qr_expired" ? { screen: "qr_expired", message: m.qr_expired } : { screen: "qr_invalid", message: m.qr_invalid };
   if (res.kind === "not_registered") return { screen: "register_then_checkin", message: m.not_registered };

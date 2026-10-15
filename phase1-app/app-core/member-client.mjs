@@ -32,7 +32,8 @@ export function createMemberClient({ endpoint, getIdToken, fetchFn = (...a) => f
   return {
     me: () => call("me"),
     // displayName は ID トークンに氏名(name)が無い場合の予備。サーバーはトークン内の氏名を優先し、予備の値は整形のみで信頼しない
-    register: ({ referrerMemberNo, displayName } = {}) => call("register", { ...(referrerMemberNo ? { referrerMemberNo } : {}), ...(displayName ? { displayName: String(displayName).slice(0, 80) } : {}) }),
+    // inviteCode は友だち紹介の招待コード(招待のリンクの ?ref=。inviteCodeFromLocation で取り出す)。会員番号での紹介は送らない
+    register: ({ inviteCode, displayName } = {}) => call("register", { ...(isInviteCode(inviteCode) ? { inviteCode } : {}), ...(displayName ? { displayName: String(displayName).slice(0, 80) } : {}) }),
     checkin: (qrToken) => call("checkin", { token: qrToken }),
     redeemRequest: (points) => call("redeem_request", { points }),
     redeemCancel: () => call("redeem_cancel"),
@@ -45,6 +46,8 @@ export function createMemberClient({ endpoint, getIdToken, fetchFn = (...a) => f
     conditionSubmit: ({ temp, energy, concern } = {}) => call("condition_submit", { temp, energy, concern }),
     // 「薬日本堂の漢方相談へ」が押された(数えるだけ。画面は結果を待たずに行き先を開く)
     referralClick: () => call("referral_click"),
+    // 友だち紹介のお知らせ(「お友だちが来店しました」)を表示した。until は表示したお知らせの時刻(member.inviteNotice.until)
+    inviteSeen: (until) => call("invite_seen", { until: String(until || "") }),
   };
 }
 
@@ -57,3 +60,16 @@ export function qrTokenFromLocation(search) {
   const action = p.get("action"), t = p.get("t");
   return action === "visit" && t && /^[0-9]{1,12}\.[A-Za-z0-9_-]{22}$/.test(t) ? t : null;
 }
+
+// 友だち紹介の招待のリンク(LIFF の URL に ?ref=<招待コード>)から招待コードを取り出す。qrTokenFromLocation と同じく、
+// LIFF が最初の読み込みで ?liff.state=%3Fref%3D… の形で渡す場合も受け付ける。コードは12文字の英数字と - _ だけ(それ以外は null)。
+export const isInviteCode = (c) => typeof c === "string" && /^[A-Za-z0-9_-]{12}$/.test(c);
+export function inviteCodeFromLocation(search) {
+  let p = new URLSearchParams(search || "");
+  const st = p.get("liff.state");
+  if (st && !p.get("ref")) { try { p = new URLSearchParams(st.startsWith("?") ? st.slice(1) : st.replace(/^\/?\??/, "")); } catch (_e) { /* 無視 */ } }
+  const c = p.get("ref");
+  return isInviteCode(c) ? c : null;
+}
+// 招待のリンク(友だちに送る URL)。liffId は公開の値(config.js)
+export const inviteUrl = (liffId, code) => `https://liff.line.me/${encodeURIComponent(liffId)}?ref=${encodeURIComponent(code)}`;

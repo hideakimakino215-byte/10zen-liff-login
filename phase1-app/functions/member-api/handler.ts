@@ -87,8 +87,10 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       case "register": {
         // 表示名は検証済みの ID トークン(name)を優先。無ければクライアント値(整形のみ・信頼しない)
         const nm = typeof claims.name === "string" && claims.name ? claims.name : (typeof body.displayName === "string" ? body.displayName : "");
-        const ref = typeof body.referrerMemberNo === "string" && /^[A-Za-z0-9_-]{1,32}$/.test(body.referrerMemberNo) ? body.referrerMemberNo : null;
-        const r = await rpc("app_register", { p_issuer: issuer, p_subject: subject, p_display_name: nm.slice(0, 200), p_referrer_member_no: ref, p_now: now });
+        // 友だち紹介(db/106): 招待のリンクの ?ref= のコード(12文字)。形の違うものは無視して通常の登録。会員番号での紹介(旧 referrerMemberNo)は受け付けない。
+        //  コードがあるときだけ p_invite_code を渡す(106 より前の DB でも、コードなしの登録はそのまま動く)
+        const code = typeof body.inviteCode === "string" && /^[A-Za-z0-9_-]{12}$/.test(body.inviteCode) ? body.inviteCode : null;
+        const r = await rpc("app_register", { p_issuer: issuer, p_subject: subject, p_display_name: nm.slice(0, 200), p_now: now, ...(code ? { p_invite_code: code } : {}) });
         return json(r, r.status === "created" ? 201 : 200, ch);
       }
       case "checkin": {
@@ -133,6 +135,12 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
         const r = await rpc("app_condition_submit", { p_issuer: issuer, p_subject: subject, p_temp: body.temp, p_energy: body.energy, p_concern: body.concern, p_now: now });
         if (r.status === "invalid_condition") return json({ error: r.status }, 400, ch);
         return json(r, r.status === "not_registered" ? 404 : r.status === "ok" ? 200 : 409, ch);      // 409: already_answered / no_check
+      }
+      // 友だち紹介のお知らせ(「お友だちが来店しました」)を会員証が表示した。until(表示したお知らせの時刻)までの分を既読にする
+      case "invite_seen": {
+        if (typeof body.until !== "string" || body.until.length > 40 || !Number.isFinite(Date.parse(body.until))) return json({ error: "bad_request" }, 400, ch);
+        const r = await rpc("app_invite_seen", { p_issuer: issuer, p_subject: subject, p_until: new Date(Date.parse(body.until)).toISOString(), p_now: now });
+        return json(r, r.status === "not_registered" ? 404 : 200, ch);
       }
       case "referral_click": {
         const r = await rpc("app_referral_click", { p_issuer: issuer, p_subject: subject, p_now: now });

@@ -6,6 +6,9 @@
 //  action=status: { lastSuccessAt } 最後に成功したバックアップの時刻だけを返す(見張り役 watchdog.gs 用)。
 //        見張り役には、状態の確認だけに使える別のトークン = HMAC-SHA256(同じ秘密, "backup-status-v1") を渡す。
 //        このトークンでは status 以外(会員データの書き出し・記録)はできない。
+//  action=monthly_report: { month: "YYYY-MM" } → DB の report_monthly の結果(集計の数字だけ。個人の情報は含まない)。月次レポート(monthly_report.gs)用。
+//        月次レポートには、レポートの取得だけに使える別のトークン = HMAC-SHA256(同じ秘密, "monthly-report-v1") を渡す。
+//        このトークンでは monthly_report 以外(状態の確認・会員データの書き出し・記録)はできない。全体のトークンでも呼べる。見張り用のトークンでは呼べない。
 export interface Deps { supabase: any; secret: string; nowMs: () => number }
 
 const json = (obj: unknown, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
@@ -16,6 +19,7 @@ const hmacHex = async (secret: string, label: string): Promise<string> => {
 };
 export const backupToken = (secret: string): Promise<string> => hmacHex(secret, "backup-export-v1");
 export const statusToken = (secret: string): Promise<string> => hmacHex(secret, "backup-status-v1");
+export const reportToken = (secret: string): Promise<string> => hmacHex(secret, "monthly-report-v1");
 export async function sha256Hex(text: string): Promise<string> { return hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))); }
 const safeEq = (a: string, b: string) => { if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; };
 
@@ -24,9 +28,18 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
   const m = /^Bearer\s+([0-9a-f]{64})$/.exec(req.headers.get("authorization") || "");
   if (!m || !d.secret) return json({ error: "unauthorized" }, 401);
   const full = safeEq(m[1], await backupToken(d.secret)), statusOnly = !full && safeEq(m[1], await statusToken(d.secret));
-  if (!full && !statusOnly) return json({ error: "unauthorized" }, 401);
+  const reportOnly = !full && !statusOnly && safeEq(m[1], await reportToken(d.secret));
+  if (!full && !statusOnly && !reportOnly) return json({ error: "unauthorized" }, 401);
   let body: any; try { body = JSON.parse((await req.text()) || "{}"); } catch (_e) { return json({ error: "bad_request" }, 400); }
   if (body === null || typeof body !== "object") return json({ error: "bad_request" }, 400);
+  if (body.action === "monthly_report") {
+    if (statusOnly) return json({ error: "forbidden" }, 403);                     // 見張り用のトークンは状態の確認だけ
+    if (typeof body.month !== "string" || !/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(body.month)) return json({ error: "bad_request" }, 400);
+    const { data, error } = await d.supabase.rpc("report_monthly", { p_month: body.month });
+    if (error) { console.error(`monthly-report failed: ${String(error.message).slice(0, 200)}`); return json({ error: "server_error" }, 500); }
+    return json(data);
+  }
+  if (reportOnly) return json({ error: "forbidden" }, 403);                         // 月次レポート用のトークンはレポートの取得だけ
   if (body.action === "status") {
     const { data, error } = await d.supabase.from("backup_runs").select("at").eq("ok", true).order("at", { ascending: false }).limit(1);
     if (error) { console.error(`backup-status failed: ${String(error.message).slice(0, 200)}`); return json({ error: "server_error" }, 500); }
