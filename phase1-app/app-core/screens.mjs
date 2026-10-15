@@ -1,5 +1,8 @@
 // 画面の状態と表示用データ(見た目に依存しない)。UI は screen 名で分岐し、view の項目をそのまま表示する。
 // 文言は messages に集約(差し替え可能)。数値の未取得は null のまま渡し、画面側で「—」と表示する(0 に変換しない)。
+// 1分体質チェックの説明文は constitution-content.mjs、判定は constitution.mjs(DB と同じ決め方)。
+import { ELEMENTS, ELEMENT_INFO, BALANCED_NAME, teaWeekdayText, weekdayText, jstDate } from "./constitution.mjs";
+import { TYPE_LINES, TEA_LINES, TEA_NAME, SEASON_NAMES, SEASON_LINES, SEASON_PROMPT, CHECK_NAME, recommendDish, yourTeaDayText } from "./constitution-content.mjs";
 export const messages = {
   ja: {
     needs_login: "LINE でログインしてください",
@@ -30,6 +33,10 @@ export const messages = {
     ticket_expired: "このチケットは有効期限が切れています",
     ticket_already_pending: "ほかのチケットのコードを表示中です。先に取り消してください",
     ticket_valid_through: (d) => `${d}まで`,
+    cc_consent_required: "はじめに、記録への同意をお願いします",
+    cc_invalid: "回答を送れませんでした。最初からもう一度お試しください",
+    cc_condition_already: "今日の体調は回答済みです",
+    cc_condition_no_check: "先に体質チェックをしてください",
   },
 };
 const fmt = (n) => (n === null || n === undefined ? "—" : Number(n).toLocaleString("ja-JP"));
@@ -78,7 +85,75 @@ export function memberView(member, nowMs = Date.now(), lang = "ja") {
     tickets: (Array.isArray(member.tickets) ? member.tickets : []).map((t) => ({ id: t.ticketId, title: t.title, kind: t.kind, validThroughText: m.ticket_valid_through(jpDate(t.validThrough) ?? "—") })),
     pendingTicket: pt ? { ticketId: pt.ticketId, title: pt.title, code: pt.code, codeText: codeText(pt.code), secondsLeft: ptLeft, expired: ptLeft === 0 } : null,
     lastTicket: lt ? { ...lt, message: lt.status === "confirmed" ? m.ticket_done(lt.title) : lt.status === "cancelled" ? m.ticket_cancelled : m.ticket_code_expired } : null,
+    // 1分体質チェック(db/103)。103 が未適用の応答では null(会員証は従来どおり)
+    check: constitutionCardView(member, nowMs),
   };
+}
+
+// ---- 1分体質チェック(db/103) ----
+const teaView = (el, todayStr) => (ELEMENT_INFO[el] ? { element: el, name: `${TEA_NAME}(${ELEMENT_INFO[el].kanji})`, line: TEA_LINES[el], weekday: todayStr ? weekdayText(todayStr) : null } : null);
+// 結果の表示用データ(点数・タイプは DB が計算したもの)。focus があれば(今日の体調に回答済み)、今日のおすすめの一品はその五行で選ぶ
+//   水の五巡茶のひとことには「冷えが気になる方は温かいほうで」を含むので、別の注記は出さない
+export function constitutionResultView({ scores, primary, balanced, mood }, { focus = null, todayTea = null, seasonElement = null, todayStr = null } = {}) {
+  const info = ELEMENT_INFO[primary]; if (!info) return null;
+  const rec = recommendDish(focus || primary, mood);
+  return {
+    primary, balanced: !!balanced, scores,
+    typeName: balanced ? BALANCED_NAME : info.typeName,
+    typeLine: TYPE_LINES[balanced ? "balanced" : primary],
+    // タップで見せる正式名称(五行・五臓・状態の名称)。点数の高い順ではなく 木・火・土・金・水 の順
+    details: ELEMENTS.map((el) => ({ element: el, kanji: ELEMENT_INFO[el].kanji, organ: ELEMENT_INFO[el].organ, state: ELEMENT_INFO[el].state, typeName: ELEMENT_INFO[el].typeName,
+      score: scores?.[el] ?? null, isPrimary: !balanced && el === primary })),
+    formalText: balanced ? null : `五行: ${info.kanji} / 五臓: ${info.organ} / 状態: ${info.state}`,
+    dish: rec ? { name: rec.dish, reason: rec.reason, basis: focus ? "today" : "type", element: focus || primary } : null,
+    yourTea: { ...teaView(primary), dayText: yourTeaDayText(teaWeekdayText(primary)), isToday: todayTea === primary },
+    todayTea: teaView(todayTea, todayStr),
+    season: ELEMENT_INFO[seasonElement] ? { element: seasonElement, name: SEASON_NAMES[seasonElement], line: SEASON_LINES[seasonElement] } : null,
+  };
+}
+
+// 会員証・体質チェックの画面で使う情報(app_me の constitution / todayCondition / todayTea / season)
+export function constitutionCardView(member, nowMs = Date.now()) {
+  if (!member || typeof member.todayTea !== "string") return null;
+  const c = member.constitution, tc = member.todayCondition, today = jstDate(nowMs);
+  const ctx = { focus: tc?.focus ?? null, todayTea: member.todayTea, seasonElement: member.season?.element ?? null, todayStr: today };
+  const result = c ? constitutionResultView(c, ctx) : null;
+  return {
+    done: !!c,
+    entryLabel: c ? "結果を見る" : CHECK_NAME,
+    entryHref: c ? "check.html?view=result" : "check.html",
+    seasonPrompt: c?.seasonChanged ? SEASON_PROMPT : null,
+    consented: !!member.constitutionConsent,
+    // 来店した日(visitedToday)に、まだ今日の体調に答えていなければ 3問を出す
+    needsCondition: !!c && !!member.visitedToday && !tc,
+    condition: tc ? { temp: tc.temp, energy: tc.energy, concern: tc.concern, focus: tc.focus, focusText: ELEMENT_INFO[tc.focus] ? `今日のおすすめの五行: ${ELEMENT_INFO[tc.focus].kanji}` : null } : null,
+    todayTea: teaView(member.todayTea, today),
+    result,
+  };
+}
+
+// 体質チェックの送信: constitutionSubmit() の結果 → 画面
+export function checkSubmitScreen(res, nowMs = Date.now(), lang = "ja") {
+  const m = messages[lang];
+  if (res.kind === "ok") return { screen: "result", view: constitutionCardView(res.data.member, nowMs) };
+  if (res.kind === "conflict" && res.code === "consent_required") return { screen: "consent", error: m.cc_consent_required };
+  if (res.kind === "bad_request") return { screen: "error", retry: false, message: m.cc_invalid };
+  if (res.kind === "not_registered") return { screen: "register", message: m.not_registered };
+  if (res.kind === "maintenance") return { screen: "maintenance", retry: false, message: m.maintenance };
+  if (res.kind === "auth_required") return { screen: "needs_login", message: m.needs_login };
+  return { screen: "error", retry: res.kind !== "rate_limited", message: res.kind === "rate_limited" ? m.rate_limited : res.kind === "network_error" ? m.network_error : m.server_error };
+}
+
+// 今日の体調の送信: conditionSubmit() の結果 → 会員証(回答済み・未実施は会員証のまま文言を出す)
+export function conditionScreen(res, nowMs = Date.now(), lang = "ja") {
+  const m = messages[lang];
+  const view = res.data?.member ? memberView(res.data.member, nowMs, lang) : null;
+  if (res.kind === "ok") return { screen: "card", view };
+  if (res.kind === "conflict") return { screen: "card", view, notice: res.code === "no_check" ? m.cc_condition_no_check : m.cc_condition_already };
+  if (res.kind === "bad_request") return { screen: "card", view: null, notice: m.cc_invalid };
+  if (res.kind === "maintenance") return { screen: "maintenance", retry: false, message: m.maintenance };
+  if (res.kind === "auth_required") return { screen: "needs_login", message: m.needs_login };
+  return { screen: "error", retry: res.kind !== "rate_limited", message: res.kind === "rate_limited" ? m.rate_limited : res.kind === "network_error" ? m.network_error : m.server_error };
 }
 
 // 会員証の画面: me() の結果 → 画面

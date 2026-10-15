@@ -7,7 +7,7 @@
 :root{
   --bg:#f3f5f8; --card:#fff; --fg:#1c2430; --muted:#5b6675; --line:#e3e7ee;
   --teal:#0f9d8f; --teal-soft:#e3f5f2; --purple:#7a5af5; --purple-soft:#eee9fe;
-  --orange:#d9670f; --orange-soft:#fff0e2; --blue:#2f7fe0; --blue-soft:#e6f0fc;
+  --orange:#d9670f; --orange-soft:#fff0e2; --blue:#2f7fe0; --blue-soft:#e6f0fc; --sage:#4f7d3a; --sage-soft:#edf4e6;
   --ok:#1f8a4c; --ok-soft:#e4f6ea; --warn:#c75f0e; --warn-soft:#fff1e3; --bad:#c93a3a; --bad-soft:#fde8e8;
   --radius:16px; color-scheme:light;
 }
@@ -28,9 +28,9 @@ button:disabled{opacity:.55;cursor:default}
 .btn-ghost{min-height:44px;padding:0 16px;border:1.5px solid var(--line);background:var(--card);border-radius:12px;font-weight:700;font-size:14px;white-space:nowrap}
 
 /* タブ(機能ごとの色) */
-#nav{background:var(--card);border-bottom:1px solid var(--line);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:0 8px}
+#nav{background:var(--card);border-bottom:1px solid var(--line);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:0 8px}
 #nav button{min-height:48px;border:0;background:none;font-weight:700;font-size:14px;color:var(--muted);border-bottom:3px solid transparent;padding:4px 2px;line-height:1.25}
-#nav button[data-tab=redeem]{--c:var(--teal)} #nav button[data-tab=members]{--c:var(--purple)} #nav button[data-tab=dash]{--c:var(--blue)}
+#nav button[data-tab=redeem]{--c:var(--teal)} #nav button[data-tab=members]{--c:var(--purple)} #nav button[data-tab=dash]{--c:var(--blue)} #nav button[data-tab=constitution]{--c:var(--sage)}
 #nav button[aria-current=page]{color:var(--c);border-bottom-color:var(--c)}
 
 main{max-width:1080px;margin:0 auto;padding:20px 16px 40px;display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
@@ -91,13 +91,13 @@ h1,h2,h3{margin:0}
 #confirm{min-height:76px;flex:1 1 240px;border:0;border-radius:14px;background:var(--ok);color:#fff;font-size:24px;font-weight:900}
 .done{align-items:center}
 #rDone{font-size:22px;font-weight:900}
-.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px 16px 16px;display:grid;justify-items:center;align-content:start;gap:8px;text-align:center;min-height:180px}
 .card svg{width:56px;height:56px;color:var(--c)}
 .card h2{font-size:21px}
 .card .pill{background:var(--c-soft);color:var(--c)}
 .card .go{color:var(--muted);font-size:14px}
-.card.c-purple{--c:var(--purple);--c-soft:var(--purple-soft)} .card.c-blue{--c:var(--blue);--c-soft:var(--blue-soft)}
+.card.c-purple{--c:var(--purple);--c-soft:var(--purple-soft)} .card.c-blue{--c:var(--blue);--c-soft:var(--blue-soft)} .card.c-sage{--c:var(--sage);--c-soft:var(--sage-soft)}
 
 /* 会員(紫) */
 .band{--c:var(--purple);background:var(--purple-soft);border:2px solid var(--purple);border-radius:var(--radius);padding:18px;display:grid;gap:12px}
@@ -142,8 +142,35 @@ h1,h2,h3{margin:0}
 #exportBox{--c:var(--blue);border-color:var(--blue)}
 #exportOut{margin:0;font-weight:700}
 
+/* 体質チェック(セージ) */
+.c-sage-text{color:var(--sage)}
+.stat.g .v{color:var(--sage)}
+.cc-sec{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;display:grid;gap:12px}
+.cc-sec h2{font-size:17px;color:var(--sage)}
+.cc-sec h3{font-size:14px;color:var(--muted);margin:0 0 6px}
+.cc-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
+.bars{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.bars li{display:grid;grid-template-columns:9.5em minmax(0,1fr) 3.5em;gap:10px;align-items:center;font-size:14px}
+.bars .track{height:12px;background:#eef1f5;border-radius:999px;overflow:hidden}
+.bars .track i{display:block;height:100%;background:var(--sage);border-radius:999px}
+.bars .cnt{text-align:right;font-weight:800}
+.bars .lbl{overflow-wrap:anywhere}
+.radar{display:block;width:100%;max-width:300px;height:auto;margin:0 auto}
+.radar-ring,.radar-axis{fill:none;stroke:var(--line);stroke-width:1}
+.radar-area{fill:rgba(79,125,58,.2);stroke:var(--sage);stroke-width:2;stroke-linejoin:round}
+.radar-dot{fill:var(--sage)}
+.radar-label{font-size:15px;font-weight:700;fill:var(--fg)}
+.radar-value{font-size:12px;font-weight:500;fill:var(--muted)}
+.cmp{width:100%;border-collapse:collapse;font-size:15px}
+.cmp th,.cmp td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:right}
+.cmp th:first-child,.cmp td:first-child{text-align:left}
+.cmp th{font-size:13px;color:var(--muted)}
+.week{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.week .bars li{grid-template-columns:7.5em minmax(0,1fr) 2.5em}
+
 @media (max-width:760px){
   .cards{grid-template-columns:1fr}
+  .cc-grid,.week{grid-template-columns:1fr}
   .card{min-height:0;grid-template-columns:auto 1fr auto;justify-items:start;align-items:center;text-align:left;padding:14px 16px}
   .card svg{width:40px;height:40px;grid-row:span 2}
   .card .pill{grid-column:3;grid-row:1}
@@ -165,13 +192,15 @@ h1,h2,h3{margin:0}
 <header class="topbar"><img class="logo" src="assets/logo.png" alt="10ZEN"><span id="who"></span> <button id="logout" class="btn-ghost" hidden>ログアウト</button></header>
 <nav id="nav" hidden aria-label="機能">
   <button data-tab="redeem">ポイント使用</button> <button data-tab="members">会員</button>
-  <button data-tab="dash">集計</button>
+  <button data-tab="dash">集計</button> <button data-tab="constitution">体質チェック</button>
 </nav>
 <main id="app"></main>
 <script src="config.js"></script>
 <script src="vendor/supabase.js"></script>
 <script type="module">
 import { createStaffClient, redeemReduce, redeemInitial } from "../app-core/staff-client.mjs";
+import { ELEMENTS, ELEMENT_INFO, CONDITION_QUESTIONS } from "../app-core/constitution.mjs";
+import { radarSvg } from "../app-core/radar.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 const put = (parent, ...kids) => { parent.append(...kids); return parent; };
@@ -197,6 +226,7 @@ const ICONS = {
   members: [["circle", { cx: 9, cy: 8, r: 3.5 }], ["path", { d: "M2.5 20a6.5 6.5 0 0 1 13 0" }], ["circle", { cx: 17, cy: 9, r: 2.5 }], ["path", { d: "M15.5 14.5A5 5 0 0 1 22 19" }]],
   dash: [["path", { d: "M4 20h16" }], ["rect", { x: 5, y: 11, width: 3.5, height: 7, rx: 1 }], ["rect", { x: 10.25, y: 6, width: 3.5, height: 12, rx: 1 }], ["rect", { x: 15.5, y: 9, width: 3.5, height: 9, rx: 1 }]],
   ticket: [["path", { d: "M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z" }], ["path", { d: "M14 6v12", "stroke-dasharray": "2 2" }]],
+  constitution: [["path", { d: "M12 3 20.5 9.2 17.3 19.2H6.7L3.5 9.2z" }], ["path", { d: "M12 7.5 16 10.6 14.5 15.5h-5L8 10.6z" }]],
 };
 function icon(name) {
   const s = document.createElementNS(SVGNS, "svg");
@@ -240,7 +270,7 @@ document.getElementById("nav").onclick = (ev) => { const t = ev.target.closest?.
 function tab(t) {
   for (const b of document.querySelectorAll("#nav [data-tab]")) { if (b.dataset.tab === t) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
   window.scrollTo(0, 0);
-  ({ redeem: redeemView, members: membersView, dash: dashView })[t]();
+  ({ redeem: redeemView, members: membersView, dash: dashView, constitution: constitutionView })[t]();
 }
 
 // ---- ポイント使用(ログイン直後の画面: 最上段にコード入力、下に会員・集計の入口) ----
@@ -290,14 +320,20 @@ function redeemView() {
     put(el("div", undefined, { class: "row-flex" }), code, go), out);
   hero.firstChild.id = "redeemTitle";
   // 下の入口(会員・集計)。件数は集計から(取れなければ「—」)。本日の来店は集計にまとめた
-  const pills = { members: el("span", `有効 ${DASH} 人`, { class: "pill num" }), dash: el("span", `来店 ${DASH} 人`, { class: "pill num" }) };
+  const pills = { members: el("span", `有効 ${DASH} 人`, { class: "pill num" }), dash: el("span", `来店 ${DASH} 人`, { class: "pill num" }),
+    constitution: el("span", role === "staff" ? `今週の体調 ${DASH} 件` : `実施 ${DASH} 人`, { class: "pill num", id: "ccPill" }) };
   const card = (t, cls, name, h, go) => { const b = put(el("button", undefined, { class: `card ${cls}`, "data-go": t }), icon(name), el("h2", h), pills[t], el("span", `${go} ›`, { class: "go" })); b.onclick = () => tab(t); return b; };
   const cards = put(el("section", undefined, { class: "cards", "aria-label": "ほかの機能" }),
-    card("members", "c-purple", "members", "会員", "会員番号・氏名で探す"), card("dash", "c-blue", "dash", "集計", "本日の来店・今月の付与と使用"));
+    card("members", "c-purple", "members", "会員", "会員番号・氏名で探す"), card("dash", "c-blue", "dash", "集計", "本日の来店・今月の付与と使用"),
+    card("constitution", "c-sage", "constitution", "体質チェック", role === "staff" ? "今週の体調の傾向" : "実施・タイプ・体調の傾向"));
   show(hero, cards);
   staff.dashboard().then((r) => {
     if (r.kind !== "ok") return;
     pills.members.textContent = `有効 ${n(r.data.membersActive)} 人`; pills.dash.textContent = `本日の来店 ${n(r.data.visitsToday)} 人`;
+  });
+  staff.constitutionStats().then((r) => {
+    if (r.kind !== "ok") return;
+    pills.constitution.textContent = r.data.scope === "full" ? `実施 ${n(r.data.checkedMembers)} 人` : `今週の体調 ${n(r.data.week?.answers)} 件`;
   });
   code.focus();
 }
@@ -386,6 +422,52 @@ async function dashView() {
   if (tk.kind === "ok") nodes.push(put(el("section", undefined, { id: "ticketStats", "aria-label": "特典チケット" }), put(el("h2"), icon("ticket"), document.createTextNode("特典チケット(累計)")),
     put(el("div", undefined, { class: "stats three" }), stat("t", "発行", tk.data.issued, "枚"), stat("t", "使用", tk.data.used, "枚"), stat("t", "使用率", tk.data.usageRatePercent, "%"))));
   if (role === "manager") nodes.push(exportBox());                // CSV 出力は店長のみ(既存の API の範囲)
+  show(...nodes);
+}
+
+// ---- 体質チェック(セージ)。権限は DB(staff_constitution_stats)が判定: 店長・閲覧=すべて、スタッフ=今週の体調の傾向だけ ----
+//  スタッフには、実施人数・タイプ・平均・再来店率・相談ボタンの数を DOM ごと出さない(DB もスタッフには返さない)
+const ccStat = (cls, k, v, unit, id) => put(el("div", undefined, { class: `stat ${cls}`, ...(id ? { id } : {}) }), el("div", k, { class: "k" }), put(el("div", n(v), { class: "v num" }), el("small", unit)));
+function bars(items, id) {
+  const max = Math.max(1, ...items.map((x) => (typeof x.v === "number" ? x.v : 0)));
+  const ul = el("ul", undefined, { class: "bars num", ...(id ? { id } : {}) });
+  for (const x of items) {
+    const tr = el("span", undefined, { class: "track" }), i = el("i"); i.style.width = `${Math.round((100 * (x.v || 0)) / max)}%`; tr.append(i);
+    ul.append(put(el("li"), el("span", x.k, { class: "lbl" }), tr, el("span", n(x.v), { class: "cnt" })));
+  }
+  return ul;
+}
+async function constitutionView() {
+  const reload = el("button", "更新", { class: "btn sub", id: "reloadCc", style: "--c:var(--sage)" }); reload.onclick = constitutionView;
+  const head = put(el("div", undefined, { class: "head" }), title("constitution", "体質チェック", "c-sage-text"));
+  const r = await staff.constitutionStats();
+  if (r.kind !== "ok") return show(head, failView(r.kind === "forbidden" ? "この画面の権限がありません" : "取得できませんでした", constitutionView));
+  const d = r.data, w = d.week || {};
+  head.append(el("span", `${jst(d.asOf) ?? DASH} 時点`, { class: "asof num" }), reload);
+  const nodes = [head];
+  if (d.scope === "full") {
+    const ref = put(el("div", undefined, { class: "stat b", id: "ccReferral" }), el("div", "「薬日本堂の漢方相談へ」が押された数", { class: "k" }),
+      put(el("div", n(d.referralClicks?.total), { class: "v num" }), el("small", `回(今月 ${n(d.referralClicks?.thisMonth)} 回)`)));
+    nodes.push(put(el("div", undefined, { class: "stats", id: "ccReach" }), ccStat("g", "実施した人数", d.checkedMembers, "人"), ccStat("g", "実施率(有効会員のうち)", d.checkRatePercent, "%", "ccRate"),
+      ccStat("p", "有効会員数", d.membersActive, "人"), ref));
+    const types = bars([...ELEMENTS.map((e) => ({ k: `${ELEMENT_INFO[e].kanji} ${ELEMENT_INFO[e].typeName}`, v: d.byType?.[e] })), { k: "バランス良好", v: d.byType?.balanced }], "ccTypes");
+    const avg = d.averages ? radarSvg(document, d.averages, { labels: Object.fromEntries(ELEMENTS.map((e) => [e, ELEMENT_INFO[e].kanji])), max: 6, id: "ccAvgRadar", title: "五行ごとの平均(0〜6)",
+      valueText: (x) => (typeof x === "number" ? Number(x).toFixed(1) : DASH) }) : el("p", "まだ実施した人がいません", { class: "hint", id: "ccAvgRadar" });
+    nodes.push(put(el("section", undefined, { class: "cc-sec" }), el("h2", "体質(会員ごとの最新の結果)"),
+      put(el("div", undefined, { class: "cc-grid" }), put(el("div"), el("h3", "タイプ別の人数"), types), put(el("div"), el("h3", "五行ごとの平均(五角形)"), avg))));
+    const rv = d.revisit || {};
+    const row = (label, g) => put(el("tr"), el("td", label), el("td", n(g?.members)), el("td", g?.revisitRatePercent == null ? DASH : `${n(g.revisitRatePercent)}%`),
+      el("td", g?.avgVisits == null ? DASH : `${Number(g.avgVisits).toFixed(1)} 日`));
+    nodes.push(put(el("section", undefined, { class: "cc-sec", id: "ccRevisit" }), el("h2", "効果: 実施した人・していない人の比較"),
+      el("p", `直近${rv.windowDays ?? 60}日。再来店率=来店記録が2日以上ある人の割合。来店頻度=来店記録の日数の平均(登録日も1日と数える)`, { class: "hint" }),
+      put(el("table", undefined, { class: "cmp num" }), put(el("thead"), put(el("tr"), el("th", "区分"), el("th", "人数"), el("th", "再来店率"), el("th", "来店頻度"))),
+        put(el("tbody"), row("実施した人", rv.checked), row("していない人", rv.unchecked)))));
+  }
+  const group = (key, h) => { const q = CONDITION_QUESTIONS.find((x) => x.key === key); return put(el("div"), el("h3", h), bars(q.options.map((o) => ({ k: o.label, v: w[key]?.[o.value] })))); };
+  nodes.push(put(el("section", undefined, { class: "cc-sec", id: "ccWeek" }), el("h2", "今週の体調の傾向"),
+    el("p", `直近7日(${w.since ?? DASH} 〜 ${w.until ?? DASH})・回答 ${n(w.answers)} 件。会員証の「今日の体調」の回答の集計です`, { class: "hint num" }),
+    put(el("div", undefined, { class: "week" }), group("temp", "からだ"), group("energy", "調子"), group("concern", "気になること")),
+    put(el("div"), el("h3", "今日のおすすめの五行(回答から)"), bars(ELEMENTS.map((e) => ({ k: ELEMENT_INFO[e].kanji, v: w.focus?.[e] })), "ccWeekFocus"))));
   show(...nodes);
 }
 

@@ -94,6 +94,18 @@ details.benefits summary::-webkit-details-marker { display:none; }
 .tickets .tt small { font-size:11.5px; color:var(--sub); }
 .tickets .use { height:40px; min-width:72px; border-radius:10px; border:0; background:var(--ink); color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
 .tickets .use:disabled { opacity:.4; cursor:default; }
+/* ---- 1分体質チェック(入口・季節の案内・今日の体調・今日のおすすめ) ---- */
+.cc .cc-entry { display:flex; align-items:center; justify-content:center; min-height:48px; margin-top:12px; border-radius:10px; border:1px solid var(--ink); background:#fff; color:var(--ink); font-size:15px; font-weight:600; text-decoration:none; }
+.cc .cc-entry.first { background:var(--ink); color:#fff; border:0; }
+.cc .cc-season { margin-top:10px; font-size:13.5px; line-height:1.6; color:var(--warn); }
+.cc .cc-q { margin-top:12px; }
+.cc .cc-q p { font-size:13px; font-weight:600; }
+.cc .cc-opts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-top:6px; }
+.cc .cc-opts button { min-height:48px; padding:4px; border:1px solid var(--line); border-radius:10px; background:#fff; font-size:12.5px; font-weight:600; line-height:1.35; cursor:pointer; }
+.cc .cc-opts button[aria-pressed=true] { border-color:var(--accent); background:#f3ebdd; }
+.cc .cc-focus { margin-top:10px; font-size:14px; line-height:1.7; }
+.cc .cc-focus b { font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; font-weight:600; font-size:16px; }
+.cc .cc-tea { margin-top:8px; font-size:13px; line-height:1.6; color:var(--sub); }
 @media (max-width:340px) { .points { font-size:36px; } .code { font-size:36px; } .back .in { padding:12px 10px 8px; } .back .hours, .back .addr, .back .tel { font-size:12.5px; margin-top:5px; } .back .btn { font-size:11.5px; min-height:38px; padding:4px; } .who h1 { font-size:16px; } }
 /* 動きを減らす設定では模様と点滅を止める(時刻は更新し続ける) */
 @media (prefers-reduced-motion: reduce) { .card { transition:none; } .front .in::after, .who .clock::before { animation:none; } }
@@ -104,7 +116,9 @@ details.benefits summary::-webkit-details-marker { display:none; }
 <script src="vendor/liff.js"></script>
 <script type="module">
 import { createMemberClient, qrTokenFromLocation } from "../app-core/member-client.mjs";
-import { cardScreen, checkinScreen, redeemScreen, redeemWatch, ticketScreen, ticketWatch } from "../app-core/screens.mjs";
+import { cardScreen, checkinScreen, redeemScreen, redeemWatch, ticketScreen, ticketWatch, conditionScreen } from "../app-core/screens.mjs";
+import { CONDITION_QUESTIONS } from "../app-core/constitution.mjs";
+import { CONDITION_INTRO } from "../app-core/constitution-content.mjs";
 import { STORE, quizUrl, flowFromLocation } from "../app-core/store-info.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
@@ -153,6 +167,43 @@ function cardFace(view) {
   return scene;
 }
 
+// 1分体質チェック(db/103): 入口(未実施=「1分体質チェック」・実施済み=「結果を見る」)、季節が変わったときの案内、
+// 来店した日の「今日の体調」(3問・1問1タップ。3つ選ぶと送る)と、回答後の今日のおすすめ・今日の五巡茶。103 が未適用なら何も出さない
+function checkNodes(view) {
+  const c = view.check; if (!c) return null;
+  const box = el("section", undefined, { class: "panel cc", id: "ccCard" });
+  box.append(el("p", "1分体質チェック", { class: "label" }));
+  if (c.seasonPrompt) box.append(el("p", c.seasonPrompt, { id: "ccSeasonPrompt", class: "cc-season" }));
+  if (c.needsCondition) {
+    const pick = {}, wrap = el("div", undefined, { id: "ccCondition" });
+    wrap.append(el("p", CONDITION_INTRO, { class: "meta" }));
+    for (const q of CONDITION_QUESTIONS) {
+      const row = el("div", undefined, { class: "cc-opts", role: "group", "aria-label": q.label });
+      for (const o of q.options) {
+        const b = el("button", o.label, { "data-q": q.key, "data-value": o.value, "aria-pressed": "false" });
+        b.onclick = async () => {
+          if (wrap.dataset.sending) return;
+          for (const x of row.querySelectorAll("button")) x.setAttribute("aria-pressed", String(x === b));
+          pick[q.key] = o.value;
+          if (Object.keys(pick).length < CONDITION_QUESTIONS.length) return;
+          wrap.dataset.sending = "1";
+          const s = conditionScreen(await client.conditionSubmit(pick), Date.now()); notice = s.notice || null; load();
+        };
+        row.append(b);
+      }
+      wrap.append(kids(el("div", undefined, { class: "cc-q" }), el("p", q.label), row));
+    }
+    box.append(wrap);
+  }
+  if (c.condition && c.result?.dish) {
+    box.append(kids(el("p", undefined, { id: "ccFocus", class: "cc-focus" }), document.createTextNode("今日のおすすめ: "), el("b", c.result.dish.name),
+      el("span", `(${c.condition.focusText ?? ""})`, { class: "meta" })));
+  }
+  if (c.done && c.todayTea) box.append(el("p", `今日の五巡茶: ${c.todayTea.name}・${c.todayTea.line}`, { id: "ccTodayTea", class: "cc-tea" }));
+  box.append(el("a", c.entryLabel, { id: "ccEntry", href: c.entryHref, class: "cc-entry" + (c.done ? "" : " first") }));
+  return box;
+}
+
 function cardNodes(view) {
   const n = [];
   if (notice) n.push(el("p", notice, { id: "notice", role: "status", class: "notice" }));
@@ -169,6 +220,7 @@ function cardNodes(view) {
   if (view.lifetimeNote) pts.append(el("p", view.lifetimeNote, { id: "lifetimeNote", class: "meta" }));
   if (view.lastRedeem) pts.append(el("p", view.lastRedeem.message, { id: "lastRedeem", class: "meta" }));
   n.push(pts);
+  const cc = checkNodes(view); if (cc) n.push(cc);
   if (view.pending) {
     const p = view.pending, box = el("section", undefined, { class: "panel pending" });
     kids(box, el("p", `使用の申請中: ${p.points}pt(${p.yen}円分)`, { id: "pendingInfo", class: "label" }), el("p", p.codeText, { id: "pendingCode", class: "code" }), el("p", `あと ${p.secondsLeft} 秒`, { id: "pendingLeft", class: "meta" }));

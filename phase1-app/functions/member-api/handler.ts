@@ -117,6 +117,27 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
         const r = await rpc("app_ticket_cancel", { p_issuer: issuer, p_subject: subject, p_now: now });
         return json(r, r.status === "not_registered" ? 404 : 200, ch);
       }
+      // 1分体質チェック(db/103_constitution_check.sql)。点数・タイプはクライアントから受け取らない(回答から DB が計算する)
+      case "constitution_submit": {
+        const a = body.answers;
+        if (!Array.isArray(a) || a.length !== 15 || !a.every((x: unknown) => Number.isInteger(x) && (x as number) >= 0 && (x as number) <= 2)) return json({ error: "invalid_answers" }, 400, ch);
+        if (typeof body.mood !== "string" || !/^[a-z][a-z0-9_]{0,31}$/.test(body.mood)) return json({ error: "invalid_mood" }, 400, ch);
+        if (body.consent !== undefined && typeof body.consent !== "boolean") return json({ error: "bad_request" }, 400, ch);
+        const r = await rpc("app_constitution_submit", { p_issuer: issuer, p_subject: subject, p_answers: a, p_mood: body.mood, p_consent: body.consent === true, p_now: now });
+        if (r.status === "invalid_answers" || r.status === "invalid_mood") return json({ error: r.status }, 400, ch);
+        return json(r, r.status === "not_registered" ? 404 : r.status === "ok" ? 200 : 409, ch);      // 409: consent_required
+      }
+      case "condition_submit": {
+        const okv = (v: unknown, list: string[]) => typeof v === "string" && list.includes(v);
+        if (!okv(body.temp, ["cold", "hot", "normal"]) || !okv(body.energy, ["tired", "stress", "fine"]) || !okv(body.concern, ["dry", "swelling", "none"])) return json({ error: "invalid_condition" }, 400, ch);
+        const r = await rpc("app_condition_submit", { p_issuer: issuer, p_subject: subject, p_temp: body.temp, p_energy: body.energy, p_concern: body.concern, p_now: now });
+        if (r.status === "invalid_condition") return json({ error: r.status }, 400, ch);
+        return json(r, r.status === "not_registered" ? 404 : r.status === "ok" ? 200 : 409, ch);      // 409: already_answered / no_check
+      }
+      case "referral_click": {
+        const r = await rpc("app_referral_click", { p_issuer: issuer, p_subject: subject, p_now: now });
+        return json(r, r.status === "not_registered" ? 404 : 200, ch);
+      }
       default: return json({ error: "unknown_action" }, 400, ch);
     }
   } catch (e) {

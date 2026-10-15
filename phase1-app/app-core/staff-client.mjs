@@ -35,6 +35,8 @@ export function createStaffClient({ supabase, qrEndpoint, fetchFn = (...a) => fe
     confirmTicket: (requestId) => rpc("staff_confirm_ticket", { p_request_id: requestId }),
     cancelTicket: (requestId) => rpc("staff_cancel_ticket", { p_request_id: requestId }),
     ticketStats: () => rpc("staff_ticket_stats"),
+    // 1分体質チェックの集計(db/103)。data.scope が "full"(店長・閲覧)なら全項目、"limited"(スタッフ)なら今週の体調の傾向(data.week)だけ
+    constitutionStats: () => rpc("staff_constitution_stats"),
     // 店長のみ。key は1回の操作につき1つ作り、再送時は同じ key を使う(二重実行されない)
     newAdjustKey: () => `adj-${uuid()}`,
     adjust: ({ memberId, points, reason, key }) => rpc("manager_adjust", { p_member_id: memberId, p_points: points, p_reason: reason, p_idempotency_key: key }),

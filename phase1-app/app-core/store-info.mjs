@@ -10,6 +10,9 @@ export const STORE = Object.freeze({
   bookingUrl: "https://booking.ebica.jp/webrsv/search/e014032801/23809",
   quizBaseUrl: "https://tally.so/r/440keB",
 });
+// 1分体質チェックの結果画面の「薬日本堂の漢方相談へ」の行き先。
+// TODO: 仮の行き先(薬日本堂のトップページ)。漢方相談の正式な案内先・10ZEN 経由の案内コードは、薬日本堂との相談で決めてから差し替える
+export const NIHONDO_CONSULT_URL = "https://www.nihondo.co.jp/";
 // 30秒体質チェックの URL。Tally は line_user_id を隠しフィールドで受け取り、回答を顧客に紐づける(tally-webhook)。LINE ID が未取得なら付けない。
 export function quizUrl(lineUserId) {
   return lineUserId ? `${STORE.quizBaseUrl}?line_user_id=${encodeURIComponent(lineUserId)}` : STORE.quizBaseUrl;

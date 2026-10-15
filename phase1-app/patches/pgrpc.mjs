@@ -9,7 +9,9 @@ export function rpcOver(pg, opts = {}) {
     async rpc(name, args) {
       calls.push(name);
       if (opts.failRpc && opts.failRpc(name)) return { data: null, error: { message: "injected failure" } };
-      const named = Object.entries(args).map(([k, v]) => `${k} => ${v === null || v === undefined ? "null" : q(typeof v === "object" ? JSON.stringify(v) : v)}`).join(", ");
+      // 配列は PostgreSQL の配列の書き方({…})で渡す(PostgREST が JSON の配列を integer[] などへ変換するのと同じ)
+      const lit = (v) => (Array.isArray(v) ? `{${v.map((x) => (x === null ? "NULL" : `"${String(x).replace(/["\\]/g, "\\$&")}"`)).join(",")}}` : typeof v === "object" ? JSON.stringify(v) : v);
+      const named = Object.entries(args).map(([k, v]) => `${k} => ${v === null || v === undefined ? "null" : q(lit(v))}`).join(", ");
       const r = await pg.runAsync(`set role service_role;\nselect public.${name}(${named});`);
       if (r.status !== 0) return { data: null, error: { message: r.stderr } };
       return { data: JSON.parse(r.stdout), error: null };
