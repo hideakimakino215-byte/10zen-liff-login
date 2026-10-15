@@ -59,6 +59,7 @@ try {
   const B = reg(sub("b"), "既存 会員B", "2026-09-01T03:00:00Z").member.memberNo; setLife(B, 999);
   assert.equal(val(`select rank_code from members where member_no=${q(A)};`), "white_opal");          // 旧基準(AMBER=10,000)
   const defs100 = fnDefs();
+  const realOldBk = val(`set role service_role; select public.export_backup();`).split("\n").pop();   // 本物の 102 より前のバックアップ(旧基準。13 で復元する)
   pg.loadFile("102_rank_perks.sql");
   assert.deepEqual(thresholds(), [0, 1000, 3000, 6000, 10000]);
   assert.equal(val(`select rank_code from members where member_no=${q(A)};`), "amber"); assert.equal(val(`select rank_code from members where member_no=${q(B)};`), "white_opal");
@@ -255,10 +256,17 @@ try {
     const m1 = JSON.parse(pg.execIn("t2", `set role service_role; select public.app_me(${q(ISS)}, ${q(sub("1"))}, now());`).split("\n").pop()).member;
     assert.deepEqual(m1.tickets, []); assert.equal(cnt("t2", `select count(*) from perk_tickets;`), before);         // 使用済みのお祝いを復元後に出し直さない
     fails(() => pg.execIn("t2", `set role service_role; select public.restore_backup(${q(bk)}::jsonb);`), /target_not_empty/);
-    const old = { ...b, tables: { ...b.tables } }; delete old.tables.perk_tickets; delete old.tables.perk_ticket_requests; delete old.tables.perk_ticket_types;
-    pg.createDb("t3"); pg.execIn("t3", STUB); pg.loadFileIn("t3", "100_phase1_schema.sql"); pg.loadFileIn("t3", "101_search_path_fix.sql"); pg.loadFileIn("t3", "102_rank_perks.sql");
-    const r3 = JSON.parse(pg.execIn("t3", `set role service_role; select public.restore_backup(${q(JSON.stringify(old))}::jsonb);`).split("\n").pop());
-    assert.equal(r3.status, "restored"); assert.equal(pg.execIn("t3", `select count(*) from perk_tickets;`), "0"); assert.equal(pg.execIn("t3", `select count(*) from perk_ticket_types;`), "5"); }
-  ok("バックアップ/復元: チケット・使用の申請・種類もバックアップに入り、空の DB に復元できる(使用済みは使用済みのまま・お祝いを出し直さない)。チケットの表がない 102 より前のバックアップも復元できる");
+    // 102 より前のバックアップ: 表を消した作り物ではなく、1 で 100・101 だけの DB から書き出した本物(旧基準 0/10,000/50,000/…)を、100〜108 の DB に復元する(監査 M-1)
+    const ro = JSON.parse(realOldBk); assert.deepEqual(ro.tables.rank_thresholds.map((x) => x.min_points).sort((x, y) => x - y), [0, 10000, 50000, 100000, 200000]);
+    assert.equal("perk_tickets" in ro.tables, false); assert.equal("perk_ticket_types" in ro.tables, false);
+    pg.createDb("t3"); pg.execIn("t3", STUB);
+    for (const f of ["100_phase1_schema.sql", "101_search_path_fix.sql", "102_rank_perks.sql", "103_constitution_check.sql", "104_member_constitution_link.sql", "105_kpi.sql", "106_referral.sql",
+                     "107_constitution_each_visit.sql", "108_restore_old_backup_fix.sql"]) pg.loadFileIn("t3", f);
+    const r3 = JSON.parse(pg.execIn("t3", `set role service_role; select public.restore_backup(${q(realOldBk)}::jsonb);`).split("\n").pop());
+    assert.equal(r3.status, "restored"); assert.equal(r3.balanceMismatches, 0); assert.equal(r3.rankThresholds, "kept_current"); assert.equal(r3.reranked, 1);
+    assert.deepEqual(JSON.parse(pg.execIn("t3", `select json_agg(min_points order by min_points) from rank_thresholds;`)), [0, 1000, 3000, 6000, 10000]);
+    assert.equal(pg.execIn("t3", `select rank_code from members where member_no=${q(A)};`), "amber"); assert.equal(pg.execIn("t3", `select rank_code from members where member_no=${q(B)};`), "white_opal");
+    assert.equal(pg.execIn("t3", `select count(*) from perk_tickets;`), "0"); assert.equal(pg.execIn("t3", `select count(*) from perk_ticket_types where kind <> 'referral';`), "5"); }
+  ok("バックアップ/復元: チケット・使用の申請・種類もバックアップに入り、空の DB に復元できる(使用済みは使用済みのまま・お祝いを出し直さない)。本物の 102 より前のバックアップ(旧基準)も 108 の後の DB に復元でき、基準は新しいまま・ランクは累計から付け直す");
   console.log(`\n${n} rank perk tests passed`);
 } finally { pg.stop(); }

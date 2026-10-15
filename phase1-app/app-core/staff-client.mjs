@@ -1,10 +1,13 @@
 // スタッフ画面用クライアント(見た目に依存しない)。権限は DB の関数側で確認される(画面の出し分けは補助)。
 //   supabase: supabase-js のクライアント(anon キー+ログイン済みセッション)。サービスキーは使わない。
+import { MAX_ROWS_PER_CALL, invalidImportRows } from "./pos-import.mjs";
+
 export function mapError(err) {
   const msg = String(err?.message || err || "");
   if (/too_many_attempts/.test(msg)) return { kind: "locked" };
   if (/not_staff/.test(msg)) return { kind: "not_staff" };
   if (/forbidden/.test(msg) || /permission denied/.test(msg)) return { kind: "forbidden" };
+  if (/\bmaintenance\b/.test(msg)) return { kind: "maintenance" };                         // 凍結中など、いまの状態では書き込めない(再試行しても変わらない)
   if (/reason_required/.test(msg)) return { kind: "invalid", code: "reason_required" };
   if (/invalid_points|invalid_key/.test(msg)) return { kind: "invalid", code: msg.match(/invalid_\w+/)[0] };
   // 目標と KPI(db/105)の入力の誤り: 取り込みの行・日付・客数・月・目標・KPI・段階
@@ -51,12 +54,19 @@ export function createStaffClient({ supabase, qrEndpoint, fetchFn = (...a) => fe
     setKpiTarget: (kpi, milestone, value) => rpc("manager_set_kpi_target", { p_kpi: kpi, p_milestone: milestone, p_value: value }),
     setPosMonthly: (month, customers) => rpc("manager_set_pos_monthly", { p_month: month, p_customers: customers }),
     // レジの客数(日別)の取り込み。rows = [{ date, customers }]。DB の1回の上限(400行)ごとに分けて順に送る(同じ日付は上書きなので、途中で失敗しても送り直せる)。
-    //  戻り値: { kind:"ok", data:{ inserted, updated, unchanged, calls } } / 失敗時はその応答に sent(送れた行数)を付けて返す
-    importPosCustomers: async (rows, source, size = 400) => {
+    //  送る前に全行を確かめ(日付の形・客数が 0〜100,000 の整数。DB と同じ決まり)、1行でも違えば何も送らない: { kind:"invalid", code, sent:0, saved:0, bad:[…] }
+    //  戻り値: { kind:"ok", data:{ inserted, updated, unchanged, calls } }
+    //  途中の回で失敗したら、その応答に sent / saved(保存できた行数。前の回までの合計)・failedChunk(失敗した回。1から)・chunks(全部の回数)・
+    //  failedRange(失敗した回の最初と最後の日付)を付けて返す。失敗した回の行は1行も保存されない(DB が回ごとにまとめて拒否する)
+    importPosCustomers: async (rows, source, size = MAX_ROWS_PER_CALL) => {
+      const chunks = Math.ceil(rows.length / size);
+      const bad = invalidImportRows(rows);
+      if (bad.length) return { kind: "invalid", code: bad[0].reason, sent: 0, saved: 0, failedChunk: null, chunks, bad };
       const tot = { inserted: 0, updated: 0, unchanged: 0, calls: 0 };
       for (let i = 0; i < rows.length; i += size) {
-        const r = await rpc("manager_import_pos_customers", { p_rows: rows.slice(i, i + size), p_source: source ?? null });
-        if (r.kind !== "ok") return { ...r, sent: i };
+        const part = rows.slice(i, i + size);
+        const r = await rpc("manager_import_pos_customers", { p_rows: part, p_source: source ?? null });
+        if (r.kind !== "ok") return { ...r, sent: i, saved: i, failedChunk: i / size + 1, chunks, failedRange: { from: part[0].date, to: part[part.length - 1].date } };
         tot.inserted += r.data.inserted; tot.updated += r.data.updated; tot.unchanged += r.data.unchanged; tot.calls++;
       }
       return { kind: "ok", data: tot };
@@ -82,6 +92,7 @@ export function createStaffClient({ supabase, qrEndpoint, fetchFn = (...a) => fe
 //   idle → (入力) → looking_up → confirm(内容を確認して確定を押す) → confirming → done / または not_found・expired・insufficient・locked・error
 //   特典チケットのコード(lookupCode の結果が kind="ticket")のときは state に kind:"ticket" と ticket(title など)が付き、
 //   確定の結果は done(title)/ expired(コードの期限)/ ticket_used(使用済み)/ ticket_expired(チケットの期限)/ cancelled / not_found
+//   ポイント・チケットとも、コードを出した後に会員が停止されたときは member_inactive(DB が申請を取り消す。db/109)
 export const redeemInitial = { step: "idle" };
 export function redeemReduce(state, ev) {
   switch (ev.type) {
@@ -100,12 +111,13 @@ export function redeemReduce(state, ev) {
       const st = r.data.status;
       if (ticket) {
         if (st === "confirmed" || st === "already_confirmed") return { step: "done", kind: "ticket", title: r.data.title ?? state.ticket?.title ?? null };
-        if (st === "expired" || st === "ticket_used" || st === "ticket_expired") return { step: st };
+        if (st === "expired" || st === "ticket_used" || st === "ticket_expired" || st === "member_inactive") return { step: st };
         return { step: st === "cancelled" ? "cancelled" : "not_found" };
       }
       if (st === "confirmed" || st === "already_confirmed") return { step: "done", points: r.data.points, yen: r.data.yen, balanceAfter: r.data.balanceAfter ?? null };
       if (st === "expired") return { step: "expired" };
       if (st === "insufficient_balance") return { step: "insufficient", balance: r.data.points };
+      if (st === "member_inactive") return { step: "member_inactive" };
       return { step: st === "cancelled" ? "cancelled" : "not_found" };
     }
     case "reset": return redeemInitial;

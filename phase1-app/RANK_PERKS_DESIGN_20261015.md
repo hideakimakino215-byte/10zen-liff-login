@@ -100,11 +100,11 @@
   - member-api の `action`: `ticket_request`(`ticketId` は UUID の形のみ。他は 400)・`ticket_cancel`。使えないときは 409(`ticket_not_found` / `ticket_used` / `ticket_expired` / `already_pending`)。
 - **スタッフ向けの関数(ログイン済み。権限は関数の中で確認)**
   - `staff_lookup_code(code)`: スタッフ画面の入力欄はこれ1つ。チケットのコードならチケットの内容(`kind: "ticket"`)、そうでなければ従来の `staff_lookup_redeem` の結果(`kind: "points"`)を返す。空白入りの入力も通す。入力の間違いのロック(10分に10回)はポイントと共通。
-  - `staff_confirm_ticket(requestId)` / `staff_cancel_ticket(requestId)`: 確定・取消。確定で `used_at`・`used_by` を記録し、監査ログに `ticket_confirm` を残す。
+  - `staff_confirm_ticket(requestId)` / `staff_cancel_ticket(requestId)`: 確定・取消。確定で `used_at`・`used_by` を記録し、監査ログに `ticket_confirm` を残す。コードを出した後に会員が停止・退会になっていたら確定せず、申請を取り消して `member_inactive` を返す(監査 L-1。`db/109_confirm_inactive_member.sql`。ポイント使用の確定 `staff_confirm_redeem` も同じ)。
   - `staff_ticket_stats()`: 発行数・使用数・使用率・未使用で期限切れ・今月の発行/使用・種類別・確定待ち。
   - 権限: コード確認・確定・取消は staff と manager だけ(viewer・kiosk・無効のアカウントは拒否)。集計は viewer 以上(kiosk は拒否)。凍結中は申請も確定も止まり、試験運用中は試験会員だけを扱う(ポイント使用と同じ)。
 - **コードの重なりの防止:** ポイントのコードとチケットのコードが同時に同じ値にならないよう、両方の発行で同じロックを取って相手の表を確かめ、重なれば作り直す(`redeem_requests` にトリガー `redeem_code_not_in_tickets` を追加)。
-- **バックアップ/復元:** `export_backup` / `restore_backup` に3つの表を追加。102 より前のバックアップ(表がない)も復元できる。
+- **バックアップ/復元:** `export_backup` / `restore_backup` に3つの表を追加。102 より前のバックアップ(表がない)は、そのままでは基準の一意の決まりにぶつかって復元できなかった(監査 AUDIT_20261015.md の M-1)。**`db/108_restore_old_backup_fix.sql` で修正:** 102 より前のバックアップでは基準は今の DB の値(新しい基準)を残し、会員のランクを累計から今の基準で付け直す(102 の適用時と同じ)。102 以降のバックアップでは、基準を重ならない値へ一度ずらしてからまとめて置き換える。本物の古いバックアップでの検証は `patches/test_restore_old_backup.mjs`。
 
 ### 決め方(設計書に書いていなかった細かい点)
 
