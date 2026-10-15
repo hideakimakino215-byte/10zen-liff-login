@@ -3,6 +3,7 @@
 // 実行: node --experimental-strip-types test_e2e.mjs
 import http from "node:http";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
@@ -44,7 +45,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/auth") { const { email, password } = JSON.parse(await body(req)); const uid = EMAIL[email]; if (!uid || password !== "pw") return send(401, "{}"); return send(200, JSON.stringify({ access_token: "valid-" + uid.slice(-2) + "x".repeat(30), user: { id: uid } })); }
     if (url.pathname.startsWith("/rpc/")) {
       const name = url.pathname.slice(5), uid = req.headers["x-test-uid"] || "", args = JSON.parse(await body(req) || "{}");
-      const named = Object.entries(args).map(([k, v]) => `${k} => ${v === null || v === undefined ? "null" : q(v)}`).join(", ");
+      const named = Object.entries(args).map(([k, v]) => `${k} => ${v === null || v === undefined ? "null" : q(typeof v === "object" ? JSON.stringify(v) : v)}`).join(", ");   // 配列・オブジェクトは JSON(supabase-js と同じ)
       const r = await pg.runAsync(uid ? `set role authenticated;\nset request.jwt.claim.sub = '${uid}';\nselect public.${name}(${named});` : `set role anon;\nselect public.${name}(${named});`);
       return r.status === 0 ? send(200, r.stdout) : send(400, JSON.stringify({ message: r.stderr }));
     }
@@ -72,6 +73,7 @@ try {
   pg.loadFile("100_phase1_schema.sql"); pg.loadFile("101_search_path_fix.sql"); pg.loadFile("102_rank_perks.sql");   // 102: ランク特典(スタッフ画面のコード入力は staff_lookup_code を使う)
   pg.loadFile("103_constitution_check.sql");                                                                            // 103: 1分体質チェック
   pg.loadFile("104_member_constitution_link.sql");                                                                      // 104: 会員の詳細・一覧に体質(店長・スタッフのみ)
+  pg.loadFile("105_kpi.sql");                                                                                           // 105: 目標と KPI(店長・閲覧のみ)
   pg.exec(`update system_state set state='open';`);
   pg.exec(`update app_settings set value='false' where key='register_counts_as_visit';`);   // 登録日の扱い(既定=来店日として扱う)は DB テストと下の専用ケースで検証。ここでは来店の流れを見るため解除
   pg.exec(`insert into auth.users(id) values ${Object.values(U).map((u) => `('${u}')`).join(",")};
@@ -303,6 +305,74 @@ try {
   assert.ok(csv.slice(1).filter((r) => r[hi] === "未実施").every((r) => r[hi + 1] === "")); assert.ok(csv.length > 3);
   assert.doesNotMatch(csv.flat().join(","), /noodle|cold|tired/);                                                          // 回答・気分・体調は含めない
   ok("色: 体質チェックの集計の棒(タイプ別・今日のおすすめの五行)は五行の色、バランス良好は灰色の斜線。体調の棒は選択肢が足す五行の色(ふつう・元気・特になしは灰色)。五角形の点も五行の色。店長の CSV「会員別の利用状況」に体質タイプと実施日(回答は含めない)");
+
+  // ---- 目標と KPI: 店長が擬似データの CSV(UTF-16・タブ・売上実績の形)を取り込み、率を見る ----
+  { const [ty, tm] = jstToday.split("-").map(Number), py = tm === 1 ? ty - 1 : ty, pm = tm === 1 ? 12 : tm - 1, PM = `${py}-${String(pm).padStart(2, "0")}`;
+    const dim = new Date(Date.UTC(py, pm, 0)).getUTCDate(), day = (d) => `${PM}-${String(d).padStart(2, "0")}`;
+    const custOf = (d) => (d === 10 ? 0 : d === 15 ? 500 : 40);                                                              // 擬似の客数: 10日は0人・15日は外れ値
+    const qq = (x) => `"${x}"`, head = ["当年日付", "前年日付", "曜日", "当年実績", "当年客数", "前年客数", "当年客単"].map(qq).join("\t");
+    const lines = [head, ["TOTAL", "", "", "999,999", "9,999", "9,999", "999"].map(qq).join("\t")];
+    for (let d = 1; d <= dim; d++) lines.push([day(d).replace(/-/g, ""), `${py - 1}${day(d).slice(5).replace(/-/g, "")}`, "月", "40,000", String(custOf(d)), "35", "1,000"].map(qq).join("\t"));
+    const csvPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "kpi-")), "uriage_synthetic.csv");
+    fs.writeFileSync(csvPath, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(lines.join("\n") + "\n", "utf16le")]));
+    // 前の月の来店(擬似): 3日に1人・5日に2人(どちらも客数を取り込む日)
+    pg.exec(`insert into visits(member_id, visit_on, source) select id, '${day(3)}', 'store_qr' from members where display_name='試験 太郎';
+             insert into visits(member_id, visit_on, source) select id, '${day(5)}', 'store_qr' from members where display_name in ('試験 太郎','試験 花子');`);
+    const tot = 40 * (dim - 2), rate = (Math.round((1000 * 3) / tot) / 10).toFixed(1), esc = (x) => x.replace(/[.()]/g, "\\$&");
+    await mgr.click("[data-tab=redeem]"); await mgr.waitForSelector("[data-go=kpi] #kpiPill");
+    await mgr.click("[data-tab=kpi]"); await mgr.waitForSelector("#kpiCards");
+    assert.match(await text(mgr, "#kpiLead"), /本番開始日が未設定/); assert.equal(await mgr.getAttribute("#kpiCard-check_rate", "data-status"), "none");
+    await mgr.fill("#kpiLaunchDate", day(1)); await mgr.click("#kpiLaunchSave"); await mgr.waitForSelector("#kpiLaunchOut.ok");
+    await mgr.waitForSelector(`#kpiLaunchShown:has-text('${day(1)}')`); assert.match(await text(mgr, "#kpiLead"), /今月は 2 か月目\(3か月の目標で判定\)/);
+    await mgr.setInputFiles("#posFile", csvPath); await mgr.waitForSelector("#posTotals");
+    assert.match(await text(mgr, "#posFileInfo"), /UTF-16・タブ区切り/); assert.match(await text(mgr, "#posFileInfo"), /売上は送りません/);
+    assert.equal(await text(mgr, "#posTotals"), `見つかった日 ${dim} 日・取り込む日 ${dim - 2} 日・客数の合計 ${tot.toLocaleString("ja-JP")} 人(取り込む日)`);
+    assert.equal(await mgr.$eval("#posDateCol", (x) => x.selectedOptions[0].textContent), "1列目: 当年日付"); assert.equal(await mgr.$eval("#posCustCol", (x) => x.selectedOptions[0].textContent), "5列目: 当年客数");
+    assert.match(await text(mgr, "#posSkipped"), /日付ではない行.*1 行.*TOTAL/); assert.equal(await mgr.locator("#posOutliers input[type=checkbox]").count(), 2);
+    assert.match(await text(mgr, "#posOutliers"), new RegExp(esc(`${day(15)} 500 人(中央値 40 人の3倍超)`)));
+    await mgr.check(`#posOutliers input[data-outlier-date="${day(15)}"]`); assert.match(await text(mgr, "#posTotals"), new RegExp(`取り込む日 ${dim - 1} 日`));
+    await mgr.uncheck(`#posOutliers input[data-outlier-date="${day(15)}"]`); assert.match(await text(mgr, "#posImport"), new RegExp(`${dim - 2} 日分`));
+    await mgr.click("#posImport"); await mgr.waitForSelector("#posOut.ok");
+    assert.equal(await text(mgr, "#posOut"), `取り込みました: 新しい日 ${dim - 2} 日・値を上書きした日 0 日・同じ値 0 日`);
+    const row = `#kpiTable tr[data-month="${PM}"]`; await mgr.waitForSelector(`${row} td:nth-child(2):has-text('${tot.toLocaleString("ja-JP")}')`);
+    assert.equal(await text(mgr, `${row} td:nth-child(4)`), `${rate}%`); assert.equal(await text(mgr, `${row} td:nth-child(3)`), "3");
+    assert.equal(await text(mgr, `#kpiTable tr[data-month="${jstToday.slice(0, 7)}"] td:nth-child(4)`), "レジの客数が未取り込み");     // 今月はまだ
+    assert.equal(await text(mgr, "#kpiVal-member_visit_rate"), "レジの客数が未取り込み"); assert.match(await text(mgr, "#kpiCard-member_visit_rate"), new RegExp(esc(`直近(${PM}): ${rate}%`)));
+    assert.equal(await mgr.locator(`#kpiChart g[data-month="${PM}"] circle.dot`).count(), 1);
+    // 取り込み直し: 同じ日付は上書き(監査ログに残る)・取り込み済みの警告
+    await mgr.setInputFiles("#posFile", csvPath); await mgr.waitForSelector("#posOverwrite"); assert.match(await text(mgr, "#posOverwrite"), new RegExp(esc(`${PM}(${dim - 2}日分)`)));
+    await mgr.click("#posImport"); await mgr.waitForSelector(`#posOut.ok:has-text('同じ値 ${dim - 2} 日')`);
+    assert.equal(pg.exec(`select count(*) from audit_log where action='pos_import' and staff_user_id='${U.mgr}';`), "2");
+    assert.equal(pg.exec(`select count(*) from pos_daily_customers;`), String(dim - 2));
+    // 目標の変更: 実施率の3か月を 10% にすると達成(緑)
+    await mgr.fill("#kpiT-check_rate-3", "10"); await mgr.click("#kpiTargetsSave"); await mgr.waitForSelector("#kpiTargetsOut.ok");
+    await mgr.waitForSelector("#kpiCard-check_rate[data-status=ok]"); assert.match(await text(mgr, "#kpiAch-check_rate"), /達成率 \d+%・達成/);
+    assert.equal(await mgr.evaluate(() => getComputedStyle(document.querySelector("#kpiCard-check_rate")).borderTopColor), "rgb(31, 138, 76)");   // 状態の緑(--ok)
+    await mgr.fill("#kpiT-check_rate-3", "100.5"); await mgr.click("#kpiTargetsSave"); await mgr.waitForSelector("#kpiTargetsOut.bad");
+    assert.equal(pg.exec(`select value from kpi_targets where kpi_code='check_rate' and milestone=3;`), "10.0");
+    // 注文金額だけのファイルは、客数の行がないと伝える
+    const onlyAmount = path.join(path.dirname(csvPath), "chumon_amount_only.csv");
+    fs.writeFileSync(onlyAmount, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from([["店舗コード", "店舗", "営業日", "集計対象", "11時", "合計"].map(qq).join("\t"),
+      ["000000", "試験店舗", `${day(1).replace(/-/g, "/")}(月)`, "注文金額", "￥1,000", "￥1,000"].map(qq).join("\t")].join("\n"), "utf16le")]));
+    await mgr.setInputFiles("#posFile", onlyAmount); await mgr.waitForSelector("#posError"); assert.match(await text(mgr, "#posError"), /客数の行がありません/); assert.equal(await mgr.locator("#posImport").count(), 0);
+    assert.equal(await mgr.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+    ok("目標とKPI(店長): 本番開始日の設定→段階の表示。擬似の CSV(UTF-16・タブ)を選ぶと、端末の中で日付と客数だけを読み、日数・合計・読み飛ばした行・確かめてほしい日(0人・中央値の3倍超。既定で除外・☑で含める)を見せてから取り込む。月の表に POS 客数と会員来店率、今月は『レジの客数が未取り込み』。取り込み直しは上書き(監査ログ)。目標を変えるとカードの色が変わる。注文金額だけのファイルは取り込めない");
+
+    // 閲覧(本部)は見るだけ・スタッフはタブもカードもない
+    await view.click("[data-tab=redeem]"); await view.waitForSelector("[data-go=kpi]");
+    await view.click("[data-tab=kpi]"); await view.waitForSelector("#kpiTable");
+    assert.equal(await text(view, `${row} td:nth-child(4)`), `${rate}%`); assert.equal(await view.getAttribute("#kpiCard-check_rate", "data-status"), "ok");
+    for (const id of ["#kpiAdmin", "#posFile", "#kpiTargets", "#kpiLaunchDate", "#kpiTargetsSave", "#posImport", "#kpiManual", "#posMonth"]) assert.equal(await view.locator(id).count(), 0, id);
+    const vDenied = await view.evaluate(async () => { const s = JSON.parse(localStorage.getItem("sess"));
+      const r = await fetch("/rpc/manager_set_launch_date", { method: "POST", headers: { "x-test-uid": s.user.id, "content-type": "application/json" }, body: JSON.stringify({ p_date: null }) }); return r.status; });
+    assert.equal(vDenied, 400); assert.equal(pg.exec(`select launch_date::text from kpi_settings;`), day(1));
+    await stf.click("[data-tab=redeem]"); await stf.waitForSelector("[data-go=constitution]");
+    assert.equal(await stf.locator("[data-tab=kpi]").count(), 0); assert.equal(await stf.locator("[data-go=kpi]").count(), 0); assert.equal(await stf.locator("#kpiPill").count(), 0);
+    assert.doesNotMatch(await stf.textContent("#app"), /目標とKPI/); assert.doesNotMatch(await stf.textContent("#nav"), /目標とKPI/);
+    const sDenied = await stf.evaluate(async () => { const s = JSON.parse(localStorage.getItem("sess"));
+      const r = await fetch("/rpc/staff_kpi_overview", { method: "POST", headers: { "x-test-uid": s.user.id, "content-type": "application/json" }, body: JSON.stringify({ p_months: 13 }) }); return r.status; });
+    assert.equal(sDenied, 400);
+    ok("目標とKPI(権限): 閲覧(本部)は同じ数字と色を見られるが、本番開始日・目標・取り込み・手入力の部品は DOM になく、関数を直接呼んでも変えられない。スタッフにはタブ・ホームのカードが DOM になく、集計の関数も拒否される"); }
 
   // ---- 表示の安全性 ----
   const evil = await newPage(tokFor(sub("b"), "<img src=x onerror=window.__x=1><script>window.__x=2</script>"));

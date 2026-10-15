@@ -7,6 +7,8 @@ export function mapError(err) {
   if (/forbidden/.test(msg) || /permission denied/.test(msg)) return { kind: "forbidden" };
   if (/reason_required/.test(msg)) return { kind: "invalid", code: "reason_required" };
   if (/invalid_points|invalid_key/.test(msg)) return { kind: "invalid", code: msg.match(/invalid_\w+/)[0] };
+  // 目標と KPI(db/105)の入力の誤り: 取り込みの行・日付・客数・月・目標・KPI・段階
+  if (/invalid_(rows|date|customers|month|target|kpi|milestone)\b/.test(msg)) return { kind: "invalid", code: msg.match(/invalid_(rows|date|customers|month|target|kpi|milestone)\b/)[0] };
   if (/JWT|expired|not authenticated/i.test(msg)) return { kind: "auth_required" };
   return { kind: "error", retryable: true };
 }
@@ -37,6 +39,23 @@ export function createStaffClient({ supabase, qrEndpoint, fetchFn = (...a) => fe
     ticketStats: () => rpc("staff_ticket_stats"),
     // 1分体質チェックの集計(db/103)。data.scope が "full"(店長・閲覧)なら全項目、"limited"(スタッフ)なら今週の体調の傾向(data.week)だけ
     constitutionStats: () => rpc("staff_constitution_stats"),
+    // 目標と KPI(db/105)。集計は店長・閲覧(本部)だけ(スタッフ・店頭タブレットは forbidden)。data.canEdit が true なのは店長だけ
+    kpiOverview: (months = 13) => rpc("staff_kpi_overview", { p_months: months }),
+    // 以下は店長のみ。日付は 'YYYY-MM-DD'(null で未設定)、月は 'YYYY-MM'、目標は null で「目標なし」
+    setLaunchDate: (date) => rpc("manager_set_launch_date", { p_date: date || null }),
+    setKpiTarget: (kpi, milestone, value) => rpc("manager_set_kpi_target", { p_kpi: kpi, p_milestone: milestone, p_value: value }),
+    setPosMonthly: (month, customers) => rpc("manager_set_pos_monthly", { p_month: month, p_customers: customers }),
+    // レジの客数(日別)の取り込み。rows = [{ date, customers }]。DB の1回の上限(400行)ごとに分けて順に送る(同じ日付は上書きなので、途中で失敗しても送り直せる)。
+    //  戻り値: { kind:"ok", data:{ inserted, updated, unchanged, calls } } / 失敗時はその応答に sent(送れた行数)を付けて返す
+    importPosCustomers: async (rows, source, size = 400) => {
+      const tot = { inserted: 0, updated: 0, unchanged: 0, calls: 0 };
+      for (let i = 0; i < rows.length; i += size) {
+        const r = await rpc("manager_import_pos_customers", { p_rows: rows.slice(i, i + size), p_source: source ?? null });
+        if (r.kind !== "ok") return { ...r, sent: i };
+        tot.inserted += r.data.inserted; tot.updated += r.data.updated; tot.unchanged += r.data.unchanged; tot.calls++;
+      }
+      return { kind: "ok", data: tot };
+    },
     // 店長のみ。key は1回の操作につき1つ作り、再送時は同じ key を使う(二重実行されない)
     newAdjustKey: () => `adj-${uuid()}`,
     adjust: ({ memberId, points, reason, key }) => rpc("manager_adjust", { p_member_id: memberId, p_points: points, p_reason: reason, p_idempotency_key: key }),

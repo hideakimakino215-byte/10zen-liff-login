@@ -1,14 +1,15 @@
 <!doctype html>
 <!-- スタッフ画面(B案: 白地+機能ごとの色。ティール=ポイント使用・紫=会員・オレンジ=本日の来店・青=集計。成功=緑/注意=オレンジ/失敗=赤)。
      権限の判定は DB の関数側(画面の出し分けは補助)。描画は textContent のみ(innerHTML は使わない)。外部の CDN・フォントは使わない。
-     体質チェックの五行の色は app-core/constitution.mjs の ELEMENT_COLORS など(ここに色の値を書かない)。会員の体質(db/104)は店長・スタッフだけ。 -->
+     体質チェックの五行の色は app-core/constitution.mjs の ELEMENT_COLORS など(ここに色の値を書かない)。会員の体質(db/104)は店長・スタッフだけ。
+     目標と KPI(紺。db/105)は店長・閲覧(本部)だけ: タブ・ホームのカードはスタッフには DOM ごと出さない。変更(本番開始日・目標・レジの客数の取り込み)は店長だけ。 -->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
 <title>10ZEN スタッフ</title>
 <style>
 :root{
   --bg:#f3f5f8; --card:#fff; --fg:#1c2430; --muted:#5b6675; --line:#e3e7ee;
   --teal:#0f9d8f; --teal-soft:#e3f5f2; --purple:#7a5af5; --purple-soft:#eee9fe;
-  --orange:#d9670f; --orange-soft:#fff0e2; --blue:#2f7fe0; --blue-soft:#e6f0fc; --sage:#4f7d3a; --sage-soft:#edf4e6;
+  --orange:#d9670f; --orange-soft:#fff0e2; --blue:#2f7fe0; --blue-soft:#e6f0fc; --sage:#4f7d3a; --sage-soft:#edf4e6; --navy:#3b4a8f; --navy-soft:#e9ecf8;
   --ok:#1f8a4c; --ok-soft:#e4f6ea; --warn:#c75f0e; --warn-soft:#fff1e3; --bad:#c93a3a; --bad-soft:#fde8e8;
   --radius:16px; color-scheme:light;
 }
@@ -29,9 +30,9 @@ button:disabled{opacity:.55;cursor:default}
 .btn-ghost{min-height:44px;padding:0 16px;border:1.5px solid var(--line);background:var(--card);border-radius:12px;font-weight:700;font-size:14px;white-space:nowrap}
 
 /* タブ(機能ごとの色) */
-#nav{background:var(--card);border-bottom:1px solid var(--line);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:0 8px}
+#nav{background:var(--card);border-bottom:1px solid var(--line);display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);padding:0 8px}
 #nav button{min-height:48px;border:0;background:none;font-weight:700;font-size:14px;color:var(--muted);border-bottom:3px solid transparent;padding:4px 2px;line-height:1.25}
-#nav button[data-tab=redeem]{--c:var(--teal)} #nav button[data-tab=members]{--c:var(--purple)} #nav button[data-tab=dash]{--c:var(--blue)} #nav button[data-tab=constitution]{--c:var(--sage)}
+#nav button[data-tab=redeem]{--c:var(--teal)} #nav button[data-tab=members]{--c:var(--purple)} #nav button[data-tab=dash]{--c:var(--blue)} #nav button[data-tab=constitution]{--c:var(--sage)} #nav button[data-tab=kpi]{--c:var(--navy)}
 #nav button[aria-current=page]{color:var(--c);border-bottom-color:var(--c)}
 
 main{max-width:1080px;margin:0 auto;padding:20px 16px 40px;display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
@@ -92,13 +93,13 @@ h1,h2,h3{margin:0}
 #confirm{min-height:76px;flex:1 1 240px;border:0;border-radius:14px;background:var(--ok);color:#fff;font-size:24px;font-weight:900}
 .done{align-items:center}
 #rDone{font-size:22px;font-weight:900}
-.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px 16px 16px;display:grid;justify-items:center;align-content:start;gap:8px;text-align:center;min-height:180px}
 .card svg{width:56px;height:56px;color:var(--c)}
 .card h2{font-size:21px}
 .card .pill{background:var(--c-soft);color:var(--c)}
 .card .go{color:var(--muted);font-size:14px}
-.card.c-purple{--c:var(--purple);--c-soft:var(--purple-soft)} .card.c-blue{--c:var(--blue);--c-soft:var(--blue-soft)} .card.c-sage{--c:var(--sage);--c-soft:var(--sage-soft)}
+.card.c-purple{--c:var(--purple);--c-soft:var(--purple-soft)} .card.c-blue{--c:var(--blue);--c-soft:var(--blue-soft)} .card.c-sage{--c:var(--sage);--c-soft:var(--sage-soft)} .card.c-navy{--c:var(--navy);--c-soft:var(--navy-soft)}
 
 /* 会員(紫) */
 .band{--c:var(--purple);background:var(--purple-soft);border:2px solid var(--purple);border-radius:var(--radius);padding:18px;display:grid;gap:12px}
@@ -182,7 +183,63 @@ h1,h2,h3{margin:0}
 .week{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 .week .bars li{grid-template-columns:9em minmax(0,1fr) 2.5em}
 
+/* 目標と KPI(紺)。達成の色は状態の色(緑=達成・オレンジ=80〜99%・赤=80%未満・灰色=目標なし)を、アイコンと文字と一緒に使う */
+.c-navy-text{color:var(--navy)}
+.kpi-lead{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:14px;color:var(--muted);margin:0}
+.kpi-lead b{color:var(--fg)}
+.kpi-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+.kpi-card{--st:#b8bfc8;background:var(--card);border:1px solid var(--line);border-top:6px solid var(--st);border-radius:var(--radius);padding:14px 16px;display:grid;gap:6px;align-content:start;min-width:0}
+.kpi-card[data-status=ok]{--st:var(--ok)} .kpi-card[data-status=warn]{--st:var(--warn)} .kpi-card[data-status=bad]{--st:var(--bad)}
+.kpi-card h2{font-size:15px;margin:0;color:var(--fg)}
+.kpi-card .v{font-size:32px;font-weight:900;line-height:1.15;overflow-wrap:anywhere}
+.kpi-card .v.missing{font-size:16px;font-weight:800;color:var(--warn);line-height:1.4}
+.kpi-card .tg,.kpi-card .sub{font-size:13px;color:var(--muted);margin:0;overflow-wrap:anywhere}
+.kpi-card .sub b{color:var(--fg)}
+.st{display:inline-flex;align-items:center;gap:6px;justify-self:start;padding:3px 10px;border-radius:999px;font-size:13px;font-weight:800;background:#eef1f5;color:var(--muted);white-space:nowrap}
+.st.ok{background:var(--ok-soft);color:var(--ok)} .st.warn{background:var(--warn-soft);color:var(--warn)} .st.bad{background:var(--bad-soft);color:var(--bad)}
+.spark{display:block;width:100%;height:30px}
+.spark polyline{fill:none;stroke:var(--navy);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.spark circle{fill:var(--navy)}
+.kpi-sec{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;display:grid;grid-template-columns:minmax(0,1fr);gap:12px;min-width:0}
+.kpi-sec .msg p{overflow-wrap:anywhere;min-width:0}
+.kpi-sec h2{font-size:17px;color:var(--navy);margin:0}
+.kpi-sec h3{font-size:14px;color:var(--muted);margin:0}
+.scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.kpi-table{min-width:720px}
+.kpi-table td.miss{color:var(--warn);font-weight:700;font-size:13px}
+.kpi-table td small{display:block;color:var(--muted);font-size:12px;font-weight:500}
+.kpi-table tr.cur td{background:var(--navy-soft)}
+.chart{display:block;width:100%;height:auto}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .axis{font-size:12px;fill:var(--muted)}
+.chart .act{fill:none;stroke:var(--navy);stroke-width:2;stroke-linejoin:round}
+.chart .tgt{fill:none;stroke:#7d8794;stroke-width:2;stroke-dasharray:6 5}
+.chart .dot{fill:var(--navy);stroke:var(--card);stroke-width:2}
+.chart .hit{fill:transparent}
+.chart .lbl{font-size:12px;font-weight:700;fill:var(--fg)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:0;padding:0;list-style:none}
+.legend li{display:flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:22px;height:0;border-top:2px solid var(--navy)} .legend i.t{border-top:2px dashed #7d8794}
+.admin{--c:var(--navy);border:2px solid var(--navy)}
+.kpi-form{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.kpi-form .input{min-height:48px;font-size:16px;flex:0 1 220px}
+.kpi-form .btn{min-height:48px;font-size:16px}
+.kpi-sec .btn{white-space:normal;line-height:1.3;max-width:100%}
+.kpi-sec input[type=file]{max-width:100%;font-size:15px}
+.targets{min-width:420px} .targets td:first-child{min-width:9em} .targets td{padding:6px 4px} .targets input{width:5.5em;min-height:44px;border:2px solid var(--line);border-radius:10px;padding:0 8px;font-size:16px;text-align:right}
+.targets th:first-child,.targets td:first-child{text-align:left}
+.out{margin:0;font-weight:700}
+.out.ok{color:var(--ok)} .out.bad{color:var(--bad)} .out.warn{color:var(--warn)}
+.pick{display:flex;gap:12px;flex-wrap:wrap;font-size:14px}
+.pick label{display:grid;gap:4px;font-weight:700}
+.pick select{min-height:44px;border:2px solid var(--line);border-radius:10px;padding:0 8px;font-size:15px;max-width:16em;background:var(--card)}
+.outliers{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.outliers label{display:flex;gap:10px;align-items:center;min-height:44px;padding:4px 10px;border:1px solid var(--line);border-radius:10px;font-size:15px}
+.outliers input{width:22px;height:22px}
+.skipped{margin:0;padding-left:1.2em;font-size:13px;color:var(--muted)}
+
 @media (max-width:760px){
+  .kpi-cards{grid-template-columns:minmax(0,1fr)}
   .cards{grid-template-columns:1fr}
   .cc-grid,.week{grid-template-columns:1fr}
   .cc-member{grid-template-columns:minmax(0,1fr)}
@@ -218,6 +275,8 @@ h1,h2,h3{margin:0}
 import { createStaffClient, redeemReduce, redeemInitial } from "../app-core/staff-client.mjs";
 import { ELEMENTS, ELEMENT_INFO, CONDITION_QUESTIONS, BALANCED_NAME, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, ELEMENT_SOFT_COLORS, NEUTRAL_COLOR } from "../app-core/constitution.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
+import { KPI_DEFS, KPI_BY_CODE, MILESTONES, statusOf, STATUS_LABELS, parseTargetInput, fmtValue, milestoneLabel } from "../app-core/kpi.mjs";
+import { analyzePosFile, summarize, rowsForImport, SKIP_REASONS, ERRORS as POS_ERRORS, ENCODING_LABELS, OUTLIER_FACTOR } from "../app-core/pos-import.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 const put = (parent, ...kids) => { parent.append(...kids); return parent; };
@@ -257,6 +316,7 @@ const ICONS = {
   dash: [["path", { d: "M4 20h16" }], ["rect", { x: 5, y: 11, width: 3.5, height: 7, rx: 1 }], ["rect", { x: 10.25, y: 6, width: 3.5, height: 12, rx: 1 }], ["rect", { x: 15.5, y: 9, width: 3.5, height: 9, rx: 1 }]],
   ticket: [["path", { d: "M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z" }], ["path", { d: "M14 6v12", "stroke-dasharray": "2 2" }]],
   constitution: [["path", { d: "M12 3 20.5 9.2 17.3 19.2H6.7L3.5 9.2z" }], ["path", { d: "M12 7.5 16 10.6 14.5 15.5h-5L8 10.6z" }]],
+  kpi: [["circle", { cx: 12, cy: 12, r: 8.5 }], ["circle", { cx: 12, cy: 12, r: 4.5 }], ["circle", { cx: 12, cy: 12, r: 1 }], ["path", { d: "M12 3.5V1.5M20.5 12h2" }]],
 };
 function icon(name) {
   const s = document.createElementNS(SVGNS, "svg");
@@ -282,9 +342,14 @@ async function start() {
   if (w.kind !== "ok" || !w.data.active) return loginView(w.kind === "ok" ? "このアカウントにはスタッフ権限がありません" : null);
   if (w.data.role === "kiosk") { await staff.signOut(); return loginView("このアカウントは店頭QR専用です。スタッフ用のアカウントでログインしてください"); }   // 店頭タブレットのアカウントでは管理画面に入れない
   role = w.data.role; document.getElementById("who").textContent = `${w.data.displayName}(${role})`;
+  // 目標と KPI のタブは店長・閲覧(本部)だけ。スタッフには DOM ごと出さない(権限の判定は DB の staff_kpi_overview)
+  document.querySelector("#nav [data-tab=kpi]")?.remove();
+  if (canSeeKpi()) document.getElementById("nav").append(el("button", "目標とKPI", { "data-tab": "kpi" }));
   document.getElementById("nav").hidden = false; document.getElementById("logout").hidden = false; tab("redeem");
 }
+const canSeeKpi = () => role === "manager" || role === "viewer";
 function loginView(msg) {
+  role = null; document.querySelector("#nav [data-tab=kpi]")?.remove();
   document.getElementById("nav").hidden = true; document.getElementById("logout").hidden = true; document.getElementById("who").textContent = "";
   const e = el("input", undefined, { id: "email", type: "email", autocomplete: "username", class: "input" }), p = el("input", undefined, { id: "password", type: "password", autocomplete: "current-password", class: "input" });
   const b = el("button", "ログイン", { id: "login", class: "btn" });
@@ -300,7 +365,8 @@ document.getElementById("nav").onclick = (ev) => { const t = ev.target.closest?.
 function tab(t) {
   for (const b of document.querySelectorAll("#nav [data-tab]")) { if (b.dataset.tab === t) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
   window.scrollTo(0, 0);
-  ({ redeem: redeemView, members: membersView, dash: dashView, constitution: constitutionView })[t]();
+  if (t === "kpi" && !canSeeKpi()) return;
+  ({ redeem: redeemView, members: membersView, dash: dashView, constitution: constitutionView, kpi: kpiView })[t]();
 }
 
 // ---- ポイント使用(ログイン直後の画面: 最上段にコード入力、下に会員・集計の入口) ----
@@ -356,6 +422,15 @@ function redeemView() {
   const cards = put(el("section", undefined, { class: "cards", "aria-label": "ほかの機能" }),
     card("members", "c-purple", "members", "会員", "会員番号・氏名で探す"), card("dash", "c-blue", "dash", "集計", "本日の来店・今月の付与と使用"),
     card("constitution", "c-sage", "constitution", "体質チェック", role === "staff" ? "今週の体調の傾向" : "実施・タイプ・体調の傾向"));
+  // 目標と KPI(店長・閲覧だけ。スタッフには DOM ごと出さない)
+  if (canSeeKpi()) {
+    pills.kpi = el("span", `会員来店率 ${DASH}`, { class: "pill num", id: "kpiPill" });
+    cards.append(card("kpi", "c-navy", "kpi", "目標とKPI", "会員来店率・実施率・再来店率・送客"));
+    staff.kpiOverview(2).then((r) => {
+      if (r.kind !== "ok") return; const cur = r.data.months.at(-1);
+      pills.kpi.textContent = cur?.pos?.missing ? "今月の客数 未取り込み" : `会員来店率 ${fmtValue("member_visit_rate", cur?.kpis?.member_visit_rate?.actual)}`;
+    });
+  }
   show(hero, cards);
   staff.dashboard().then((r) => {
     if (r.kind !== "ok") return;
@@ -526,6 +601,255 @@ async function constitutionView() {
     put(el("div", undefined, { class: "week" }), group("temp", "からだ"), group("energy", "調子"), group("concern", "気になること")),
     put(el("div"), el("h3", "今日のおすすめの五行(回答から)"), bars(ELEMENTS.map((e) => ({ k: elKanji(e), v: w.focus?.[e], el: e })), "ccWeekFocus"))));
   show(...nodes);
+}
+
+// ---- 目標と KPI(紺)。店長・閲覧(本部)だけ(DB の staff_kpi_overview が判定)。変更の部品は店長だけ(閲覧には DOM ごと出さない) ----
+//  上: 4つの KPI のカード(今月の実績・今の段階の目標・達成率・直近の推移)。中: 月ごとの表と会員来店率の線グラフ。下(店長のみ): 本番開始日・目標・レジの客数の取り込み・月の客数の手入力
+const ST_MARK = { ok: "✓", warn: "⚠", bad: "✕", none: "—" };
+const stChip = (status, text, id) => put(el("span", undefined, { class: `st ${status}`, ...(id ? { id } : {}) }), el("span", ST_MARK[status], { "aria-hidden": "true" }), document.createTextNode(text ?? STATUS_LABELS[status]));
+const POS_MISSING = "レジの客数が未取り込み";
+const jstTodayStr = () => jst(new Date().toISOString(), false);
+const svg = (tag, attrs = {}, text) => { const e = document.createElementNS(SVGNS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (text !== undefined) e.textContent = text; return e; };
+// 小さな推移(直近の月。値のない月は線を切る)
+function sparkline(values, label) {
+  const W = 120, H = 30, P = 3, nums = values.filter((v) => typeof v === "number");
+  const s = svg("svg", { viewBox: `0 0 ${W} ${H}`, class: "spark", role: "img", "aria-label": label, preserveAspectRatio: "none" });
+  if (!nums.length) return s;
+  const max = Math.max(...nums), min = Math.min(0, ...nums), span = max - min || 1, step = values.length > 1 ? (W - 2 * P) / (values.length - 1) : 0;
+  const xy = (v, i) => [P + i * step, H - P - ((v - min) / span) * (H - 2 * P)];
+  let seg = [];
+  const flush = () => { if (seg.length > 1) s.append(svg("polyline", { points: seg.map((p) => p.join(",")).join(" ") })); seg = []; };
+  values.forEach((v, i) => { if (typeof v !== "number") return flush(); seg.push(xy(v, i)); });
+  flush();
+  const li = values.map((v, i) => [v, i]).filter(([v]) => typeof v === "number").at(-1);
+  if (li) { const [x, y] = xy(li[0], li[1]); s.append(svg("circle", { cx: x, cy: y, r: 2.5 })); }
+  return s;
+}
+// 会員来店率と目標の線グラフ(1つの軸・%)。目標は破線(段階ごとの値)。点にカーソル/タップで値
+function visitRateChart(months, width = 640) {
+  const W = Math.max(280, Math.round(width)), H = W < 500 ? 200 : 240, L = 40, R = 16, T = 16, B = 30, iw = W - L - R, ih = H - T - B;
+  const act = months.map((m) => m.kpis.member_visit_rate.actual), tgt = months.map((m) => m.kpis.member_visit_rate.target);
+  const max = Math.max(10, ...act.filter((v) => typeof v === "number"), ...tgt.filter((v) => typeof v === "number"));
+  const top = Math.ceil((max * 1.15) / 5) * 5, step = months.length > 1 ? iw / (months.length - 1) : 0;
+  const X = (i) => L + i * step, Y = (v) => T + ih - (v / top) * ih;
+  const s = svg("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart", id: "kpiChart", role: "img", "aria-label": "会員来店率と目標の推移(%)。数字は下の表にもあります" });
+  for (let k = 0; k <= 4; k++) { const v = (top / 4) * k; s.append(svg("line", { x1: L, x2: W - R, y1: Y(v), y2: Y(v), class: "grid" }), svg("text", { x: L - 6, y: Y(v) + 4, "text-anchor": "end", class: "axis" }, `${Math.round(v)}%`)); }
+  const every = Math.max(1, Math.ceil((months.length * 34) / iw));                      // 月の名前が重ならない間隔
+  months.forEach((m, i) => { if ((months.length - 1 - i) % every === 0) s.append(svg("text", { x: X(i), y: H - 10, "text-anchor": "middle", class: "axis" }, `${Number(m.month.slice(5))}月`)); });
+  const line = (vals, cls) => { let d = "", pen = false; vals.forEach((v, i) => { if (typeof v !== "number") { pen = false; return; } d += `${pen ? "L" : "M"}${X(i)},${Y(v)} `; pen = true; }); if (d) s.append(svg("path", { d, class: cls })); };
+  line(tgt, "tgt"); line(act, "act");
+  months.forEach((m, i) => {
+    const v = act[i]; if (typeof v !== "number") return;
+    const g = svg("g", { "data-month": m.month });
+    g.append(svg("title", {}, `${m.month} 会員来店率 ${v.toFixed(1)}%(目標 ${typeof tgt[i] === "number" ? tgt[i] + "%" : "なし"})`),
+      svg("circle", { cx: X(i), cy: Y(v), r: 12, class: "hit" }), svg("circle", { cx: X(i), cy: Y(v), r: 4.5, class: "dot" }));
+    s.append(g);
+  });
+  const li = act.map((v, i) => [v, i]).filter(([v]) => typeof v === "number").at(-1);
+  if (li) s.append(svg("text", { x: Math.min(X(li[1]), W - R - 30), y: Y(li[0]) - 10, "text-anchor": "middle", class: "lbl" }, `${li[0].toFixed(1)}%`));
+  return s;
+}
+
+async function kpiView() {
+  if (!canSeeKpi()) return;
+  const reload = el("button", "更新", { class: "btn sub", id: "reloadKpi", style: "--c:var(--navy)" }); reload.onclick = kpiView;
+  const head = put(el("div", undefined, { class: "head" }), title("kpi", "目標とKPI", "c-navy-text"));
+  const r = await staff.kpiOverview(13);
+  if (r.kind !== "ok") return show(head, failView(r.kind === "forbidden" ? "この画面の権限がありません" : "取得できませんでした", kpiView));
+  // 線グラフは表示する枠の幅に合わせて描く(文字の大きさを画面の幅によらず同じにする)
+  const drawChart = () => { const box = document.getElementById("kpiChartBox"), old = document.getElementById("kpiChart"); if (!box || !old || !current) return;
+    old.replaceWith(visitRateChart(current.months || [], box.clientWidth - 38)); };
+  window.removeEventListener("resize", window.__kpiResize ?? (() => {})); window.__kpiResize = () => { clearTimeout(window.__kpiResizeT); window.__kpiResizeT = setTimeout(drawChart, 150); };
+  window.addEventListener("resize", window.__kpiResize);
+  const asof = el("span", "", { class: "asof num" });
+  head.append(asof, reload);
+  const data = el("div", undefined, { id: "kpiData", style: "display:grid;gap:18px;min-width:0" });
+  let current = r.data;
+  const render = (d) => { current = d; asof.textContent = `${jst(d.asOf) ?? DASH} 時点`; data.replaceChildren(...kpiDataNodes(d)); drawChart(); };
+  const refresh = async () => { const x = await staff.kpiOverview(13); if (x.kind === "ok") { render(x.data); return x.data; } return null; };
+  render(r.data);
+  const nodes = [head, data];
+  if (role === "manager" && r.data.canEdit) nodes.push(kpiAdmin(() => current, refresh));   // 変更は店長だけ(閲覧には DOM ごと出さない)
+  show(...nodes); drawChart();
+}
+
+function kpiDataNodes(d) {
+  const months = d.months || [], cur = months.at(-1) || null, out = [];
+  // 本番開始日と今の段階
+  const lead = el("p", undefined, { class: "kpi-lead", id: "kpiLead" });
+  if (d.launchDate) lead.append(document.createTextNode("本番開始日 "), el("b", d.launchDate, { id: "kpiLaunchShown" }),
+    document.createTextNode(cur?.monthIndex >= 1 ? `・今月は ${cur.monthIndex} か月目(${milestoneLabel(cur.milestone)}で判定)` : "・今月は本番前(目標なし)"));
+  else lead.append(document.createTextNode("本番開始日が未設定のため、目標との比較はまだ出ません。"), document.createTextNode(role === "manager" ? "下の「本番開始日」で設定してください" : "店長が設定します"));
+  if (d.state && d.state !== "open") lead.append(el("span", d.state === "test" ? "(試験運用中: 試験会員と試験用の客数の集計)" : "(停止中)", { class: "pill" }));
+  out.push(lead);
+  // KPI のカード(新規登録数は会員来店率のカードの中に補助として)
+  const recent = months.slice(-6);
+  const card = (code, sub) => {
+    const k = cur?.kpis?.[code] || {}, def = KPI_BY_CODE[code], st = statusOf(k.achievementPercent);
+    const c = el("section", undefined, { class: "kpi-card", id: `kpiCard-${code}`, "data-status": st, "aria-label": def.label });
+    c.append(el("h2", def.label));
+    if (code === "member_visit_rate" && cur?.pos?.missing) {
+      c.append(el("div", POS_MISSING, { class: "v missing", id: `kpiVal-${code}` }));
+      const last = [...months].reverse().find((m) => typeof m.kpis.member_visit_rate.actual === "number");
+      if (last) c.append(el("p", `直近(${last.month}): ${fmtValue(code, last.kpis.member_visit_rate.actual)}`, { class: "tg num" }));
+    } else c.append(el("div", fmtValue(code, k.actual), { class: "v num", id: `kpiVal-${code}` }));
+    const tgtText = k.target == null ? (cur?.milestone ? `目標なし(${cur.milestone}か月は基準値を測る)` : "目標なし")
+      : `目標 ${fmtValue(code, k.target)}(${cur.milestone}か月)` + (k.prorated ? `・今月は日割り ${fmtValue(code, k.targetCompared)}` : "");
+    c.append(el("p", tgtText, { class: "tg num" }), stChip(st, k.achievementPercent != null ? `達成率 ${k.achievementPercent}%・${STATUS_LABELS[st]}` : k.target != null ? "実績なし(比べられません)" : STATUS_LABELS.none, `kpiAch-${code}`));
+    c.append(sparkline(recent.map((m) => m.kpis[code].actual), `${def.label}の直近${recent.length}か月の推移`));
+    for (const x of sub) c.append(x);
+    return c;
+  };
+  const sp = cur?.supporting || {}, nm = cur?.kpis?.new_members || {};
+  const subP = (label, value, id) => put(el("p", undefined, { class: "sub num", ...(id ? { id } : {}) }), document.createTextNode(`${label} `), el("b", value));
+  const nmSt = statusOf(nm.achievementPercent);
+  out.push(put(el("div", undefined, { class: "kpi-cards", id: "kpiCards" }),
+    card("member_visit_rate", [subP("新規登録", `${fmtValue("new_members", nm.actual)}`, "kpiNewMembers"),
+      put(el("p", undefined, { class: "sub num" }), document.createTextNode(nm.target == null ? "新規登録の目標なし" : `新規登録の目標 ${fmtValue("new_members", nm.target)}${nm.prorated ? `(日割り ${fmtValue("new_members", nm.targetCompared)})` : ""} `),
+        stChip(nmSt, nm.achievementPercent != null ? `${nm.achievementPercent}%` : nm.target != null ? "実績なし" : STATUS_LABELS.none, "kpiAch-new_members"))]),
+    card("check_rate", [subP("季節の再チェック率", sp.seasonRecheckPercent == null ? DASH : `${sp.seasonRecheckPercent.toFixed(1)}%`), subP("実施", `${n(sp.checkedMembers)} 人 / 有効 ${n(sp.activeMembers)} 人`)]),
+    card("revisit_rate", [subP(`直近${sp.revisitWindowDays ?? 60}日に来た会員のうち2日以上`, sp.revisitAmongVisitorsPercent == null ? DASH : `${sp.revisitAmongVisitorsPercent.toFixed(1)}%`)]),
+    card("referral_clicks", [subP("実施した会員あたり", sp.referralPerCheckedPercent == null ? DASH : `${sp.referralPerCheckedPercent.toFixed(1)}%`)])));
+  // 会員来店率の推移(線グラフ)
+  out.push(put(el("section", undefined, { class: "kpi-sec", id: "kpiChartBox" }), el("h2", "会員来店率と目標の推移"),
+    put(el("ul", undefined, { class: "legend" }), put(el("li"), el("i"), document.createTextNode("会員来店率")), put(el("li"), el("i", undefined, { class: "t" }), document.createTextNode("目標(段階ごと)"))),
+    visitRateChart(months),
+    el("p", "レジの客数を取り込んでいない月は線が切れます。数字は下の表にもあります", { class: "hint" })));
+  // 月ごとの表(新しい月が上)
+  const pct = (v) => (typeof v === "number" ? `${v.toFixed(1)}%` : DASH);
+  const tbody = el("tbody");
+  for (const m of [...months].reverse()) {
+    const k = m.kpis, p = m.pos, tr = el("tr", undefined, { "data-month": m.month, ...(m.isCurrent ? { class: "cur" } : {}) });
+    const monthCell = put(el("td"), document.createTextNode(m.month), ...(m.isCurrent ? [el("small", "今月")] : m.milestone ? [el("small", `${m.monthIndex}か月目`)] : []));
+    const posCell = p.missing ? el("td", "未取り込み", { class: "miss" })
+      : put(el("td"), document.createTextNode(n(p.customers)), el("small", p.source === "manual" ? "手入力" : p.days < m.elapsedDays ? `${p.days}日分` : "日別"));
+    const rateCell = p.missing ? el("td", POS_MISSING, { class: "miss" }) : el("td", pct(k.member_visit_rate.actual));
+    tr.append(monthCell, posCell, el("td", n(m.memberVisits)), rateCell, el("td", n(k.new_members.actual)), el("td", pct(k.check_rate.actual)), el("td", pct(k.revisit_rate.actual)), el("td", n(k.referral_clicks.actual)));
+    tbody.append(tr);
+  }
+  out.push(put(el("section", undefined, { class: "kpi-sec" }), el("h2", "月ごとの実績"),
+    el("p", "会員来店率=会員の来店数÷レジの客数(客数を取り込んだ日の来店で割る)。実施率・再来店率は月末(今月は今)の時点。「N日分」はその月に取り込んだ日数です", { class: "hint" }),
+    put(el("div", undefined, { class: "scroll-x" }), put(el("table", undefined, { class: "cmp num kpi-table", id: "kpiTable" }),
+      put(el("thead"), put(el("tr"), ...["月", "POS客数", "会員来店数", "会員来店率", "新規登録", "実施率", "再来店率", "送客"].map((h) => el("th", h)))), tbody))));
+  return out;
+}
+
+// ---- 店長だけ: 本番開始日・目標・レジの客数の取り込み・月の客数の手入力 ----
+function kpiAdmin(getData, refresh) {
+  const say = (o, kind, text) => { o.className = `out ${kind}`; o.textContent = text; };
+  const errText = (x) => x.kind === "invalid" ? "入力を確認してください" : x.kind === "forbidden" || x.kind === "not_staff" ? "この操作の権限がありません" : "通信できませんでした。もう一度押してください";
+  const box = put(el("div", undefined, { id: "kpiAdmin", style: "display:grid;gap:18px;min-width:0" }));
+  // 本番開始日
+  { const d = el("input", undefined, { id: "kpiLaunchDate", type: "date", class: "input", "aria-label": "本番開始日" }); d.value = getData().launchDate ?? "";
+    const b = el("button", "保存", { id: "kpiLaunchSave", class: "btn" }), o = el("p", "", { id: "kpiLaunchOut", class: "out", role: "status" });
+    b.onclick = async () => { b.disabled = true; const x = await staff.setLaunchDate(d.value || null); b.disabled = false;
+      if (x.kind !== "ok") return say(o, "bad", errText(x)); say(o, "ok", d.value ? `本番開始日を ${d.value} にしました` : "本番開始日を未設定に戻しました"); await refresh(); };
+    box.append(put(el("section", undefined, { class: "kpi-sec admin", id: "kpiLaunch" }), el("h2", "本番開始日(店長のみ)"),
+      el("p", "この日の月を1か月目として、1〜3か月目は3か月の目標、4〜6か月目は6か月、7か月目以降は12か月の目標で判定します", { class: "hint" }), put(el("div", undefined, { class: "kpi-form" }), d, b), o)); }
+  // 目標(3・6・12か月)
+  { const tb = el("tbody"), inputs = [];
+    for (const def of KPI_DEFS) {
+      const tr = put(el("tr"), el("td", `${def.label}(${def.isRate ? "%" : `月の${def.unit === "人" ? "人数" : "回数"}`})`));
+      for (const m of MILESTONES) {
+        const v = getData().targets?.[def.code]?.[String(m)];
+        const i = el("input", undefined, { id: `kpiT-${def.code}-${m}`, inputmode: "decimal", autocomplete: "off", placeholder: "なし", "aria-label": `${def.label} ${m}か月の目標` });
+        i.value = v == null ? "" : String(v); i.dataset.orig = i.value; inputs.push({ i, def, m }); tr.append(put(el("td"), i));
+      }
+      tb.append(tr);
+    }
+    const b = el("button", "目標を保存", { id: "kpiTargetsSave", class: "btn" }), o = el("p", "", { id: "kpiTargetsOut", class: "out", role: "status" });
+    b.onclick = async () => {
+      const changed = [];
+      for (const x of inputs) { if (x.i.value.trim() === x.i.dataset.orig) continue; const p = parseTargetInput(x.def.code, x.i.value);
+        if (!p.ok) { x.i.focus(); return say(o, "bad", `「${x.def.label}」の${x.m}か月の値を確認してください(${x.def.isRate ? "0〜100、小数は1桁まで" : "0以上の整数"}・空欄は目標なし)`); }
+        changed.push({ ...x, value: p.value }); }
+      if (!changed.length) return say(o, "warn", "変更はありません");
+      b.disabled = true; let done = 0;
+      for (const x of changed) { const r = await staff.setKpiTarget(x.def.code, x.m, x.value); if (r.kind !== "ok") { b.disabled = false; return say(o, "bad", `${done} 件を保存した後で止まりました: ${errText(r)}`); } x.i.dataset.orig = x.i.value.trim(); done++; }
+      b.disabled = false; say(o, "ok", `目標を保存しました(${done} 件)`); await refresh();
+    };
+    box.append(put(el("section", undefined, { class: "kpi-sec admin", id: "kpiTargets" }), el("h2", "目標(店長のみ)"),
+      el("p", "仮の初期値です。空欄は「目標なし」(色は灰色)。変えた欄だけを保存し、変更は記録に残ります", { class: "hint" }),
+      put(el("div", undefined, { class: "scroll-x" }), put(el("table", undefined, { class: "cmp num targets" }), put(el("thead"), put(el("tr"), el("th", "KPI"), ...MILESTONES.map((m) => el("th", `${m}か月`)))), tb)), b, o)); }
+  box.append(posImportBox(getData, refresh, say, errText));
+  // 月の客数の手入力(CSV がないとき)
+  { const m = el("input", undefined, { id: "posMonth", type: "month", class: "input", "aria-label": "月" }), c = el("input", undefined, { id: "posMonthCustomers", type: "number", min: "0", inputmode: "numeric", class: "input", placeholder: "客数(空欄で消す)", "aria-label": "その月の客数" });
+    const b = el("button", "保存", { id: "posMonthSave", class: "btn" }), o = el("p", "", { id: "posMonthOut", class: "out", role: "status" });
+    b.onclick = async () => {
+      if (!/^\d{4}-\d{2}$/.test(m.value)) return say(o, "bad", "月を選んでください");
+      const v = c.value.trim() === "" ? null : Number(c.value);
+      if (v !== null && !(Number.isInteger(v) && v >= 0)) return say(o, "bad", "客数は0以上の整数で入れてください");
+      if (v === null && !window.confirm(`${m.value} の手入力の客数を消します。よろしいですか?`)) return;
+      b.disabled = true; const x = await staff.setPosMonthly(m.value, v); b.disabled = false;
+      if (x.kind !== "ok") return say(o, "bad", errText(x));
+      say(o, "ok", v === null ? `${m.value} の手入力を消しました` : `${m.value} の客数を ${v.toLocaleString("ja-JP")} 人にしました`); await refresh();
+    };
+    box.append(put(el("section", undefined, { class: "kpi-sec admin", id: "kpiManual" }), el("h2", "月の客数の手入力(店長のみ)"),
+      el("p", "CSV がないときの代わりです。日別の客数を取り込んだ月は、日別の数字が優先されます", { class: "hint" }), put(el("div", undefined, { class: "kpi-form" }), m, c, b), o)); }
+  return box;
+}
+
+// レジの CSV の取り込み: ファイルを選ぶ → このブラウザの中で日付と客数だけを読む(売上は読まない・送らない)→ 内容を確かめる → 取り込む
+function posImportBox(getData, refresh, say, errText) {
+  const file = el("input", undefined, { id: "posFile", type: "file", accept: ".csv,.txt,.tsv,text/csv,text/plain", "aria-label": "レジの CSV ファイル" });
+  const prev = el("div", undefined, { id: "posPreview", style: "display:grid;gap:12px;min-width:0" }), o = el("p", "", { id: "posOut", class: "out", role: "status" });
+  let bytes = null, name = "", mapping = null;
+  const analyze = () => {
+    prev.replaceChildren(); o.textContent = "";
+    if (!bytes) return;
+    const a = analyzePosFile(bytes, { mapping, today: jstTodayStr() }), include = new Set();
+    prev.append(msgBox("info", `${name}(${ENCODING_LABELS[a.encoding] ?? a.encoding}・${a.delimiter === "\t" ? "タブ" : "カンマ"}区切り)`, "posFileInfo", "このファイルは端末の中で読み、日付と客数だけを送ります(売上は送りません)"));
+    // 列の選び直し(自動で選べないとき・違うとき)
+    if (a.header.length) {
+      const sel = (id, label, cur, key) => { const s = el("select", undefined, { id });
+        s.append(el("option", "(選ぶ)", { value: "" })); a.header.forEach((h, i) => { const op = el("option", `${i + 1}列目: ${h || "(見出しなし)"}`, { value: String(i) }); if (i === cur) op.selected = true; s.append(op); });
+        s.onchange = () => { mapping = { ...(mapping || {}), [key]: s.value === "" ? null : Number(s.value) }; analyze(); };
+        return put(el("label", label), s); };
+      prev.append(put(el("div", undefined, { class: "pick" }), sel("posDateCol", "日付の列", a.mapping?.dateCol, "dateCol"), sel("posCustCol", a.mapping?.layout === "long" ? "客数の列(集計対象が客数の行)" : "客数の列", a.mapping?.customersCol, "customersCol")));
+    }
+    if (!a.ok) { prev.append(msgBox("bad", POS_ERRORS[a.error] ?? "読み取れませんでした", "posError", a.kinds?.length ? `このファイルの集計対象: ${a.kinds.join("・")}` : undefined)); return; }
+    const sum = el("div", undefined, { id: "posSummary", style: "display:grid;gap:10px" }), go = el("button", "", { id: "posImport", class: "btn" });
+    const flagged = a.days.filter((d) => d.flag);
+    const draw = () => {
+      const ms = summarize(a.days, include), rows = rowsForImport(a.days, include), tot = rows.reduce((s, x) => s + x.customers, 0);
+      const existing = (getData().months || []).filter((m) => ms.some((x) => x.month === m.month) && m.pos.source === "daily");
+      sum.replaceChildren(el("p", `見つかった日 ${a.days.length} 日・取り込む日 ${rows.length} 日・客数の合計 ${tot.toLocaleString("ja-JP")} 人(取り込む日)`, { class: "num", id: "posTotals", style: "margin:0;font-weight:700" }),
+        put(el("div", undefined, { class: "scroll-x" }), put(el("table", undefined, { class: "cmp num", id: "posMonths" }), put(el("thead"), put(el("tr"), el("th", "月"), el("th", "取り込む日"), el("th", "客数"), el("th", "印の付いた日"))),
+          put(el("tbody"), ...ms.map((x) => put(el("tr", undefined, { "data-month": x.month }), el("td", x.month), el("td", `${x.days} 日`), el("td", n(x.customers)), el("td", x.flagged ? `${x.flagged} 日(うち除外 ${x.excluded})` : "なし")))))));
+      if (existing.length) sum.append(msgBox("warn", `取り込み済みの月があります: ${existing.map((m) => `${m.month}(${m.pos.days}日分)`).join("・")}`, "posOverwrite", "同じ日付は新しい値で上書きします(変わった値は記録に残ります)"));
+      go.textContent = `この内容で取り込む(${rows.length} 日分)`; go.disabled = rows.length === 0;
+    };
+    prev.append(sum);
+    if (a.skipped.length) {
+      const by = {}; for (const s of a.skipped) (by[s.reason] ||= []).push(s);
+      prev.append(put(el("div"), el("h3", `読み飛ばした行 ${a.skipped.length} 行`), put(el("ul", undefined, { class: "skipped", id: "posSkipped" }),
+        ...Object.entries(by).map(([k, xs]) => el("li", `${SKIP_REASONS[k] ?? k}: ${xs.length} 行(例: ${xs.slice(0, 3).map((x) => `${x.line}行目「${x.value || "空欄"}」`).join("、")})`, { "data-reason": k })))));
+    }
+    if (flagged.length) {
+      const ul = el("ul", undefined, { class: "outliers", id: "posOutliers" });
+      for (const d of flagged) {
+        const cb = el("input", undefined, { type: "checkbox", "data-outlier-date": d.date });
+        cb.onchange = () => { if (cb.checked) include.add(d.date); else include.delete(d.date); draw(); };
+        ul.append(put(el("li"), put(el("label"), cb, el("span", `${d.date} ${n(d.customers)} 人(${d.flag === "zero" ? "客数0" : `中央値 ${n(a.median)} 人の${OUTLIER_FACTOR}倍超`})`, { class: "num" }))));
+      }
+      prev.append(put(el("div", undefined, { style: "display:grid;gap:8px" }), msgBox("warn", `確かめてほしい日が ${flagged.length} 日あります`, "posFlagged", "印の付いた日は取り込みません。正しい値なら☑を付けて含めてください"), ul));
+    }
+    go.onclick = async () => {
+      const rows = rowsForImport(a.days, include); if (!rows.length) return;
+      go.disabled = true; say(o, "", "取り込んでいます…");
+      const x = await staff.importPosCustomers(rows, name);
+      go.disabled = false;
+      if (x.kind !== "ok") return say(o, "bad", x.sent > 0 ? `${x.sent} 日分まで取り込んだところで止まりました。もう一度押すと続きを取り込みます(同じ日付は上書き): ${errText(x)}` : `取り込めませんでした: ${errText(x)}`);
+      say(o, "ok", `取り込みました: 新しい日 ${x.data.inserted} 日・値を上書きした日 ${x.data.updated} 日・同じ値 ${x.data.unchanged} 日`);
+      await refresh(); draw();
+    };
+    prev.append(go);
+    draw();
+  };
+  file.onchange = async () => { const f = file.files?.[0]; mapping = null; bytes = null; name = ""; if (!f) return analyze(); name = f.name; bytes = new Uint8Array(await f.arrayBuffer()); analyze(); };
+  return put(el("section", undefined, { class: "kpi-sec admin", id: "kpiImport" }), el("h2", "レジの客数の取り込み(店長のみ)"),
+    el("p", "レジから書き出した CSV(日別の客数があるもの)を選びます。日付と客数の列を自動で探します。取り込む前に、月・日数・客数の合計・読み飛ばした行・確かめてほしい日(客数0、そのファイルの中央値の3倍を超える日)を確認できます", { class: "hint" }),
+    file, prev, o);
 }
 
 // ---- 分析用の CSV 出力(店長のみ・既存の API の範囲・出力した時点のデータ) ----

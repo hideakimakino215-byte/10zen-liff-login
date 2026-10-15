@@ -57,7 +57,7 @@ try {
     create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
     grant usage on schema public, auth to anon, authenticated, service_role; grant execute on function auth.uid() to anon, authenticated, service_role; grant select on auth.users to service_role;
     alter default privileges in schema public grant all on tables to anon, authenticated, service_role; alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;`);
-  pg.loadFile("100_phase1_schema.sql"); pg.loadFile("101_search_path_fix.sql"); pg.loadFile("102_rank_perks.sql"); pg.loadFile("103_constitution_check.sql"); pg.loadFile("104_member_constitution_link.sql");
+  pg.loadFile("100_phase1_schema.sql"); pg.loadFile("101_search_path_fix.sql"); pg.loadFile("102_rank_perks.sql"); pg.loadFile("103_constitution_check.sql"); pg.loadFile("104_member_constitution_link.sql"); pg.loadFile("105_kpi.sql");
   pg.exec(`update system_state set state='open'; update app_settings set value='false' where key='register_counts_as_visit';
     insert into auth.users(id) values ('${U.staff}'), ('${U.kiosk}');
     insert into staff_users(user_id, display_name, role) values ('${U.staff}','スタッフ','staff'),('${U.kiosk}','店頭タブレット','kiosk');`);
