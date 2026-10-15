@@ -200,7 +200,8 @@ h1,h2,h3{margin:0}
 .spark{display:block;width:100%;height:30px}
 .spark polyline{fill:none;stroke:var(--navy);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
 .spark circle{fill:var(--navy)}
-.kpi-sec{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;display:grid;gap:12px;min-width:0}
+.kpi-sec{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;display:grid;grid-template-columns:minmax(0,1fr);gap:12px;min-width:0}
+.kpi-sec .msg p{overflow-wrap:anywhere;min-width:0}
 .kpi-sec h2{font-size:17px;color:var(--navy);margin:0}
 .kpi-sec h3{font-size:14px;color:var(--muted);margin:0}
 .scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -223,7 +224,9 @@ h1,h2,h3{margin:0}
 .kpi-form{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .kpi-form .input{min-height:48px;font-size:16px;flex:0 1 220px}
 .kpi-form .btn{min-height:48px;font-size:16px}
-.targets td{padding:6px 4px} .targets input{width:5.5em;min-height:44px;border:2px solid var(--line);border-radius:10px;padding:0 8px;font-size:16px;text-align:right}
+.kpi-sec .btn{white-space:normal;line-height:1.3;max-width:100%}
+.kpi-sec input[type=file]{max-width:100%;font-size:15px}
+.targets{min-width:420px} .targets td:first-child{min-width:9em} .targets td{padding:6px 4px} .targets input{width:5.5em;min-height:44px;border:2px solid var(--line);border-radius:10px;padding:0 8px;font-size:16px;text-align:right}
 .targets th:first-child,.targets td:first-child{text-align:left}
 .out{margin:0;font-weight:700}
 .out.ok{color:var(--ok)} .out.bad{color:var(--bad)} .out.warn{color:var(--warn)}
@@ -623,15 +626,16 @@ function sparkline(values, label) {
   return s;
 }
 // 会員来店率と目標の線グラフ(1つの軸・%)。目標は破線(段階ごとの値)。点にカーソル/タップで値
-function visitRateChart(months) {
-  const W = 640, H = 240, L = 44, R = 16, T = 16, B = 34, iw = W - L - R, ih = H - T - B;
+function visitRateChart(months, width = 640) {
+  const W = Math.max(280, Math.round(width)), H = W < 500 ? 200 : 240, L = 40, R = 16, T = 16, B = 30, iw = W - L - R, ih = H - T - B;
   const act = months.map((m) => m.kpis.member_visit_rate.actual), tgt = months.map((m) => m.kpis.member_visit_rate.target);
   const max = Math.max(10, ...act.filter((v) => typeof v === "number"), ...tgt.filter((v) => typeof v === "number"));
   const top = Math.ceil((max * 1.15) / 5) * 5, step = months.length > 1 ? iw / (months.length - 1) : 0;
   const X = (i) => L + i * step, Y = (v) => T + ih - (v / top) * ih;
   const s = svg("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart", id: "kpiChart", role: "img", "aria-label": "会員来店率と目標の推移(%)。数字は下の表にもあります" });
   for (let k = 0; k <= 4; k++) { const v = (top / 4) * k; s.append(svg("line", { x1: L, x2: W - R, y1: Y(v), y2: Y(v), class: "grid" }), svg("text", { x: L - 6, y: Y(v) + 4, "text-anchor": "end", class: "axis" }, `${Math.round(v)}%`)); }
-  months.forEach((m, i) => { if (months.length <= 7 || i % 2 === (months.length - 1) % 2) s.append(svg("text", { x: X(i), y: H - 10, "text-anchor": "middle", class: "axis" }, `${Number(m.month.slice(5))}月`)); });
+  const every = Math.max(1, Math.ceil((months.length * 34) / iw));                      // 月の名前が重ならない間隔
+  months.forEach((m, i) => { if ((months.length - 1 - i) % every === 0) s.append(svg("text", { x: X(i), y: H - 10, "text-anchor": "middle", class: "axis" }, `${Number(m.month.slice(5))}月`)); });
   const line = (vals, cls) => { let d = "", pen = false; vals.forEach((v, i) => { if (typeof v !== "number") { pen = false; return; } d += `${pen ? "L" : "M"}${X(i)},${Y(v)} `; pen = true; }); if (d) s.append(svg("path", { d, class: cls })); };
   line(tgt, "tgt"); line(act, "act");
   months.forEach((m, i) => {
@@ -652,16 +656,21 @@ async function kpiView() {
   const head = put(el("div", undefined, { class: "head" }), title("kpi", "目標とKPI", "c-navy-text"));
   const r = await staff.kpiOverview(13);
   if (r.kind !== "ok") return show(head, failView(r.kind === "forbidden" ? "この画面の権限がありません" : "取得できませんでした", kpiView));
+  // 線グラフは表示する枠の幅に合わせて描く(文字の大きさを画面の幅によらず同じにする)
+  const drawChart = () => { const box = document.getElementById("kpiChartBox"), old = document.getElementById("kpiChart"); if (!box || !old || !current) return;
+    old.replaceWith(visitRateChart(current.months || [], box.clientWidth - 38)); };
+  window.removeEventListener("resize", window.__kpiResize ?? (() => {})); window.__kpiResize = () => { clearTimeout(window.__kpiResizeT); window.__kpiResizeT = setTimeout(drawChart, 150); };
+  window.addEventListener("resize", window.__kpiResize);
   const asof = el("span", "", { class: "asof num" });
   head.append(asof, reload);
   const data = el("div", undefined, { id: "kpiData", style: "display:grid;gap:18px;min-width:0" });
   let current = r.data;
-  const render = (d) => { current = d; asof.textContent = `${jst(d.asOf) ?? DASH} 時点`; data.replaceChildren(...kpiDataNodes(d)); };
+  const render = (d) => { current = d; asof.textContent = `${jst(d.asOf) ?? DASH} 時点`; data.replaceChildren(...kpiDataNodes(d)); drawChart(); };
   const refresh = async () => { const x = await staff.kpiOverview(13); if (x.kind === "ok") { render(x.data); return x.data; } return null; };
   render(r.data);
   const nodes = [head, data];
   if (role === "manager" && r.data.canEdit) nodes.push(kpiAdmin(() => current, refresh));   // 変更は店長だけ(閲覧には DOM ごと出さない)
-  show(...nodes);
+  show(...nodes); drawChart();
 }
 
 function kpiDataNodes(d) {
@@ -686,7 +695,7 @@ function kpiDataNodes(d) {
     } else c.append(el("div", fmtValue(code, k.actual), { class: "v num", id: `kpiVal-${code}` }));
     const tgtText = k.target == null ? (cur?.milestone ? `目標なし(${cur.milestone}か月は基準値を測る)` : "目標なし")
       : `目標 ${fmtValue(code, k.target)}(${cur.milestone}か月)` + (k.prorated ? `・今月は日割り ${fmtValue(code, k.targetCompared)}` : "");
-    c.append(el("p", tgtText, { class: "tg num" }), stChip(st, k.achievementPercent == null ? STATUS_LABELS.none : `達成率 ${k.achievementPercent}%・${STATUS_LABELS[st]}`, `kpiAch-${code}`));
+    c.append(el("p", tgtText, { class: "tg num" }), stChip(st, k.achievementPercent != null ? `達成率 ${k.achievementPercent}%・${STATUS_LABELS[st]}` : k.target != null ? "実績なし(比べられません)" : STATUS_LABELS.none, `kpiAch-${code}`));
     c.append(sparkline(recent.map((m) => m.kpis[code].actual), `${def.label}の直近${recent.length}か月の推移`));
     for (const x of sub) c.append(x);
     return c;
@@ -697,7 +706,7 @@ function kpiDataNodes(d) {
   out.push(put(el("div", undefined, { class: "kpi-cards", id: "kpiCards" }),
     card("member_visit_rate", [subP("新規登録", `${fmtValue("new_members", nm.actual)}`, "kpiNewMembers"),
       put(el("p", undefined, { class: "sub num" }), document.createTextNode(nm.target == null ? "新規登録の目標なし" : `新規登録の目標 ${fmtValue("new_members", nm.target)}${nm.prorated ? `(日割り ${fmtValue("new_members", nm.targetCompared)})` : ""} `),
-        stChip(nmSt, nm.achievementPercent == null ? STATUS_LABELS.none : `${nm.achievementPercent}%`, "kpiAch-new_members"))]),
+        stChip(nmSt, nm.achievementPercent != null ? `${nm.achievementPercent}%` : nm.target != null ? "実績なし" : STATUS_LABELS.none, "kpiAch-new_members"))]),
     card("check_rate", [subP("季節の再チェック率", sp.seasonRecheckPercent == null ? DASH : `${sp.seasonRecheckPercent.toFixed(1)}%`), subP("実施", `${n(sp.checkedMembers)} 人 / 有効 ${n(sp.activeMembers)} 人`)]),
     card("revisit_rate", [subP(`直近${sp.revisitWindowDays ?? 60}日に来た会員のうち2日以上`, sp.revisitAmongVisitorsPercent == null ? DASH : `${sp.revisitAmongVisitorsPercent.toFixed(1)}%`)]),
     card("referral_clicks", [subP("実施した会員あたり", sp.referralPerCheckedPercent == null ? DASH : `${sp.referralPerCheckedPercent.toFixed(1)}%`)])));
