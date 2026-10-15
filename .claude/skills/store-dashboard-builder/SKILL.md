@@ -18,7 +18,7 @@ description: 店舗・飲食店のスタッフ向け管理画面(ダッシュボ
 7. 依頼書の変更追補・監査資料・引き継ぎメモを書く
 8. 本番に触れる作業は、承認を得てから。実証は記録で示す
 
-各段階の詳しい中身は下に書く。今日の失敗から学んだ注意点は `references/pitfalls.md`、資料の型は `references/doc-templates.md` にある。
+各段階の詳しい中身は下に書く。今日の失敗から学んだ注意点は `references/pitfalls.md`、資料の型は `references/doc-templates.md` にある。売上・客数などの数字を目標と並べる画面(KPI・KGI)や、レジの CSV の取り込みを作るときは `references/kpi-and-pos.md` を先に読む。
 
 ## 1. 決まっていることを集める
 
