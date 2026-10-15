@@ -60,7 +60,15 @@ button { font-family:inherit; color:inherit; }
 .nihondo { text-align:center; }
 .nihondo a { display:flex; align-items:center; justify-content:center; min-height:52px; margin-top:12px; border-radius:12px; border:1px solid var(--accent); color:var(--accent); background:#fff; font-weight:600; text-decoration:none; }
 .disclaimer { font-size:12px; color:var(--sub); text-align:center; line-height:1.7; margin-top:16px; }
-@media (prefers-reduced-motion: reduce) { .bar > i { transition:none; } }
+/* ---- 生薬の絵(会員証と同じ水彩の6種。飾りなので読み上げない) ---- */
+.hero { position:relative; height:118px; margin:2px 0 4px; }
+.hero img, .corner { position:absolute; height:auto; pointer-events:none; }
+.qherb { display:block; width:76px; height:auto; margin:16px auto 0; animation:herbIn .35s ease; }
+.type { position:relative; overflow:hidden; }
+.type > *:not(.corner) { position:relative; }
+.corner { opacity:.92; }
+@keyframes herbIn { from { opacity:0; transform:translateY(6px) rotate(-6deg); } to { opacity:1; transform:none; } }
+@media (prefers-reduced-motion: reduce) { .bar > i { transition:none; } .qherb { animation:none; } }
 </style></head>
 <body>
 <main id="app" aria-live="polite"><p id="loading" class="msg">読み込み中…</p></main>
@@ -79,6 +87,11 @@ const kids = (parent, ...nodes) => { for (const n of nodes) if (n) parent.append
 const header = () => kids(el("header", undefined, { class: "top" }), el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT", width: "1400", height: "518" }), el("h1", CHECK_NAME, { class: "serif" }));
 const show = (...nodes) => { app.replaceChildren(header(), ...nodes); window.scrollTo(0, 0); };
 const toCard = (text = "会員証へ戻る", cls = "ghost") => el("a", text, { id: "ccToCard", href: "card.html", class: cls });
+// 生薬の絵(assets/herb-名前.webp。会員証と同じ6種)。飾りなので alt は空・aria-hidden
+const HERB_NAMES = ["goji", "chenpi", "jujube", "anise", "lotus", "chili"];
+const herb = (name, attrs = {}) => el("img", undefined, { src: `assets/herb-${name}.webp`, alt: "", "aria-hidden": "true", decoding: "async", ...attrs });
+const HERO = [["chili", "left:2%;top:6%;width:17%"], ["goji", "left:22%;top:38%;width:15%"], ["chenpi", "left:41%;top:2%;width:16%"],
+  ["jujube", "left:58%;top:44%;width:13%"], ["anise", "left:72%;top:4%;width:15%"], ["lotus", "right:1%;top:40%;width:17%"]];
 const TOTAL = QUESTIONS.length + 1;                            // 15問+食事の気分
 let client, check = null, answers = [], idx = 0, consentGiven = false, busy = false;
 
@@ -91,7 +104,9 @@ function errorView(message, retry) {
 // はじめの画面(初回は同意を兼ねる)
 function introView(error) {
   const box = el("section", undefined, { class: "panel", id: check?.consented ? "ccIntro" : "ccConsent" });
-  kids(box, el("p", "はじめに", { class: "label" }), el("p", INTRO_TEXT, { class: "lead" }));
+  const hero = el("div", undefined, { class: "hero", "aria-hidden": "true" });
+  for (const [name, pos] of HERO) hero.append(herb(name, { style: pos }));
+  kids(box, hero, el("p", "はじめに", { class: "label" }), el("p", INTRO_TEXT, { class: "lead" }));
   if (!check?.consented) box.append(el("p", CONSENT_TEXT, { id: "ccConsentText", class: "lead" }));
   box.append(el("p", DISCLAIMER, { class: "meta" }));
   const b = el("button", check?.consented ? "はじめる" : "同意してはじめる", { id: check?.consented ? "ccStart" : "ccAgree", class: "primary" });
@@ -123,7 +138,7 @@ function questionView() {
   }
   const back = el("button", "‹ 戻る", { id: "ccBack", class: "back" });
   back.onclick = () => { if (busy) return; if (idx === 0) introView(); else { idx -= 1; questionView(); } };
-  show(progress, text, opts, back);
+  show(progress, herb(isMood ? "lotus" : HERB_NAMES[idx % HERB_NAMES.length], { class: "qherb" }), text, opts, back);
 }
 
 async function submit(mood) {
@@ -140,7 +155,9 @@ async function submit(mood) {
 // 結果: タイプ・五角形(タップで正式名称)・今日のおすすめの一品・五巡茶・季節・薬日本堂・診断ではない旨
 function resultView(v) {
   const r = v.result;
-  const type = kids(el("section", undefined, { class: "panel type", id: "ccResult" }), el("p", "あなたの体質の傾向", { class: "label" }),
+  const type = kids(el("section", undefined, { class: "panel type", id: "ccResult" }),
+    herb("goji", { class: "corner", style: "left:-6px;top:-4px;width:58px" }), herb("chenpi", { class: "corner", style: "right:-4px;top:-2px;width:60px" }),
+    el("p", "あなたの体質の傾向", { class: "label" }),
     el("h2", r.typeName, { id: "ccTypeName", class: "serif" }), el("p", r.typeLine, { id: "ccTypeLine", class: "line" }));
   const labels = Object.fromEntries(ELEMENTS.map((e) => [e, ELEMENT_INFO[e].kanji]));
   const svg = radarSvg(document, r.scores, { labels, max: 6, id: "ccRadar", title: "五行ごとの点数(0〜6)", valueText: (x) => String(x ?? "—") });
