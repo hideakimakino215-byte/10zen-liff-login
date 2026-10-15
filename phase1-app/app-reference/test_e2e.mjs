@@ -12,6 +12,7 @@ import { rpcOver } from "../patches/pgrpc.mjs";
 import { makeJwt, lineVerify } from "../patches/jwtstub.mjs";
 import { handle as memberApi } from "../functions/member-api/handler.ts";
 import { handle as staffQrApi } from "../functions/staff-qr/handler.ts";
+import { RECOMMENDATIONS, DISCLAIMER } from "../app-core/constitution-content.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pg = startPg();
@@ -67,6 +68,7 @@ try {
     alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
     alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;`);
   pg.loadFile("100_phase1_schema.sql"); pg.loadFile("101_search_path_fix.sql"); pg.loadFile("102_rank_perks.sql");   // 102: ランク特典(スタッフ画面のコード入力は staff_lookup_code を使う)
+  pg.loadFile("103_constitution_check.sql");                                                                            // 103: 1分体質チェック
   pg.exec(`update system_state set state='open';`);
   pg.exec(`update app_settings set value='false' where key='register_counts_as_visit';`);   // 登録日の扱い(既定=来店日として扱う)は DB テストと下の専用ケースで検証。ここでは来店の流れを見るため解除
   pg.exec(`insert into auth.users(id) values ${Object.values(U).map((u) => `('${u}')`).join(",")};
@@ -116,9 +118,9 @@ try {
   // 店頭アカウントの資格情報を使って管理用の関数を直接呼んでも、すべて拒否される
   const denied = await kio.evaluate(async () => { const s = JSON.parse(localStorage.getItem("sess")); const out = [];
     for (const [fn, args] of [["staff_list_members", { p_query: null }], ["staff_dashboard", {}], ["staff_today_visits", {}], ["staff_lookup_redeem", { p_code: "123456" }],
-                              ["staff_lookup_code", { p_code: "123456" }], ["staff_ticket_stats", {}]]) {
+                              ["staff_lookup_code", { p_code: "123456" }], ["staff_ticket_stats", {}], ["staff_constitution_stats", {}]]) {
       const r = await fetch("/rpc/" + fn, { method: "POST", headers: { "x-test-uid": s.user.id, "content-type": "application/json" }, body: JSON.stringify(args) }); out.push(r.status); } return out; });
-  assert.deepEqual(denied, [400, 400, 400, 400, 400, 400]);
+  assert.deepEqual(denied, [400, 400, 400, 400, 400, 400, 400]);
   // 店頭アカウントで通常のスタッフ画面にログインしても入れない
   const stk = await newPage(); await stk.goto(`${BASE}/app-reference/staff.html`); await stk.fill("#email", "kiosk@t"); await stk.fill("#password", "pw"); await stk.click("#login"); await stk.waitForSelector("#msg:has-text('店頭QR専用')");
   assert.equal(await stk.locator("#nav").isVisible(), false);
@@ -183,6 +185,72 @@ try {
   await view.click("[data-tab=members]"); await view.waitForSelector("#list button"); await view.click("#list button"); await view.waitForSelector("#detail"); assert.equal(await view.locator("#adjust").count(), 0);
   ok("店長: 検索→詳細→理由なしは拒否・理由つきで手動調整→履歴に理由が出る。閲覧のみ: 使用確認は拒否、会員の閲覧はでき、調整フォームは出ない");
 
+  // ---- 1分体質チェック: 会員証の入口 → 同意 → 15問+気分(1問1画面・戻る)→ 結果 → 薬日本堂 → 会員証(来店した日の今日の体調) ----
+  const cc = await newPage(tokFor(sub("d"), "試験 体質"));
+  await cc.context().route("https://www.nihondo.co.jp/**", (r) => r.fulfill({ status: 200, contentType: "text/html; charset=utf-8", body: "<p>ok</p>" }));   // 外部には出ない
+  await cc.goto(`${BASE}/app-reference/card.html`); await cc.waitForSelector("#register"); await cc.click("#register"); await cc.waitForSelector("#ccEntry");
+  assert.equal(await text(cc, "#ccEntry"), "1分体質チェック"); assert.equal(await cc.locator("#ccCondition").count(), 0); assert.equal(await cc.locator("#ccTodayTea").count(), 0);
+  await cc.click("#ccEntry"); await cc.waitForSelector("#ccAgree");
+  assert.match(await text(cc, "#ccConsentText"), /会員証に記録/);
+  await cc.click("#ccAgree"); await cc.waitForSelector("#ccStep:has-text('1 / 16')");
+  assert.equal(await text(cc, "#ccQuestion"), "イライラしたり、気分の浮き沈みが大きい"); assert.deepEqual(await cc.locator("#ccOptions button").allTextContents(), ["よくある", "ときどき", "あまりない"]);
+  const answer = async (step, value) => { await cc.waitForSelector(`#ccStep:has-text('${step} / 16')`); await cc.click(`#ccOptions button[data-value="${value}"]`); };
+  await answer(1, 2); await answer(2, 1);
+  await cc.waitForSelector("#ccStep:has-text('3 / 16')"); await cc.click("#ccBack"); await cc.waitForSelector("#ccStep:has-text('2 / 16')");   // 戻ると前の答えが選ばれている
+  assert.equal(await cc.getAttribute('#ccOptions button[data-value="1"]', "aria-pressed"), "true");
+  await answer(2, 2); await answer(3, 2);
+  for (let i = 4; i <= 15; i++) await answer(i, i === 13 ? 1 : 0);                                             // 木6・水1
+  await cc.waitForSelector("#ccStep:has-text('16 / 16')"); assert.equal(await text(cc, "#ccQuestion"), "今日の食事の気分は?");
+  assert.deepEqual(await cc.locator("#ccOptions button").allTextContents(), ["お粥", "スープ", "一人鍋", "麺", "みんなで鍋"]);
+  await cc.click('#ccOptions button[data-value="noodle"]'); await cc.waitForSelector("#ccTypeName");
+  assert.equal(await text(cc, "#ccTypeName"), "モヤモヤ渋滞タイプ"); assert.match(await text(cc, "#ccTypeLine"), /張りつめがち/);
+  assert.equal(await cc.locator("#ccRadar polygon.radar-area").count(), 1); assert.equal(await cc.locator("#ccRadar text.radar-label").count(), 5);
+  assert.equal(await cc.locator("#ccDetail").isVisible(), false); await cc.click("#ccDetailToggle"); assert.equal(await cc.locator("#ccDetail").isVisible(), true);
+  assert.match(await text(cc, "#ccDetail"), /五行: 木 \/ 五臓: 肝 \/ 状態: 気滞/);
+  assert.match(await text(cc, "#ccDish"), new RegExp(RECOMMENDATIONS.wood.noodle.replace(/[()]/g, "\\$&")));
+  assert.equal(await text(cc, "#ccYourTeaDay"), "木曜日はあなたのお茶の日"); assert.match(await text(cc, "#ccYourTea"), /五巡茶\(木\)/);
+  assert.match(await text(cc, "#ccTodayTea"), /今日の五巡茶\(.曜日\)五巡茶\(.\)/); assert.match(await text(cc, "#ccSeason"), /季節のひとこと/);
+  assert.equal(await text(cc, "#ccDisclaimer"), DISCLAIMER); assert.match(await cc.textContent("body"), /もっと詳しく知りたい方は、薬日本堂の漢方相談へ/);
+  assert.doesNotMatch(await cc.textContent("body"), /治る|効く|改善/);
+  assert.equal(await cc.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+  const ccMember = `(select member_id from member_identities where subject=${q(sub("d"))})`;
+  assert.equal(pg.exec(`select score_wood || ',' || score_water || ',' || primary_element || ',' || mood from constitution_checks where member_id=${ccMember};`), "6,1,wood,noodle");
+  assert.equal(pg.exec(`select version from constitution_consents where member_id=${ccMember};`), "constitution_v1");
+  const [popup] = await Promise.all([cc.waitForEvent("popup"), cc.click("#ccNihondo")]); await popup.close();
+  for (let i = 0; i < 50 && pg.exec(`select count(*) from constitution_referral_clicks where member_id=${ccMember};`) !== "1"; i++) await new Promise((r) => setTimeout(r, 100));
+  assert.equal(pg.exec(`select count(*) from constitution_referral_clicks where member_id=${ccMember};`), "1");
+  await cc.click("#ccToCard"); await cc.waitForSelector("#ccEntry"); assert.equal(await text(cc, "#ccEntry"), "結果を見る");
+  assert.match(await text(cc, "#ccTodayTea"), /今日の五巡茶: 五巡茶/); assert.equal(await cc.locator("#ccCondition").count(), 0);           // まだ来店していない
+  pg.exec(`insert into visits(member_id, visit_on) select ${ccMember}, public._jst_date(now());`);
+  await cc.reload(); await cc.waitForSelector("#ccCondition");
+  await cc.click('#ccCondition button[data-value="cold"]'); await cc.click('#ccCondition button[data-value="tired"]');
+  assert.equal(await cc.getAttribute('#ccCondition button[data-value="cold"]', "aria-pressed"), "true");
+  await cc.click('#ccCondition button[data-value="dry"]'); await cc.waitForSelector("#ccFocus");
+  assert.equal(await cc.locator("#ccCondition").count(), 0); assert.match(await text(cc, "#ccFocus"), /今日のおすすめ: \(仮\).*今日のおすすめの五行: 木/);   // 木6 > 水3・土2・金2
+  assert.equal(pg.exec(`select temp || ',' || energy || ',' || concern || ',' || focus_element from constitution_daily_conditions where member_id=${ccMember};`), "cold,tired,dry,wood");
+  await cc.click("#ccEntry"); await cc.waitForSelector("#ccTypeName"); assert.match(await text(cc, "#ccDish"), /今日の体調から/);           // 実施済みは結果をそのまま出す
+  pg.exec(`update constitution_checks set season_key='2020-summer' where member_id=${ccMember};`);
+  await cc.goto(`${BASE}/app-reference/card.html`); await cc.waitForSelector("#ccSeasonPrompt"); assert.equal(await text(cc, "#ccSeasonPrompt"), "季節が変わりました。体質チェックをもう一度");
+  await cc.click("#ccEntry"); await cc.waitForSelector("#ccRetake"); await cc.click("#ccRetake"); await cc.waitForSelector("#ccStart");   // 2回目は同意を求めない
+  assert.equal(await cc.locator("#ccAgree").count(), 0);
+  ok("1分体質チェック: 会員証の入口→同意→15問(1問1画面・タップで次へ・戻ると前の答えが残る)→食事の気分→結果(タイプ・五角形・タップで正式名称・おすすめ・あなたの五巡茶とお茶の日・今日の五巡茶・季節・薬日本堂・診断ではない旨)。点数は DB が計算・相談ボタンのクリックを記録。会員証は『結果を見る』に変わり、来店した日は今日の体調の3タップ→今日のおすすめ。季節が変わると案内");
+
+  // ---- 体質チェックの集計: 店長・閲覧はすべて、スタッフは今週の体調の傾向だけ(ほかの数字は DOM にも出ない) ----
+  await stf.click("[data-tab=constitution]"); await stf.waitForSelector("#ccWeek");
+  assert.match(await text(stf, "#ccWeek"), /今週の体調の傾向.*回答 1 件/);
+  for (const id of ["#ccReach", "#ccTypes", "#ccAvgRadar", "#ccRevisit", "#ccReferral", "#ccRate"]) assert.equal(await stf.locator(id).count(), 0, id);
+  assert.doesNotMatch(await stf.textContent("#app"), /実施した人数|薬日本堂|再来店率|タイプ別/);
+  for (const p of [mgr, view]) {
+    await p.click("[data-tab=constitution]"); await p.waitForSelector("#ccReach");
+    assert.match(await text(p, "#ccReach"), /実施した人数1人/); assert.match(await text(p, "#ccReferral"), /押された数1回/);
+    assert.match(await text(p, "#ccTypes"), /木 モヤモヤ渋滞タイプ.*1/); assert.equal(await p.locator("#ccAvgRadar polygon.radar-area").count(), 1);
+    assert.match(await text(p, "#ccRevisit"), /実施した人1/); assert.match(await text(p, "#ccWeek"), /回答 1 件/);
+  }
+  await mgr.click("[data-tab=redeem]"); await mgr.waitForSelector("[data-go=constitution]"); await mgr.waitForSelector("#ccPill:has-text('実施 1 人')");
+  await stf.click("[data-tab=redeem]"); await stf.waitForSelector("#ccPill:has-text('今週の体調 1 件')");
+  assert.equal(await stf.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+  ok("体質チェックの集計(スタッフ画面): 店長・閲覧は実施人数・実施率・タイプ別・五行の平均(五角形)・再来店率の比較・相談の数・今週の体調。スタッフは今週の体調の傾向だけで、ほかの数字は DOM にもない。ホームに体質チェックの入口。店頭タブレットは集計の関数も呼べない");
+
   // ---- 表示の安全性 ----
   const evil = await newPage(tokFor(sub("b"), "<img src=x onerror=window.__x=1><script>window.__x=2</script>"));
   await evil.goto(`${BASE}/app-reference/card.html`); await evil.waitForSelector("#register"); await evil.click("#register"); await evil.waitForSelector("#name");
@@ -190,7 +258,7 @@ try {
   await mgr.click("[data-tab=members]"); await mgr.fill("#q", "img"); await mgr.click("#search"); await mgr.waitForSelector("#list button"); assert.equal(await mgr.evaluate(() => window.__x), undefined);
   ok("表示名にHTML/スクリプトがあっても実行されず、文字として表示される(お客様画面・スタッフ画面とも)");
   const ptsNoOverflow = await cust.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth); assert.ok(ptsNoOverflow);
-  for (const p of [cust, stf, mgr, view, evil, tk]) assert.deepEqual(p.errs, [], p.errs.join("|"));
+  for (const p of [cust, stf, mgr, view, evil, tk, cc]) assert.deepEqual(p.errs, [], p.errs.join("|"));
   assert.equal(await tk.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
   assert.equal(Number(pg.exec(`select count(*) from public.verify_balances();`)), 0);
   ok("ブラウザのエラーなし・横スクロールなし・全会員で残高=台帳の合計");
