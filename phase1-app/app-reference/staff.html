@@ -188,18 +188,17 @@ h1,h2,h3{margin:0}
 .kpi-lead{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:14px;color:var(--muted);margin:0}
 .kpi-lead b{color:var(--fg)}
 .kpi-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
-.kpi-card{--st:#b8bfc8;background:var(--card);border:1px solid var(--line);border-top:6px solid var(--st);border-radius:var(--radius);padding:14px 16px;display:grid;gap:6px;align-content:start;min-width:0}
-.kpi-card[data-status=ok]{--st:var(--ok)} .kpi-card[data-status=warn]{--st:var(--warn)} .kpi-card[data-status=bad]{--st:var(--bad)}
-.kpi-card h2{font-size:15px;margin:0;color:var(--fg)}
+/* KPI のカードは、KPI ごとに色を分ける(達成の状況は色ではなく、カードの中の札で示す) */
+.kpi-card{--kc:var(--navy);--kc-soft:var(--navy-soft);background:linear-gradient(var(--kc-soft),var(--card) 64px);border:1px solid var(--line);border-top:6px solid var(--kc);border-radius:var(--radius);padding:14px 16px;display:grid;gap:6px;align-content:start;min-width:0}
+#kpiCard-member_visit_rate{--kc:var(--purple);--kc-soft:var(--purple-soft)} #kpiCard-check_rate{--kc:var(--sage);--kc-soft:var(--sage-soft)}
+#kpiCard-revisit_rate{--kc:var(--blue);--kc-soft:var(--blue-soft)} #kpiCard-referral_clicks{--kc:#8a6a3b;--kc-soft:#f5eee2}
+.kpi-card h2{font-size:15px;margin:0;color:var(--kc)}
 .kpi-card .v{font-size:32px;font-weight:900;line-height:1.15;overflow-wrap:anywhere}
 .kpi-card .v.missing{font-size:16px;font-weight:800;color:var(--warn);line-height:1.4}
 .kpi-card .tg,.kpi-card .sub{font-size:13px;color:var(--muted);margin:0;overflow-wrap:anywhere}
 .kpi-card .sub b{color:var(--fg)}
 .st{display:inline-flex;align-items:center;gap:6px;justify-self:start;padding:3px 10px;border-radius:999px;font-size:13px;font-weight:800;background:#eef1f5;color:var(--muted);white-space:nowrap}
 .st.ok{background:var(--ok-soft);color:var(--ok)} .st.warn{background:var(--warn-soft);color:var(--warn)} .st.bad{background:var(--bad-soft);color:var(--bad)}
-.spark{display:block;width:100%;height:30px}
-.spark polyline{fill:none;stroke:var(--navy);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
-.spark circle{fill:var(--navy)}
 .kpi-sec{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;display:grid;grid-template-columns:minmax(0,1fr);gap:12px;min-width:0}
 .kpi-sec .msg p{overflow-wrap:anywhere;min-width:0}
 .kpi-sec h2{font-size:17px;color:var(--navy);margin:0}
@@ -610,21 +609,6 @@ const stChip = (status, text, id) => put(el("span", undefined, { class: `st ${st
 const POS_MISSING = "レジの客数が未取り込み";
 const jstTodayStr = () => jst(new Date().toISOString(), false);
 const svg = (tag, attrs = {}, text) => { const e = document.createElementNS(SVGNS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (text !== undefined) e.textContent = text; return e; };
-// 小さな推移(直近の月。値のない月は線を切る)
-function sparkline(values, label) {
-  const W = 120, H = 30, P = 3, nums = values.filter((v) => typeof v === "number");
-  const s = svg("svg", { viewBox: `0 0 ${W} ${H}`, class: "spark", role: "img", "aria-label": label, preserveAspectRatio: "none" });
-  if (!nums.length) return s;
-  const max = Math.max(...nums), min = Math.min(0, ...nums), span = max - min || 1, step = values.length > 1 ? (W - 2 * P) / (values.length - 1) : 0;
-  const xy = (v, i) => [P + i * step, H - P - ((v - min) / span) * (H - 2 * P)];
-  let seg = [];
-  const flush = () => { if (seg.length > 1) s.append(svg("polyline", { points: seg.map((p) => p.join(",")).join(" ") })); seg = []; };
-  values.forEach((v, i) => { if (typeof v !== "number") return flush(); seg.push(xy(v, i)); });
-  flush();
-  const li = values.map((v, i) => [v, i]).filter(([v]) => typeof v === "number").at(-1);
-  if (li) { const [x, y] = xy(li[0], li[1]); s.append(svg("circle", { cx: x, cy: y, r: 2.5 })); }
-  return s;
-}
 // 会員来店率と目標の線グラフ(1つの軸・%)。目標は破線(段階ごとの値)。点にカーソル/タップで値
 function visitRateChart(months, width = 640) {
   const W = Math.max(280, Math.round(width)), H = W < 500 ? 200 : 240, L = 40, R = 16, T = 16, B = 30, iw = W - L - R, ih = H - T - B;
@@ -683,7 +667,6 @@ function kpiDataNodes(d) {
   if (d.state && d.state !== "open") lead.append(el("span", d.state === "test" ? "(試験運用中: 試験会員と試験用の客数の集計)" : "(停止中)", { class: "pill" }));
   out.push(lead);
   // KPI のカード(新規登録数は会員来店率のカードの中に補助として)
-  const recent = months.slice(-6);
   const card = (code, sub) => {
     const k = cur?.kpis?.[code] || {}, def = KPI_BY_CODE[code], st = statusOf(k.achievementPercent);
     const c = el("section", undefined, { class: "kpi-card", id: `kpiCard-${code}`, "data-status": st, "aria-label": def.label });
@@ -696,7 +679,6 @@ function kpiDataNodes(d) {
     const tgtText = k.target == null ? (cur?.milestone ? `目標なし(${cur.milestone}か月は基準値を測る)` : "目標なし")
       : `目標 ${fmtValue(code, k.target)}(${cur.milestone}か月)` + (k.prorated ? `・今月は日割り ${fmtValue(code, k.targetCompared)}` : "");
     c.append(el("p", tgtText, { class: "tg num" }), stChip(st, k.achievementPercent != null ? `達成率 ${k.achievementPercent}%・${STATUS_LABELS[st]}` : k.target != null ? "実績なし(比べられません)" : STATUS_LABELS.none, `kpiAch-${code}`));
-    c.append(sparkline(recent.map((m) => m.kpis[code].actual), `${def.label}の直近${recent.length}か月の推移`));
     for (const x of sub) c.append(x);
     return c;
   };

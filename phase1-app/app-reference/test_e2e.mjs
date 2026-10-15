@@ -347,7 +347,8 @@ try {
     // 目標の変更: 実施率の3か月を 10% にすると達成(緑)
     await mgr.fill("#kpiT-check_rate-3", "10"); await mgr.click("#kpiTargetsSave"); await mgr.waitForSelector("#kpiTargetsOut.ok");
     await mgr.waitForSelector("#kpiCard-check_rate[data-status=ok]"); assert.match(await text(mgr, "#kpiAch-check_rate"), /達成率 \d+%・達成/);
-    assert.equal(await mgr.evaluate(() => getComputedStyle(document.querySelector("#kpiCard-check_rate")).borderTopColor), "rgb(31, 138, 76)");   // 状態の緑(--ok)
+    assert.equal(await mgr.evaluate(() => getComputedStyle(document.querySelector("#kpiCard-check_rate")).borderTopColor), "rgb(79, 125, 58)");   // カードの色は KPI ごと(体質チェック=--sage)。達成の状況は札で示す
+    assert.equal(await mgr.locator("#kpiCards .spark").count(), 0);                                                                                 // カードに推移の小さなグラフは出さない(牧野さん 2026-10-15)
     await mgr.fill("#kpiT-check_rate-3", "100.5"); await mgr.click("#kpiTargetsSave"); await mgr.waitForSelector("#kpiTargetsOut.bad");
     assert.equal(pg.exec(`select value from kpi_targets where kpi_code='check_rate' and milestone=3;`), "10.0");
     // 注文金額だけのファイルは、客数の行がないと伝える
