@@ -42,8 +42,6 @@ export function createMemberClient({ endpoint, getIdToken, fetchFn = (...a) => f
     ticketCancel: () => call("ticket_cancel"),
     // 1分体質チェック(db/103)。点数は送らない(回答から DB が計算する)。consent は初回の同意
     constitutionSubmit: ({ answers, mood, consent = false } = {}) => call("constitution_submit", { answers: Array.isArray(answers) ? answers.slice(0, 15) : answers, mood: String(mood || ""), consent: consent === true }),
-    // 今日の体調(1日1回): temp=cold/hot/normal・energy=tired/stress/fine・concern=dry/swelling/none
-    conditionSubmit: ({ temp, energy, concern } = {}) => call("condition_submit", { temp, energy, concern }),
     // 「薬日本堂の漢方相談へ」が押された(数えるだけ。画面は結果を待たずに行き先を開く)
     referralClick: () => call("referral_click"),
     // 友だち紹介のお知らせ(「お友だちが来店しました」)を表示した。until は表示したお知らせの時刻(member.inviteNotice.until)

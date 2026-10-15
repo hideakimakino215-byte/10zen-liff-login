@@ -1,6 +1,8 @@
 <!doctype html>
 <!-- 1分体質チェック(LIFF)。会員証(card.html)と同じ世界観(和紙色の地・明朝の見出し・茶の差し色)。設計: CONSTITUTION_CHECK_DESIGN_20261015.md
      流れ: (初回だけ)同意 → 15問(1問1画面・タップで次へ)→ 食事の気分 → 結果。点数とタイプは DB が計算する(画面は回答だけを送る)。
+     来店のたびに何度でもできる(任意。db/107)。結果は「今日の傾向」(今回の結果)と「あなたの体質」(最新3回の平均。DB が計算)の2つと、これまでのチェック(最新6回)。
+     会員証の「今日のチェックをはじめる」(?start=1)からは、同意済みならはじめの画面を飛ばして1問目から。
      UI が守ること: 表示は screens.mjs の constitutionCardView / constitutionResultView の項目をそのまま使う。値は textContent で入れる(innerHTML 不可)。
      グラフは inline SVG(app-core/radar.mjs が createElementNS で組み立てる)。外部のライブラリ・CDN・フォントは使わない。
      お客様に見せる説明文は app-core/constitution-content.mjs に集約(言葉づかいのきまり: 「治る・効く・改善」を使わない)。 -->
@@ -59,6 +61,15 @@ button { font-family:inherit; color:inherit; }
 .tea-day { display:inline-block; margin-top:8px; font-size:13px; font-weight:600; color:var(--accent); border:1px solid var(--accent); border-radius:999px; padding:4px 12px; }
 .nihondo { text-align:center; }
 .nihondo a { display:flex; align-items:center; justify-content:center; min-height:52px; margin-top:12px; border-radius:12px; border:1px solid var(--accent); color:var(--accent); background:#fff; font-weight:600; text-decoration:none; }
+.profile h2 { font-size:22px; font-weight:600; letter-spacing:.06em; margin-top:6px; text-align:center; }
+.profile .basis { text-align:center; }
+.profile .radar { max-width:240px; cursor:default; }
+.history { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:6px; }
+.history li { display:grid; grid-template-columns:3.6em auto 1fr; gap:10px; align-items:center; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:#fff; font-size:13px; }
+.history li.latest { border-color:var(--accent); }
+.history .d { color:var(--sub); font-variant-numeric:tabular-nums; }
+.history .chip { display:inline-block; min-width:2.2em; text-align:center; padding:2px 8px; border-radius:999px; border:1.5px solid #b8bfc8; background:#f1f3f6; font-weight:700; font-size:13px; white-space:nowrap; }
+.history .t { overflow-wrap:anywhere; }
 .disclaimer { font-size:12px; color:var(--sub); text-align:center; line-height:1.7; margin-top:16px; }
 /* ---- 生薬の絵(会員証と同じ水彩の6種。飾りなので読み上げない) ---- */
 .hero { position:relative; height:118px; margin:2px 0 4px; }
@@ -77,8 +88,8 @@ button { font-family:inherit; color:inherit; }
 <script type="module">
 import { createMemberClient } from "../app-core/member-client.mjs";
 import { cardScreen, checkSubmitScreen } from "../app-core/screens.mjs";
-import { QUESTIONS, ANSWER_OPTIONS, ELEMENTS, ELEMENT_INFO, ELEMENT_COLORS, ELEMENT_TEXT_COLORS } from "../app-core/constitution.mjs";
-import { MOODS, MOOD_QUESTION, CONSENT_TEXT, INTRO_TEXT, CHECK_NAME, DISCLAIMER, NIHONDO_LEAD, NIHONDO_BUTTON } from "../app-core/constitution-content.mjs";
+import { QUESTIONS, ANSWER_OPTIONS, ELEMENTS, ELEMENT_INFO, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, ELEMENT_SOFT_COLORS } from "../app-core/constitution.mjs";
+import { MOODS, MOOD_QUESTION, CONSENT_TEXT, INTRO_TEXT, CHECK_NAME, DISCLAIMER, NIHONDO_LEAD, NIHONDO_BUTTON, PROFILE_LABEL, HISTORY_LABEL } from "../app-core/constitution-content.mjs";
 import { NIHONDO_CONSULT_URL } from "../app-core/store-info.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
@@ -152,15 +163,18 @@ async function submit(mood) {
   errorView(s.message, s.retry);
 }
 
-// 結果: タイプ・五角形(タップで正式名称)・今日のおすすめの一品・五巡茶・季節・薬日本堂・診断ではない旨
+// 結果: 今日の傾向(今回の結果。タイプ・五角形・タップで正式名称)・あなたの体質(最新3回の平均)・これまでのチェック(最新6回)・
+//       今日のおすすめの一品(今回の結果から)・あなたの五巡茶(あなたの体質から)・今日の五巡茶・季節・薬日本堂・診断ではない旨
+const LABELS = Object.fromEntries(ELEMENTS.map((e) => [e, ELEMENT_INFO[e].kanji]));
+const chipOf = (h) => { const c = el("span", h.kanji, { class: "chip serif", "data-element": h.element ?? "balanced" });
+  if (h.element) { c.style.borderColor = ELEMENT_COLORS[h.element]; c.style.background = ELEMENT_SOFT_COLORS[h.element]; c.style.color = ELEMENT_TEXT_COLORS[h.element]; } return c; };
 function resultView(v) {
   const r = v.result;
   const type = kids(el("section", undefined, { class: "panel type", id: "ccResult" }),
     herb("goji", { class: "corner", style: "left:-6px;top:-4px;width:58px" }), herb("chenpi", { class: "corner", style: "right:-4px;top:-2px;width:60px" }),
-    el("p", "あなたの体質の傾向", { class: "label" }),
+    el("p", v.latestLabel, { class: "label", id: "ccTodayLabel" }),
     el("h2", r.typeName, { id: "ccTypeName", class: "serif" }), el("p", r.typeLine, { id: "ccTypeLine", class: "line" }));
-  const labels = Object.fromEntries(ELEMENTS.map((e) => [e, ELEMENT_INFO[e].kanji]));
-  const svg = radarSvg(document, r.scores, { labels, max: 6, id: "ccRadar", title: "五行ごとの点数(0〜6)", valueText: (x) => String(x ?? "—"),
+  const svg = radarSvg(document, r.scores, { labels: LABELS, max: 6, id: "ccRadar", title: "五行ごとの点数(0〜6)", valueText: (x) => String(x ?? "—"),
     dotColors: ELEMENT_COLORS, labelColors: ELEMENT_TEXT_COLORS });                  // 五行の五色(点と軸の名前)
   const detail = el("ul", undefined, { class: "detail", id: "ccDetail", hidden: "" });
   const kanji = (d) => { const k = el("span", d.kanji, { class: "k serif" }); if (ELEMENT_TEXT_COLORS[d.element]) k.style.color = ELEMENT_TEXT_COLORS[d.element]; return k; };
@@ -172,9 +186,23 @@ function resultView(v) {
   kids(type, kids(el("div", undefined, { class: "radar-wrap" }), svg), toggle, detail);
   if (r.formalText) detail.prepend(el("p", r.formalText, { id: "ccFormal", class: "meta" }));
   const nodes = [type];
-  if (r.dish) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccDish" }), el("p", r.dish.basis === "today" ? "今日のおすすめの一品(今日の体調から)" : "今日のおすすめの一品", { class: "label" }),
+  // あなたの体質(最新3回の平均)。平均は小数1桁で見せる
+  const p = v.profile;
+  if (p) nodes.push(kids(el("section", undefined, { class: "panel profile", id: "ccProfile" }), el("p", PROFILE_LABEL, { class: "label" }),
+    el("h2", p.typeName, { id: "ccProfileName", class: "serif" }), el("p", p.basisText, { id: "ccProfileBasis", class: "meta basis" }),
+    el("p", p.typeLine, { class: "lead", id: "ccProfileLine" }),
+    radarSvg(document, p.scores, { labels: LABELS, max: 6, id: "ccProfileRadar", title: "あなたの体質: 五行ごとの点数の平均(0〜6)",
+      valueText: (x) => (typeof x === "number" ? (Math.round(x * 10) / 10).toFixed(1) : "—"), dotColors: ELEMENT_COLORS, labelColors: ELEMENT_TEXT_COLORS })));
+  // これまでのチェック(新しい順・最大6回): 日付と五行の印・タイプ名
+  if (v.history.length) {
+    const ul = el("ul", undefined, { class: "history", id: "ccHistory" });
+    v.history.forEach((h, i) => ul.append(kids(el("li", undefined, { "data-element": h.element ?? "balanced", ...(i === 0 ? { class: "latest" } : {}) }),
+      el("span", h.dateText, { class: "d" }), chipOf(h), el("span", h.typeName, { class: "t" }))));
+    nodes.push(kids(el("section", undefined, { class: "panel", id: "ccHistoryBox" }), el("p", `${HISTORY_LABEL}(新しい順・最大6回)`, { class: "label" }), ul));
+  }
+  if (r.dish) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccDish" }), el("p", v.checkedToday ? "今日のおすすめの一品(今日の傾向から)" : "おすすめの一品(前回の傾向から)", { class: "label" }),
     el("h3", r.dish.name, { class: "serif" }), el("p", r.dish.reason, { class: "body" })));
-  nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccYourTea" }), el("p", "あなたの五巡茶", { class: "label" }), el("h3", r.yourTea.name, { class: "serif" }),
+  nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccYourTea" }), el("p", "あなたの五巡茶(あなたの体質から)", { class: "label" }), el("h3", r.yourTea.name, { class: "serif" }),
     el("p", r.yourTea.line, { class: "body" }), el("span", r.yourTea.dayText, { id: "ccYourTeaDay", class: "tea-day" })));
   if (r.todayTea) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccTodayTea" }), el("p", `今日の五巡茶(${r.todayTea.weekday})`, { class: "label" }),
     el("h3", r.todayTea.name, { class: "serif" }), el("p", r.todayTea.line, { class: "body" })));
@@ -195,8 +223,9 @@ async function start() {
   if (s.screen !== "card") return errorView(s.message, s.retry);
   check = s.view.check;
   if (!check) return errorView("ただいま体質チェックは準備中です", false);           // DB が未対応(103 未適用)
-  const wantResult = new URLSearchParams(location.search).get("view") === "result";
-  if (wantResult && check.result) return resultView(check);
+  const qs = new URLSearchParams(location.search);
+  if (qs.get("view") === "result" && check.result) return resultView(check);
+  if (qs.get("start") === "1" && check.consented) { answers = []; idx = 0; consentGiven = false; return questionView(); }   // 会員証の「今日のチェックをはじめる」から(同意済み)
   introView();
 }
 (async () => {

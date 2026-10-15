@@ -2,7 +2,7 @@
  * 10ZEN 月次レポート(Google Apps Script)。バックアップの見張り役と同じ、別の Google プロジェクト「10ZENバックアップの見張り」に置く(watchdog.gs と同じプロジェクト)。
  * 動作: 毎月1日 9時(日本時間)に、前の月の集計を Supabase の backup-export 関数(action=monthly_report)から受け取り、日本語のメールで送る。
  *   ・集計の数字だけ(氏名・会員番号・LINE ID は DB の report_monthly が返さない)。4つの KPI の実績・目標・達成率・前の月との差、会員(新規登録・紹介からの新規来店・ランク別)、
- *     体質チェック(タイプ別・今日の体調でいちばん多い答え)、特典チケット(発行・使用・使用率)、注意(目標の80%未満・レジの客数が未取り込み)、スタッフ画面のリンク。
+ *     体質チェック(タイプ別・その月のチェック結果の傾向・来店時の実施率)、特典チケット(発行・使用・使用率)、注意(目標の80%未満・レジの客数が未取り込み)、スタッフ画面のリンク。
  *   ・本番開始日(スタッフ画面の「目標とKPI」で店長が設定)が未設定のとき、または前の月が本番開始日の月より前のときは、DB が skipped を返し、メールは送らない。
  *   ・取得できない(通信エラー・HTTP のエラー・設定漏れ)ときは、黙らずに所有者へ「作れませんでした」のメールを送る。直ったら monthlyReport を実行すれば、その月の分を送る。
  *   ・同じ月の分は1回だけ送る(送った月をスクリプト プロパティ REPORT_LAST_SENT に記録)。
@@ -17,12 +17,9 @@ var REPORT_KPIS_ = [
 ];
 var REPORT_NEW_MEMBERS_ = ["new_members", "新規登録数", false, "人"];
 var REPORT_RANKS_ = [["white_opal", "WHITE OPAL"], ["amber", "AMBER"], ["emerald", "EMERALD"], ["ruby", "RUBY"], ["onyx", "ONYX"]];
-// 体質のタイプと今日の体調の表示名(app-core/constitution.mjs と同じ。test_monthly_report.mjs が一致を確かめる)
+// 体質のタイプの表示名(app-core/constitution.mjs と同じ。test_monthly_report.mjs が一致を確かめる)
 var REPORT_TYPES_ = [["wood", "木 モヤモヤ渋滞タイプ"], ["fire", "火 カッカ熱こもりタイプ"], ["earth", "土 消化パワー不足タイプ"], ["metal", "金 うるおい不足タイプ"],
   ["water", "水 ぽかぽかパワー不足タイプ"], ["balanced", "バランス良好"]];
-var REPORT_CONDITIONS_ = { temp: ["今日のからだ", { cold: "冷えている", hot: "ほてっている", normal: "ふつう" }],
-  energy: ["今日の調子", { tired: "疲れ・胃が重い", stress: "ストレス・張り", fine: "元気" }],
-  concern: ["今日気になること", { dry: "乾燥・のど", swelling: "むくみ・だるさ", none: "特になし" }] };
 var REPORT_SKIP_REASONS_ = { no_launch_date: "本番開始日が未設定", before_launch: "本番開始日の月より前", month_not_finished: "まだ終わっていない月" };
 var REPORT_FIX_ = "\n\n直し方: 設定(REPORT_TOKEN・REPORT_URL または BACKUP_URL)と Supabase の backup-export 関数を確かめてください。" +
   "\n直ったら、このプロジェクトで monthlyReport を実行すると、前の月の分を送ります(同じ月の分は1回だけ送ります)。解決しない場合は開発担当へ連絡してください。";
@@ -121,14 +118,14 @@ function buildReportMail_(j, staffUrl) {
   L.push("・紹介からの新規来店: " + reportNum_(mem.referralFirstVisits, "人") + "(紹介からの登録 " + reportNum_(mem.referralRegistrations, "人") + ")");
   L.push("・ランク別(有効会員 " + reportNum_(mem.activeMembers, "人") + "): " + REPORT_RANKS_.map(function (r) { return r[1] + " " + reportNum_(br[r[0]], "人"); }).join(" / "));
   L.push("・会員の来店: " + reportNum_(mem.memberVisits, "回") + " / レジの客数: " + (j.pos && !j.pos.missing ? reportNum_(j.pos.customers, "人") + (j.pos.source === "manual" ? "(手入力)" : "(日別 " + reportNum_(j.pos.days, "日分") + ")") : "未取り込み"));
-  var cc = j.constitution || {}, bt = cc.byType || {}, cond = cc.conditions || {}, top = cond.top || {};
+  var cc = j.constitution || {}, bt = cc.byType || {}, cr = cc.checkResults || {}, crt = cr.byType || {}, vc = cc.visitCheckRate || {};
   L.push("", "■ 体質チェック");
   L.push("・実施した会員: " + reportNum_(cc.checkedMembers, "人") + "(実施率 " + reportPct_(cc.checkRatePercent) + ")・この月のチェック " + reportNum_(cc.checksInMonth, "回"));
   L.push("・タイプ別: " + REPORT_TYPES_.map(function (t) { return t[1] + " " + reportNum_(bt[t[0]], "人"); }).join(" / "));
-  if (cond.answers > 0) {
-    L.push("・今日の体調(この月の回答 " + reportNum_(cond.answers, "件")+ ")でいちばん多かった答え: " +
-      ["temp", "energy", "concern"].map(function (q) { var c = REPORT_CONDITIONS_[q]; return c[0] + "「" + (c[1][top[q]] || "—") + "」"; }).join("・"));
-  } else L.push("・今日の体調: この月の回答はありません");
+  // チェック結果の傾向(この月に行われたチェック1回ずつのタイプ)と、来店時の実施率(会員の来店日のうち、同じ日にチェックした日の割合)
+  if (cr.checks > 0) L.push("・チェック結果の傾向(この月のチェック " + reportNum_(cr.checks, "回") + "): " + REPORT_TYPES_.map(function (t) { return t[1] + " " + reportNum_(crt[t[0]], "回"); }).join(" / "));
+  else L.push("・チェック結果の傾向: この月のチェックはありません");
+  L.push("・来店時の実施率: " + reportPct_(vc.ratePercent) + "(会員の来店 " + reportNum_(vc.visitDays, "日") + "のうち、同じ日にチェックした日 " + reportNum_(vc.checkedVisitDays, "日") + ")");
   var tk = j.tickets || {}, bk = tk.issuedByKind || {};
   L.push("", "■ 特典チケット");
   L.push("・この月の発行: " + reportNum_(tk.issued, "枚") + "(到達のお祝い " + reportNum_(bk.milestone) + "・季節の豆花 " + reportNum_(bk.seasonal) + "・お友だち紹介 " + reportNum_(bk.referral) + ")/ この月の使用: " + reportNum_(tk.used, "枚"));

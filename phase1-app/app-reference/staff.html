@@ -188,8 +188,6 @@ h1,h2,h3{margin:0}
 .cmp th,.cmp td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:right}
 .cmp th:first-child,.cmp td:first-child{text-align:left}
 .cmp th{font-size:13px;color:var(--muted)}
-.week{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
-.week .bars li{grid-template-columns:9em minmax(0,1fr) 2.5em}
 
 /* 目標と KPI(紺)。達成の色は状態の色(緑=達成・オレンジ=80〜99%・赤=80%未満・灰色=目標なし)を、アイコンと文字と一緒に使う */
 .c-navy-text{color:var(--navy)}
@@ -249,7 +247,7 @@ h1,h2,h3{margin:0}
 @media (max-width:760px){
   .kpi-cards{grid-template-columns:minmax(0,1fr)}
   .cards{grid-template-columns:1fr}
-  .cc-grid,.week{grid-template-columns:1fr}
+  .cc-grid{grid-template-columns:1fr}
   .cc-member{grid-template-columns:minmax(0,1fr)}
   .cc-member .radar{max-width:168px}
   .cc-chip.big{white-space:normal}
@@ -281,7 +279,7 @@ h1,h2,h3{margin:0}
 <script src="vendor/supabase.js"></script>
 <script type="module">
 import { createStaffClient, redeemReduce, redeemInitial } from "../app-core/staff-client.mjs";
-import { ELEMENTS, ELEMENT_INFO, CONDITION_QUESTIONS, BALANCED_NAME, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, ELEMENT_SOFT_COLORS, NEUTRAL_COLOR } from "../app-core/constitution.mjs";
+import { ELEMENTS, ELEMENT_INFO, BALANCED_NAME, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, ELEMENT_SOFT_COLORS, NEUTRAL_COLOR } from "../app-core/constitution.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
 import { KPI_DEFS, KPI_BY_CODE, MILESTONES, statusOf, STATUS_LABELS, parseTargetInput, fmtValue, milestoneLabel } from "../app-core/kpi.mjs";
 import { analyzePosFile, summarize, rowsForImport, SKIP_REASONS, ERRORS as POS_ERRORS, ENCODING_LABELS, OUTLIER_FACTOR } from "../app-core/pos-import.mjs";
@@ -310,7 +308,6 @@ function ccChip(c, { big = false, id } = {}) {
   else chip.style.borderColor = NEUTRAL_COLOR;                                     // バランス良好は灰色(文字は既定の濃い灰色)
   return chip;
 }
-const conditionText = (t) => CONDITION_QUESTIONS.map((q) => q.options.find((o) => o.value === t?.[q.key])?.short ?? DASH).join("・");
 const jst = (iso, withTime = true) => {
   if (!iso) return null; const d = new Date(iso); if (Number.isNaN(d.getTime())) return null;
   const p = Object.fromEntries(new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(d).map((x) => [x.type, x.value]));
@@ -426,11 +423,11 @@ function redeemView() {
   hero.firstChild.id = "redeemTitle";
   // 下の入口(会員・集計)。件数は集計から(取れなければ「—」)。本日の来店は集計にまとめた
   const pills = { members: el("span", `有効 ${DASH} 人`, { class: "pill num" }), dash: el("span", `来店 ${DASH} 人`, { class: "pill num" }),
-    constitution: el("span", role === "staff" ? `今週の体調 ${DASH} 件` : `実施 ${DASH} 人`, { class: "pill num", id: "ccPill" }) };
+    constitution: el("span", role === "staff" ? `今週のチェック ${DASH} 件` : `実施 ${DASH} 人`, { class: "pill num", id: "ccPill" }) };
   const card = (t, cls, name, h, go) => { const b = put(el("button", undefined, { class: `card ${cls}`, "data-go": t }), icon(name), el("h2", h), pills[t], el("span", `${go} ›`, { class: "go" })); b.onclick = () => tab(t); return b; };
   const cards = put(el("section", undefined, { class: "cards", "aria-label": "ほかの機能" }),
     card("members", "c-purple", "members", "会員", "会員番号・氏名で探す"), card("dash", "c-blue", "dash", "集計", "本日の来店・今月の付与と使用"),
-    card("constitution", "c-sage", "constitution", "体質チェック", role === "staff" ? "今週の体調の傾向" : "実施・タイプ・体調の傾向"));
+    card("constitution", "c-sage", "constitution", "体質チェック", role === "staff" ? "今週のチェック結果の傾向" : "実施・タイプ・来店時の実施率"));
   // 目標と KPI(店長・閲覧だけ。スタッフには DOM ごと出さない)
   if (canSeeKpi()) {
     pills.kpi = el("span", `会員来店率 ${DASH}`, { class: "pill num", id: "kpiPill" });
@@ -447,7 +444,7 @@ function redeemView() {
   });
   staff.constitutionStats().then((r) => {
     if (r.kind !== "ok") return;
-    pills.constitution.textContent = r.data.scope === "full" ? `実施 ${n(r.data.checkedMembers)} 人` : `今週の体調 ${n(r.data.week?.answers)} 件`;
+    pills.constitution.textContent = r.data.scope === "full" ? `実施 ${n(r.data.checkedMembers)} 人` : `今週のチェック ${n(r.data.week?.checks)} 件`;
   });
   code.focus();
 }
@@ -515,18 +512,20 @@ async function detailView(id, backQuery = "") {
   show(panel);
 }
 
-// 会員の詳細の体質チェック: タイプの印・実施日(日本時間)・小さな五角形・今日の体調(今日答えていれば)。未実施は「体質チェック: 未実施」
+// 会員の詳細の体質チェック(db/107): あなたの体質(最新3回の平均)の印・最新のチェックの日(日本時間)・今日チェックしていれば今日の傾向・小さな五角形(あなたの体質)。
+//   未実施は「体質チェック: 未実施」。今日の体調(3問)は廃止したので出さない
 function memberConstitution(c) {
   const box = put(el("section", undefined, { class: "cc-member", id: "ccMember", "aria-label": "体質チェック" }), el("h3", "体質チェック(店内でのおすすめに)"));
   if (!c) { box.append(el("p", "体質チェック: 未実施", { id: "ccMemberDate", class: "muted" })); return box; }
-  const info = put(el("div", undefined, { class: "cc-info" }), ccChip(c, { big: true, id: "ccMemberType" }), el("p", `体質チェック: ${c.checkedOn ?? DASH} 実施`, { id: "ccMemberDate", class: "num" }));
-  if (c.today) {
-    const t = put(el("p", undefined, { id: "ccMemberToday" }), document.createTextNode(`今日の体調: ${conditionText(c.today)} → 今日のおすすめ: `));
-    t.append(isEl(c.today.focus) ? elKanji(c.today.focus) : document.createTextNode(DASH));
-    info.append(t);
-  }
-  box.append(info, radarSvg(document, c.scores, { labels: Object.fromEntries(ELEMENTS.map((e) => [e, ELEMENT_INFO[e].kanji])), max: 6, id: "ccMemberRadar",
-    title: `五行ごとの点数(0〜6): ${ELEMENTS.map((e) => `${ELEMENT_INFO[e].kanji}${c.scores?.[e] ?? DASH}`).join("・")}`, ...RADAR_COLORS }));
+  const pf = c.profile && isEl(c.profile.primary) ? c.profile : { primary: c.primary, balanced: c.balanced, scores: c.scores, count: 1 };
+  const info = put(el("div", undefined, { class: "cc-info" }),
+    put(el("p", undefined, { id: "ccMemberProfile" }), document.createTextNode("あなたの体質: "), ccChip(pf, { big: true, id: "ccMemberType" })),
+    el("p", `体質チェック: ${c.checkedOn ?? DASH} 実施`, { id: "ccMemberDate", class: "num" }),
+    el("p", (pf.count ?? 1) >= 3 ? "最近3回のチェックの平均" : `${pf.count ?? 1}回分のチェックから`, { id: "ccMemberBasis", class: "muted num" }));
+  if (c.checkedToday) info.append(put(el("p", undefined, { id: "ccMemberToday" }), document.createTextNode("今日の傾向: "), ccChip(c, { big: true, id: "ccMemberTodayType" })));
+  box.append(info, radarSvg(document, pf.scores, { labels: Object.fromEntries(ELEMENTS.map((e) => [e, ELEMENT_INFO[e].kanji])), max: 6, id: "ccMemberRadar",
+    title: `あなたの体質(五行ごとの点数の平均・0〜6): ${ELEMENTS.map((e) => `${ELEMENT_INFO[e].kanji}${typeof pf.scores?.[e] === "number" ? (Math.round(pf.scores[e] * 10) / 10).toFixed(1) : DASH}`).join("・")}`,
+    valueText: (x) => (typeof x === "number" ? (Math.round(x * 10) / 10).toFixed(1) : DASH), ...RADAR_COLORS }));
   return box;
 }
 
@@ -579,7 +578,7 @@ function teaModeBox(d) {
     put(el("div", undefined, { class: "row-flex" }), sel, b), cur, o);
 }
 
-// ---- 体質チェック(セージ)。権限は DB(staff_constitution_stats)が判定: 店長・閲覧=すべて、スタッフ=今週の体調の傾向だけ ----
+// ---- 体質チェック(セージ)。権限は DB(staff_constitution_stats)が判定: 店長・閲覧=すべて、スタッフ=今週のチェック結果の傾向だけ ----
 //  スタッフには、実施人数・タイプ・平均・再来店率・相談ボタンの数を DOM ごと出さない(DB もスタッフには返さない)
 const ccStat = (cls, k, v, unit, id) => put(el("div", undefined, { class: `stat ${cls}`, ...(id ? { id } : {}) }), el("div", k, { class: "k" }), put(el("div", n(v), { class: "v num" }), el("small", unit)));
 // 棒グラフ。x.el が五行なら五行の色(ELEMENT_COLORS)、null ならどの五行でもないもの(灰色の斜線)。x.k は文字か、色つきの漢字を含む要素
@@ -610,6 +609,11 @@ async function constitutionView() {
       put(el("div", n(d.referralClicks?.total), { class: "v num" }), el("small", `回(今月 ${n(d.referralClicks?.thisMonth)} 回)`)));
     nodes.push(put(el("div", undefined, { class: "stats", id: "ccReach" }), ccStat("g", "実施した人数", d.checkedMembers, "人"), ccStat("g", "実施率(有効会員のうち)", d.checkRatePercent, "%", "ccRate"),
       ccStat("p", "有効会員数", d.membersActive, "人"), ref));
+    // 来店時の実施率(今月・日本時間): 会員の来店日のうち、同じ日に体質チェックをした日の割合(db/107)
+    const vc = d.visitCheckRate || {};
+    nodes.push(put(el("div", undefined, { class: "stat g", id: "ccVisitRate" }), el("div", `来店時の実施率(${vc.month ?? "今月"})`, { class: "k" }),
+      put(el("div", n(vc.ratePercent), { class: "v num" }), el("small", "%")),
+      el("p", `会員の来店 ${n(vc.visitDays)} 日のうち、同じ日にチェックした日 ${n(vc.checkedVisitDays)} 日`, { class: "hint num" })));
     const types = bars([...ELEMENTS.map((e) => ({ k: [elKanji(e), ` ${ELEMENT_INFO[e].typeName}`], v: d.byType?.[e], el: e })), { k: BALANCED_NAME, v: d.byType?.balanced, el: null }], "ccTypes");
     const avg = d.averages ? radarSvg(document, d.averages, { labels: Object.fromEntries(ELEMENTS.map((e) => [e, ELEMENT_INFO[e].kanji])), max: 6, id: "ccAvgRadar", title: "五行ごとの平均(0〜6)",
       valueText: (x) => (typeof x === "number" ? Number(x).toFixed(1) : DASH), ...RADAR_COLORS }) : el("p", "まだ実施した人がいません", { class: "hint", id: "ccAvgRadar" });
@@ -623,13 +627,10 @@ async function constitutionView() {
       put(el("table", undefined, { class: "cmp num" }), put(el("thead"), put(el("tr"), el("th", "区分"), el("th", "人数"), el("th", "再来店率"), el("th", "来店頻度"))),
         put(el("tbody"), row("実施した人", rv.checked), row("していない人", rv.unchecked)))));
   }
-  // 体調の棒は、その選択肢が足す五行の色(冷えている=水・ほてっている=火・疲れ=土・ストレス=木・乾燥=金・むくみ=土)。ふつう・元気・特になしは灰色の斜線
-  const opt = (o) => (isEl(o.element) ? [`${o.label}(`, elKanji(o.element), ")"] : o.label);
-  const group = (key, h) => { const q = CONDITION_QUESTIONS.find((x) => x.key === key); return put(el("div"), el("h3", h), bars(q.options.map((o) => ({ k: opt(o), v: w[key]?.[o.value], el: isEl(o.element) ? o.element : null })))); };
-  nodes.push(put(el("section", undefined, { class: "cc-sec", id: "ccWeek" }), el("h2", "今週の体調の傾向"),
-    el("p", `直近7日(${w.since ?? DASH} 〜 ${w.until ?? DASH})・回答 ${n(w.answers)} 件。会員証の「今日の体調」の回答の集計です`, { class: "hint num" }),
-    put(el("div", undefined, { class: "week" }), group("temp", "からだ"), group("energy", "調子"), group("concern", "気になること")),
-    put(el("div"), el("h3", "今日のおすすめの五行(回答から)"), bars(ELEMENTS.map((e) => ({ k: elKanji(e), v: w.focus?.[e], el: e })), "ccWeekFocus"))));
+  // 今週(直近7日)のチェック結果の傾向: 各回の主な五行の分布(五行の色)。バランス良好は灰色の斜線。スタッフにも出す
+  nodes.push(put(el("section", undefined, { class: "cc-sec", id: "ccWeek" }), el("h2", "今週のチェック結果の傾向"),
+    el("p", `直近7日(${w.since ?? DASH} 〜 ${w.until ?? DASH})・チェック ${n(w.checks)} 件(${n(w.members)} 人)。会員証の体質チェックの結果(その回のタイプ)の集計です`, { class: "hint num" }),
+    bars([...ELEMENTS.map((e) => ({ k: [elKanji(e), ` ${ELEMENT_INFO[e].typeName}`], v: w.byType?.[e], el: e })), { k: BALANCED_NAME, v: w.byType?.balanced, el: null }], "ccWeekTypes")));
   show(...nodes);
 }
 
@@ -723,7 +724,8 @@ function kpiDataNodes(d) {
       // 友だち紹介(db/106): 紹介された人の初来店がこの月の人数と、紹介からの登録数。106 が未適用なら「—」
       subP("紹介からの新規来店", typeof sp.referralFirstVisits === "number" ? `${n(sp.referralFirstVisits)}人` : DASH, "kpiReferralVisits"),
       subP("紹介からの登録", typeof sp.referralRegistrations === "number" ? `${n(sp.referralRegistrations)}人` : DASH, "kpiReferralRegs")]),
-    card("check_rate", [subP("季節の再チェック率", sp.seasonRecheckPercent == null ? DASH : `${sp.seasonRecheckPercent.toFixed(1)}%`), subP("実施", `${n(sp.checkedMembers)} 人 / 有効 ${n(sp.activeMembers)} 人`)]),
+    card("check_rate", [subP("来店時の実施率", typeof sp.visitCheckRatePercent === "number" ? `${sp.visitCheckRatePercent.toFixed(1)}%(来店 ${n(sp.visitDays)} 日のうち ${n(sp.checkedVisitDays)} 日)` : DASH, "kpiVisitCheck"),
+      subP("実施", `${n(sp.checkedMembers)} 人 / 有効 ${n(sp.activeMembers)} 人`)]),
     card("revisit_rate", [subP(`直近${sp.revisitWindowDays ?? 60}日に来た会員のうち2日以上`, sp.revisitAmongVisitorsPercent == null ? DASH : `${sp.revisitAmongVisitorsPercent.toFixed(1)}%`)]),
     card("referral_clicks", [subP("実施した会員あたり", sp.referralPerCheckedPercent == null ? DASH : `${sp.referralPerCheckedPercent.toFixed(1)}%`)])));
   // 会員来店率の推移(線グラフ)
@@ -913,14 +915,14 @@ function exportBox() {
       rows.push([d.memberNo, d.status, jst(d.createdAt, false), d.lastActivityOn, d.points, rankLabel(d.rank), d.lifetimeConfirmed ? d.lifetimePoints : "",
         cnt(welcome), cnt(visit), cnt((l) => earn(l) && !visit(l) && !welcome(l)), sum(earn), cnt((l) => l.type === "redeem"), -sum((l) => l.type === "redeem"),
         cnt((l) => l.type === "adjust"), sum((l) => l.type === "adjust"), visitDays, yn(L.length >= 100),
-        // 体質(最新の結果のタイプと実施日だけ。回答は含めない)。未実施は「未実施」、応答に体質がない(104 未適用など)ときは空欄
-        "constitution" in r.data ? (r.data.constitution ? ccTypeText(r.data.constitution) : "未実施") : "", r.data.constitution?.checkedOn ?? "", "取得済み", startedAt]);
+        // 体質(あなたの体質=最新3回の平均のタイプと、最新のチェックの日だけ。回答は含めない)。未実施は「未実施」、応答に体質がない(104 未適用など)ときは空欄
+        "constitution" in r.data ? (r.data.constitution ? ccTypeText(r.data.constitution.profile ?? r.data.constitution) : "未実施") : "", r.data.constitution?.checkedOn ?? "", "取得済み", startedAt]);
     }
     busy(false); download(`10zen_members_${stamp()}.csv`, toCsv(rows));
     out.style.color = failed ? "var(--warn)" : ""; out.textContent = `出力しました(${all.length} 人・取得開始 ${startedAt}。会員ごとに順番に取得したため、厳密な同一時刻ではありません)` + (failed ? `。${failed} 人は詳細を取得できず、その行は「取得失敗」です` : "");
   };
   return put(el("section", undefined, { class: "panel", id: "exportBox" }), el("h3", "分析用の出力(CSV・店長のみ)"),
-    el("p", "氏名・LINE ID は含めません。集計のスナップショットは、集計した時刻のデータです。会員別は会員ごとに順番に読み込むため、取得開始時刻を記録します(厳密な同一時刻のデータではありません)。履歴は直近100件で集計します。体質チェックは最新のタイプと実施日だけです(回答は含めません)。人数が多いと時間がかかります。", { class: "hint" }),
+    el("p", "氏名・LINE ID は含めません。集計のスナップショットは、集計した時刻のデータです。会員別は会員ごとに順番に読み込むため、取得開始時刻を記録します(厳密な同一時刻のデータではありません)。履歴は直近100件で集計します。体質チェックは「あなたの体質」(最新3回の平均)のタイプと最新の実施日だけです(回答は含めません)。人数が多いと時間がかかります。", { class: "hint" }),
     put(el("div", undefined, { class: "row-flex" }), b1, b2), out);
 }
 start();

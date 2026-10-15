@@ -129,6 +129,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
         if (r.status === "invalid_answers" || r.status === "invalid_mood") return json({ error: r.status }, 400, ch);
         return json(r, r.status === "not_registered" ? 404 : r.status === "ok" ? 200 : 409, ch);      // 409: consent_required
       }
+      // 非推奨(2026-10-15・db/107): 今日の体調(3問)は廃止。今の会員証は送らない。古い画面との互換のためだけに残す
       case "condition_submit": {
         const okv = (v: unknown, list: string[]) => typeof v === "string" && list.includes(v);
         if (!okv(body.temp, ["cold", "hot", "normal"]) || !okv(body.energy, ["tired", "stress", "fine"]) || !okv(body.concern, ["dry", "swelling", "none"])) return json({ error: "invalid_condition" }, 400, ch);

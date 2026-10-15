@@ -1,5 +1,5 @@
 // 1分体質チェックの判定(見た目に依存しない・依存なし。五行の色の定数だけは画面どうしで共有するためここに置く)。設計: CONSTITUTION_CHECK_DESIGN_20261015.md
-// 判定の正本は DB(db/103_constitution_check.sql の _cc_result / _cc_focus / _tea_of_day)。ここは表示とテストのための同じ決め方の写し。
+// 判定の正本は DB(db/103_constitution_check.sql の _cc_result / _tea_of_day、db/107 の _cc_avg_result)。ここは表示とテストのための同じ決め方の写し。
 // 一致は app-core/test_constitution.mjs が多数の回答と日付で確かめる。お客様向けの説明文は constitution-content.mjs に分けている。
 export const ELEMENTS = ["wood", "fire", "earth", "metal", "water"];
 
@@ -42,13 +42,6 @@ export const QUESTIONS = Object.freeze([
 ]);
 export const ANSWER_OPTIONS = Object.freeze([{ value: 2, label: "よくある" }, { value: 1, label: "ときどき" }, { value: 0, label: "あまりない" }]);
 export const CONSENT_VERSION = "constitution_v1";
-
-// 今日の体調(1問1タップ。選んだ五行に2点を足す)。value は DB に送るコード。short はスタッフ画面の会員の詳細で1行にまとめるときの短い言葉
-export const CONDITION_QUESTIONS = Object.freeze([
-  { key: "temp", label: "今日のからだは?", options: [{ value: "cold", label: "冷えている", short: "冷えている", element: "water" }, { value: "hot", label: "ほてっている", short: "ほてっている", element: "fire" }, { value: "normal", label: "ふつう", short: "ふつう", element: null }] },
-  { key: "energy", label: "今日の調子は?", options: [{ value: "tired", label: "疲れ・胃が重い", short: "疲れ", element: "earth" }, { value: "stress", label: "ストレス・張り", short: "ストレス", element: "wood" }, { value: "fine", label: "元気", short: "元気", element: null }] },
-  { key: "concern", label: "今日気になることは?", options: [{ value: "dry", label: "乾燥・のど", short: "乾燥", element: "metal" }, { value: "swelling", label: "むくみ・だるさ", short: "むくみ", element: "earth" }, { value: "none", label: "特になし", short: "特になし", element: null }] },
-]);
 
 // 五巡茶の曜日(曜日の名前どおり)。月曜・日曜は今の季節の五行
 const WEEKDAYS = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"];
@@ -100,14 +93,20 @@ export function evaluate(answers, dateStr) {
   return { scores, primary: pickElement(scores, se), balanced: Math.max(...ELEMENTS.map((e) => scores[e])) <= 1, seasonElement: se };
 }
 
-// 今日の体調: 体質の点数に、選んだ五行の2点を足して、今日のおすすめの五行を決める(DB の _cc_focus と同じ)
-export function conditionFocus(scores, { temp, energy, concern }, dateStr) {
-  const t = { ...scores };
-  for (const [q, v] of [[0, temp], [1, energy], [2, concern]]) {
-    const el = CONDITION_QUESTIONS[q].options.find((o) => o.value === v)?.element;
-    if (el) t[el] += 2;
-  }
-  return pickElement(t, seasonElement(dateStr));
+// あなたの体質(DB の _cc_avg_result と同じ。db/107): 五行ごとの合計 sums(回数 n 回分)→ 平均(小数2桁)・主なタイプ・バランス良好。
+//   比べるのは合計(回数が同じなので平均と同じ順・端数の誤差なし)。同点は season(平均に入れた回のうち最新の回の季節の五行)を優先。平均がすべて1点以下ならバランス良好
+const round2 = (x) => Math.round(x * 100) / 100;
+export function averageResult(sums, n, season) {
+  if (!Number.isInteger(n) || n < 1 || !sums || !ELEMENTS.every((e) => Number.isInteger(sums[e]))) return null;
+  return { count: n, scores: Object.fromEntries(ELEMENTS.map((e) => [e, round2(sums[e] / n)])), primary: pickElement(sums, season),
+           balanced: Math.max(...ELEMENTS.map((e) => sums[e])) <= n };
+}
+export const PROFILE_CHECKS = 3;
+// checks: 新しい順の結果 [{ scores, seasonElement }, …] → 最新の3回(3回未満ならその回数)の averageResult。0回は null
+export function profileOf(checks) {
+  const l = (Array.isArray(checks) ? checks : []).slice(0, PROFILE_CHECKS); if (!l.length) return null;
+  const sums = Object.fromEntries(ELEMENTS.map((e) => [e, l.reduce((a, c) => a + c.scores[e], 0)]));
+  return averageResult(sums, l.length, l[0].seasonElement);
 }
 
 // 五巡茶の日替わり(DB の _tea_of_day と同じ)

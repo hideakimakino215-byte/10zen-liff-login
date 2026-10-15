@@ -79,11 +79,26 @@ export const CHECK_NAME = "1分体質チェック";
 export const DISCLAIMER = "体質の傾向の目安で、医療的な診断ではありません";
 export const NIHONDO_LEAD = "もっと詳しく知りたい方は、薬日本堂の漢方相談へ";
 export const NIHONDO_BUTTON = "薬日本堂の漢方相談へ";
-export const SEASON_PROMPT = "季節が変わりました。体質チェックをもう一度";
 export const yourTeaDayText = (weekday) => `${weekday}はあなたのお茶の日`;
 
 // 文案(牧野さん承認 2026-10-15・薬日本堂の表現チェック前): 同意の文。設計書 7章の「結果を会員証に記録し、おすすめとお店の改善に使います」は、言葉づかいのきまり(「改善」を使わない)に合わせて言い換えた
 export const CONSENT_TEXT = "結果を会員証に記録し、おすすめとお店づくりに役立てます。";
 // 文案(確認前): 画面の案内
 export const INTRO_TEXT = "15問とその日の食事の気分で、いまの体質の傾向がわかります(約1分)。";
-export const CONDITION_INTRO = "今日の体調(約10秒)";
+
+// ---- 来店のたびのチェック(2026-10-15 牧野さんの決定。db/107) ----
+// 決まった言葉(決定のとおり): 見出し・スキップのボタン・結果の2つの層の名前
+export const TODAY_CHECK_TITLE = "今日の1分体質チェック";
+export const TODAY_SKIP = "今日はスキップ";
+export const TODAY_LABEL = "今日の傾向";
+export const PROFILE_LABEL = "あなたの体質";
+// 文案(確認前): 会員証の案内・ボタン・結果の説明
+export const TODAY_CHECK_TEXT = "来店のたびにチェックすると、最近3回の平均で「あなたの体質」がわかります(任意・約1分)。";
+export const TODAY_START = "今日のチェックをはじめる";
+export const HISTORY_LABEL = "これまでのチェック";
+export const latestLabel = (dateText) => `前回の傾向(${dateText})`;
+export function profileBasisText(count) {
+  if (count >= 3) return "最近3回のチェックの平均です";
+  if (count === 2) return "2回分のチェックの平均です(3回分そろうと、最近3回の平均になります)";
+  return "1回分のチェックの結果です(来店のたびにチェックすると、最近3回の平均になります)";
+}
