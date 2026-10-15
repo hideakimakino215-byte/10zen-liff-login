@@ -10,7 +10,7 @@
 | `functions/backup-export` | バックアップの書き出し(合言葉は既存の秘密から計算) |
 | `app-core` | 見た目に依存しないクライアントと画面の状態(UI はこれを使う) |
 | `app-reference` | 参照実装の画面(`card.html` お客様 / `staff.html` スタッフ / `qr.html` 店頭タブレット専用)。見た目は最小限。最終UIはここを差し替える |
-| `gas_backup` | 毎日のバックアップ(Google Apps Script)とそのテスト。`watchdog.gs` はバックアップが止まったらメールで知らせる見張り役(別プロジェクトに置く。手順は `WATCHDOG_SETUP.md`) |
+| `gas_backup` | 毎日のバックアップ(Google Apps Script)とそのテスト。`watchdog.gs` はバックアップが止まったらメールで知らせる見張り役(別プロジェクトに置く。手順は `WATCHDOG_SETUP.md`)。`monthly_report.gs` は同じ見張り役のプロジェクトに置く月次レポート(毎月1日に前の月の集計をメール。設計は `REFERRAL_AND_REPORT_DESIGN_20261015.md`) |
 | `gas_freeze` | 切替日に旧GASの書込みを止める部品(所有者のみ実行可)と、公開関数の確認テスト |
 | `gas_sync` | GAS から Supabase への同期(v6: `notifyNexto_` に改名、手動実行の関数は所有者のみ) |
 | `patches`, `db/000`, `db/003` | テスト用の部品(使い捨て PostgreSQL ハーネス、JWT/LINE のスタブ、既存スキーマの再現)と、DB のテスト |
