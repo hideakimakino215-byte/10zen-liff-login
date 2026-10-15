@@ -9,7 +9,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { decodeBytes, detectDelimiter, parseDelimited, parseDate, parseCount, detectColumns, analyzePosFile, summarize, rowsForImport, chunk, MAX_ROWS_PER_CALL, ERRORS, SKIP_REASONS } from "./pos-import.mjs";
+import { decodeBytes, detectDelimiter, parseDelimited, parseDate, parseCount, detectColumns, analyzePosFile, summarize, rowsForImport, chunk, MAX_ROWS_PER_CALL, ERRORS, SKIP_REASONS,
+         MAX_CUSTOMERS_PER_DAY, MAX_FILE_BYTES, invalidImportRows } from "./pos-import.mjs";
 import { KPI_DEFS, statusOf, parseTargetInput, fmtValue, milestoneLabel } from "./kpi.mjs";
 import { createStaffClient, mapError } from "./staff-client.mjs";
 import { startPg, q } from "../patches/pgdb.mjs";
@@ -86,7 +87,7 @@ ok("文字コードと区切り: UTF-8(BOM あり/なし)・カンマ・CRLF・�
   assert.deepEqual(parseDelimited('"a ""q""",b\r\n"1,2",3\n\n', ","), [['a "q"', "b"], ["1,2", "3"]]);
   const fut = analyzePosFile(Buffer.from("日付,客数\n2026-05-01,3\n2026-05-03,4\n"), { today: "2026-05-02" });
   assert.deepEqual(fut.days.map((d) => d.date), ["2026-05-01"]); assert.deepEqual(fut.skipped.map((x) => [x.reason, x.date]), [["future_date", "2026-05-03"]]);
-  assert.ok(Object.keys(SKIP_REASONS).length === 5); }
+  assert.ok(Object.keys(SKIP_REASONS).length === 6); }
 ok("列の選び方: 日付・客数の見出しの言葉(英語も)で自動で選び、前年などは選ばない。選べないときはエラーを返し、列を選び直すと読める。説明の行の後の見出しも見つける。日付(YYYYMMDD・曜日つき・年月日・全角)と客数(カンマ・人・全角)の読み方。今日より後の日付は飛ばす");
 
 // ---- 5. KPI の画面用の定義 ----
@@ -141,5 +142,35 @@ try {
   assert.deepEqual(await mgr.setPosMonthly("2026-13", 1), { kind: "invalid", code: "invalid_month" });
   assert.equal((await viewer.setLaunchDate(null)).kind, "forbidden"); assert.equal((await mgr.kpiOverview(1)).data.launchDate, "2026-10-10");
   ok("クライアント → DB: 400行を超える取り込みは400行ごとに分けて送り(449行=2回)、取り込み直しは上書き。不正な行は取り込まない(送れた行数を返す)。閲覧は見るだけ・スタッフは集計も拒否。本番開始日・目標・月の客数を店長が変えられる");
+
+  // ---- 7. 上限を DB と揃える(監査 L-5): 1日の客数の上限・ファイルの大きさ・送る前の確認・途中の回で失敗したときの報告 ----
+  { assert.equal(MAX_CUSTOMERS_PER_DAY, 100000); assert.equal(MAX_FILE_BYTES, 5 * 1024 * 1024);
+    const big = analyzePosFile(Buffer.from("日付,客数\n2026-05-01,100000\n2026-05-02,100001\n2026-05-03,\"1,234,567\"\n2026-05-04,12\n"));
+    assert.equal(big.ok, true); assert.deepEqual(big.days.map((d) => [d.date, d.customers]), [["2026-05-01", 100000], ["2026-05-04", 12]]);   // 上限ちょうどは読む
+    assert.deepEqual(big.skipped.map((x) => [x.reason, x.date]), [["over_limit", "2026-05-02"], ["over_limit", "2026-05-03"]]);
+    assert.ok(SKIP_REASONS.over_limit.includes("100,000"), SKIP_REASONS.over_limit);
+    assert.ok(!rowsForImport(big.days, new Set(big.days.map((d) => d.date))).some((x) => x.customers > MAX_CUSTOMERS_PER_DAY));        // 印を付けて含めても上限超えは送らない
+    const huge = analyzePosFile(new Uint8Array(MAX_FILE_BYTES + 1)); assert.deepEqual([huge.ok, huge.error], [false, "too_large"]); assert.match(ERRORS.too_large, /5MB まで/);
+    assert.deepEqual(invalidImportRows([{ date: "2026-05-01", customers: 0 }, { date: "2026-05-02", customers: 100000 }]), []);
+    assert.deepEqual(invalidImportRows([{ date: "2026-05-01", customers: 100001 }, { date: "2026/05/02", customers: 1 }, { date: "2026-05-03", customers: 1.5 }, { date: "2026-05-04", customers: -1 }]).map((x) => [x.index, x.reason]),
+      [[0, "invalid_customers"], [1, "invalid_date"], [2, "invalid_customers"], [3, "invalid_customers"]]); }
+  { const calls0 = ms.calls.length;
+    const pre = await mgr.importPosCustomers([{ date: "2021-01-01", customers: 5 }, { date: "2021-01-02", customers: 100001 }], "over.csv");
+    assert.deepEqual([pre.kind, pre.code, pre.sent, pre.saved, pre.bad.map((x) => x.date)], ["invalid", "invalid_customers", 0, 0, ["2021-01-02"]]);
+    assert.equal(ms.calls.length, calls0);                                                                                   // 1行でも上限を超えていれば何も送らない
+    const cnt = () => Number(pg.exec(`select count(*) from pos_daily_customers where business_date between '2021-01-01' and '2023-12-31';`));
+    assert.equal(cnt(), 0);
+    // 3回に分けて送るうちの2回目に DB が拒否する行(未来の日付)を入れる → 1回目の400行だけが保存され、どの回で止まったかを返す
+    const rows = Array.from({ length: 900 }, (_, i) => ({ date: new Date(Date.UTC(2021, 0, 1) + i * 86400e3).toISOString().slice(0, 10), customers: 30 }));
+    rows[450] = { date: "2099-01-01", customers: 30 };
+    const r2 = await mgr.importPosCustomers(rows, "chunks.csv");
+    assert.deepEqual([r2.kind, r2.code, r2.failedChunk, r2.chunks, r2.saved, r2.sent], ["invalid", "invalid_date", 2, 3, 400, 400]);
+    assert.deepEqual(r2.failedRange, { from: rows[400].date, to: rows[799].date });
+    assert.equal(ms.calls.length, calls0 + 2);                                                                               // 3回目は送らない
+    assert.equal(cnt(), 400); assert.equal(pg.exec(`select max(business_date)::text from pos_daily_customers where business_date between '2021-01-01' and '2023-12-31';`), rows[399].date);
+    // 直して押し直すと、続きも入る(1回目の分は同じ値)
+    rows[450] = { date: new Date(Date.UTC(2021, 0, 1) + 450 * 86400e3).toISOString().slice(0, 10), customers: 30 };
+    const r3 = await mgr.importPosCustomers(rows, "chunks.csv"); assert.deepEqual(r3.data, { inserted: 500, updated: 0, unchanged: 400, calls: 3 }); assert.equal(cnt(), 900); }
+  ok("上限を DB と揃える: 1日の客数が 100,000 人を超える日は読み取りの時点で理由つきで飛ばし(印を付けても送らない)、5MB を超えるファイルは読まない。送る前にも全行を確かめ、1行でも違えば何も送らない。途中の回で DB が拒否したら、何回目(全部で何回)・その回の日付の範囲・保存済みの行数を返し、その回の行は1行も入らない。直して押し直すと続きが入る");
 } finally { pg.stop(); }
 console.log(`\n${n} pos-import tests passed`);

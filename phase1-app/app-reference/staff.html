@@ -282,7 +282,7 @@ import { createStaffClient, redeemReduce, redeemInitial } from "../app-core/staf
 import { ELEMENTS, ELEMENT_INFO, BALANCED_NAME, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, ELEMENT_SOFT_COLORS, NEUTRAL_COLOR } from "../app-core/constitution.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
 import { KPI_DEFS, KPI_BY_CODE, MILESTONES, statusOf, STATUS_LABELS, parseTargetInput, fmtValue, milestoneLabel } from "../app-core/kpi.mjs";
-import { analyzePosFile, summarize, rowsForImport, SKIP_REASONS, ERRORS as POS_ERRORS, ENCODING_LABELS, OUTLIER_FACTOR } from "../app-core/pos-import.mjs";
+import { analyzePosFile, summarize, rowsForImport, SKIP_REASONS, ERRORS as POS_ERRORS, ENCODING_LABELS, OUTLIER_FACTOR, MAX_FILE_BYTES } from "../app-core/pos-import.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 const put = (parent, ...kids) => { parent.append(...kids); return parent; };
@@ -858,14 +858,20 @@ function posImportBox(getData, refresh, say, errText) {
       go.disabled = true; say(o, "", "取り込んでいます…");
       const x = await staff.importPosCustomers(rows, name);
       go.disabled = false;
-      if (x.kind !== "ok") return say(o, "bad", x.sent > 0 ? `${x.sent} 日分まで取り込んだところで止まりました。もう一度押すと続きを取り込みます(同じ日付は上書き): ${errText(x)}` : `取り込めませんでした: ${errText(x)}`);
+      if (x.kind !== "ok") {   // 失敗した回の行は1行も保存されない(DB が回ごとにまとめて拒否)。前の回までの分(saved)は保存済み
+        if (x.failedChunk > 1) return say(o, "bad", `${x.chunks} 回に分けて送るうちの ${x.failedChunk} 回目(${x.failedRange.from}〜${x.failedRange.to})で止まりました。それより前の ${x.saved} 日分は保存済みです。もう一度押すと続きを取り込みます(同じ日付は上書き): ${errText(x)}`);
+        if (x.bad?.length) return say(o, "bad", `取り込めませんでした(何も保存していません): 日付か客数が決まりに合わない日が ${x.bad.length} 日あります(例: ${x.bad[0].date ?? "日付なし"})`);
+        return say(o, "bad", `取り込めませんでした(何も保存していません): ${errText(x)}`);
+      }
       say(o, "ok", `取り込みました: 新しい日 ${x.data.inserted} 日・値を上書きした日 ${x.data.updated} 日・同じ値 ${x.data.unchanged} 日`);
       await refresh(); draw();
     };
     prev.append(go);
     draw();
   };
-  file.onchange = async () => { const f = file.files?.[0]; mapping = null; bytes = null; name = ""; if (!f) return analyze(); name = f.name; bytes = new Uint8Array(await f.arrayBuffer()); analyze(); };
+  file.onchange = async () => { const f = file.files?.[0]; mapping = null; bytes = null; name = ""; if (!f) return analyze();
+    if (f.size > MAX_FILE_BYTES) { analyze(); prev.append(msgBox("bad", POS_ERRORS.too_large, "posError")); return; }   // 大きすぎるファイルは読み込まない
+    name = f.name; bytes = new Uint8Array(await f.arrayBuffer()); analyze(); };
   return put(el("section", undefined, { class: "kpi-sec admin", id: "kpiImport" }), el("h2", "レジの客数の取り込み(店長のみ)"),
     el("p", "レジから書き出した CSV(日別の客数があるもの)を選びます。日付と客数の列を自動で探します。取り込む前に、月・日数・客数の合計・読み飛ばした行・確かめてほしい日(客数0、そのファイルの中央値の3倍を超える日)を確認できます", { class: "hint" }),
     file, prev, o);
