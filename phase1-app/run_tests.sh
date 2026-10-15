@@ -33,7 +33,7 @@ run patches test_kpi.mjs 10
 run patches test_referral.mjs 12
 run patches test_constitution_each_visit.mjs 7
 run patches test_restore_old_backup.mjs 6
-run patches test_audit_fixes.mjs 3
+run patches test_audit_fixes.mjs 5
 run functions/member-api test.mjs 19
 run app-core test.mjs 10
 run app-core test_store_info.mjs 3
@@ -53,6 +53,6 @@ run gas_freeze test_codegs_edits.mjs 6
 run gas_freeze test_admin_stop.mjs 5
 run gas_freeze test_freeze.mjs 7 skip-ok
 echo "合格 ${TOTAL} 件 / 失敗したスイート ${FAILED} 件 / SKIP ${SKIPPED} 件"
-# 合格が想定より少ない(全体が SKIP・0件など)場合も失敗。freeze の7件を除く最小は 266(ランク特典で +20、1分体質チェックで +19、体質と会員の紐づけ・五行の色で +8、目標とKPI で +18、友だち紹介と月次レポートで +28、体質チェックを来店のたびに(任意)で +8、102 より前のバックアップの復元(監査 M-1)で +6、停止中の会員のコード(監査 L-1)で +3)
-if [ "$TOTAL" -lt 266 ]; then echo "!! 合格件数が足りません(${TOTAL} < 266)"; FAILED=$((FAILED + 1)); fi
+# 合格が想定より少ない(全体が SKIP・0件など)場合も失敗。freeze の7件を除く最小は 268(ランク特典で +20、1分体質チェックで +19、体質と会員の紐づけ・五行の色で +8、目標とKPI で +18、友だち紹介と月次レポートで +28、体質チェックを来店のたびに(任意)で +8、102 より前のバックアップの復元(監査 M-1)で +6、停止中の会員のコード(監査 L-1)で +3、五巡茶の出し方の区分と凍結(監査 L-2)で +2)
+if [ "$TOTAL" -lt 268 ]; then echo "!! 合格件数が足りません(${TOTAL} < 268)"; FAILED=$((FAILED + 1)); fi
 [ "$FAILED" -eq 0 ]

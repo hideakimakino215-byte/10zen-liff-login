@@ -1,9 +1,10 @@
 // 監査 AUDIT_20261015.md の低の指摘への修正(db/109・db/110)を、実 PostgreSQL 16 で検証する。本番には接続しない。データはすべて擬似。
 //   L-1(109): コードを出した後に停止された会員の特典チケット・ポイント使用は、スタッフが確定できない(member_inactive・申請は取り消し)
+//   L-2(110): ディナーの五巡茶の出し方の切り替えは、いまの状態の区分の会員のチケットだけ名前を変え、凍結中は止まる
 // 実行: node --experimental-strip-types test_audit_fixes.mjs
 import { startPg, q } from "./pgdb.mjs";
 import assert from "node:assert/strict";
-import { redeemReduce } from "../app-core/staff-client.mjs";
+import { redeemReduce, mapError } from "../app-core/staff-client.mjs";
 
 const pg = startPg();
 let n = 0; const ok = (m) => console.log(`ok - ${++n} ${m}`);
@@ -90,6 +91,48 @@ try {
     assert.equal(Number(val(`select balance from members where member_no=${q(B)};`)), bal0 - 300);
     assert.equal(Number(val(`select count(*) from public.verify_balances();`)), 0); }
   ok("ポイント使用も同じ: 停止中・退会の会員のコードは member_inactive(申請は取り消し・残高と台帳は変わらない・監査ログに理由)。有効な会員は従来どおり確定でき、残高=台帳");
+
+  // ---- L-2. 110: 五巡茶の出し方は、いまの状態の区分だけ・凍結中は止める ----
+  const before110 = defs(["manager_set_dinner_tea_mode"]), TEA = "public.manager_set_dinner_tea_mode(text)";
+  pg.loadFile("110_dinner_tea_mode_partition.sql");
+  const after110 = defs(["manager_set_dinner_tea_mode"]); assert.notEqual(after110, before110);
+  assert.deepEqual(["anon", "authenticated", "service_role"].map((r) => ex(r, TEA)), ["f", "t", "f"]);
+  pg.loadFile("110_dinner_tea_mode_partition_DOWN.sql"); assert.equal(defs(["manager_set_dinner_tea_mode"]), before110);
+  assert.deepEqual(["anon", "authenticated", "service_role"].map((r) => ex(r, TEA)), ["f", "t", "f"]);
+  pg.loadFile("110_dinner_tea_mode_partition.sql"); assert.equal(defs(["manager_set_dinner_tea_mode"]), after110);
+  ok("110 の適用: 五巡茶の出し方の関数だけを置き換え、権限はそのまま(ログイン済みだけ。関数の中で店長を確認)。DOWN で 106 の内容と権限に正確に戻り、再適用もできる");
+
+  { // 本番の会員 P と試験会員 T に、紹介のチケット(まだ使っていないもの・使用済み)を用意する
+    val(`update system_state set state='open';`); const P = reg(sub("p"), "本番 会員");
+    SVC(`select public.allow_test_identity(${q(ISS)}, ${q(sub("t"))}, '試験');`); val(`update system_state set state='test';`); const T = reg(sub("t"), "試験 会員");
+    assert.equal(val(`select is_test from members where member_no=${q(T)};`), "t"); assert.equal(val(`select is_test from members where member_no=${q(P)};`), "f");
+    const CUP = "お友だち紹介・ディナーの五巡茶 1杯", FREE = "お友だち紹介・ディナーの五巡茶 飲み放題";
+    const add = (no, used) => val(`insert into perk_tickets(member_id, type_code, kind, title, issued_at, expires_at, used_at, used_by)
+      values (${q(idOf(no))}, 'referral_tea', 'referral', ${q(CUP)}, now(), now() + interval '60 days', ${used ? "now()" : "null"}, ${used ? q(STAFF.staff) : "null"}) returning id;`);
+    const tk = { p: add(P, false), pUsed: add(P, true), t: add(T, false), tUsed: add(T, true) };
+    const titles = () => Object.fromEntries(Object.entries(tk).map(([k, id]) => [k, val(`select title from perk_tickets where id=${q(id)};`)]));
+    const setTea = (mode) => j(AS(STAFF.mgr, `select public.manager_set_dinner_tea_mode(${q(mode)});`));
+    const setting = () => val(`select value from app_settings where key='dinner_tea_mode';`);
+
+    // 試験運用中: 試験会員のまだ使っていないチケットだけ。本番の会員のチケットは変わらない
+    let r = setTea("free_flow"); assert.deepEqual([r.status, r.mode, r.retitled], ["ok", "free_flow", 1]);
+    assert.deepEqual(titles(), { p: CUP, pUsed: CUP, t: FREE, tUsed: CUP }); assert.equal(setting(), "free_flow");
+    assert.equal(val(`select meta->>'test' from audit_log where action='dinner_tea_mode' order by id desc limit 1;`), "true");
+    // 凍結中: 止める(設定もチケットも変えない)。画面には maintenance として伝わる
+    val(`update system_state set state='frozen';`);
+    fails(() => setTea("cup"), /maintenance/); assert.equal(setting(), "free_flow"); assert.deepEqual(titles(), { p: CUP, pUsed: CUP, t: FREE, tUsed: CUP });
+    try { setTea("cup"); } catch (e) { assert.deepEqual(mapError({ message: e.message }), { kind: "maintenance" }); }
+    // 本番開始の後: 同じ出し方でもう一度保存すると本番の会員のチケットが揃う。試験会員のチケットには触れない
+    val(`update system_state set state='open';`);
+    r = setTea("free_flow"); assert.equal(r.retitled, 1); assert.deepEqual(titles(), { p: FREE, pUsed: CUP, t: FREE, tUsed: CUP });
+    r = setTea("cup"); assert.equal(r.retitled, 1); assert.deepEqual(titles(), { p: CUP, pUsed: CUP, t: FREE, tUsed: CUP });
+    assert.equal(val(`select meta->>'test' from audit_log where action='dinner_tea_mode' order by id desc limit 1;`), "false");
+    assert.equal(val(`select label from perk_ticket_types where code='referral_tea';`), "ディナーの五巡茶 1杯");
+    // 権限は従来どおり: 店長だけ。不正な値は invalid_mode
+    fails(() => AS(STAFF.staff, `select public.manager_set_dinner_tea_mode('cup');`), /forbidden/);
+    fails(() => AS(STAFF.viewer, `select public.manager_set_dinner_tea_mode('cup');`), /forbidden/);
+    fails(() => setTea("bottle"), /invalid_mode/); }
+  ok("五巡茶の出し方: 試験運用中は試験会員のまだ使っていないチケットだけ名前を変え、本番の会員のチケットは変えない(監査ログに区分)。凍結中は maintenance で止まり、設定もチケットも変わらない(画面には maintenance)。本番開始の後にもう一度保存すると本番の会員のチケットが揃う。使用済みは当時の名前のまま。店長以外は従来どおり拒否");
 
   console.log(`\n${n} audit fix tests passed`);
 } finally { pg.stop(); }

@@ -571,7 +571,7 @@ function teaModeBox(d) {
   const b = el("button", "保存", { id: "teaModeSave", class: "btn sub" }), o = el("p", "", { id: "teaModeOut", role: "status" }), cur = el("p", `いまのチケットの名前: ${d.ticketLabel ?? DASH}`, { class: "hint", id: "teaModeLabel" });
   b.onclick = async () => {
     b.disabled = true; const x = await staff.setDinnerTeaMode(sel.value); b.disabled = false;
-    if (x.kind !== "ok") { o.className = "c-bad"; o.textContent = x.kind === "forbidden" || x.kind === "not_staff" ? "この操作の権限がありません" : x.kind === "invalid" ? "選び直してください" : "通信できませんでした。もう一度押してください"; return; }
+    if (x.kind !== "ok") { o.className = "c-bad"; o.textContent = x.kind === "forbidden" || x.kind === "not_staff" ? "この操作の権限がありません" : x.kind === "invalid" ? "選び直してください" : x.kind === "maintenance" ? "停止中(凍結中)のため変更できません" : "通信できませんでした。もう一度押してください"; return; }
     o.className = "c-ok"; o.textContent = `保存しました: ${x.data.label}(まだ使っていない紹介のチケット ${n(x.data.retitled)} 枚の名前も変えました)`; cur.textContent = `いまのチケットの名前: ${x.data.label}`;
   };
   return put(el("section", undefined, { class: "panel", id: "teaModeBox" }), el("h3", "お友だち紹介のチケット(店長のみ)"),

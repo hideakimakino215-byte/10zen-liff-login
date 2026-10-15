@@ -5,6 +5,7 @@ export function mapError(err) {
   if (/too_many_attempts/.test(msg)) return { kind: "locked" };
   if (/not_staff/.test(msg)) return { kind: "not_staff" };
   if (/forbidden/.test(msg) || /permission denied/.test(msg)) return { kind: "forbidden" };
+  if (/\bmaintenance\b/.test(msg)) return { kind: "maintenance" };                         // 凍結中など、いまの状態では書き込めない(再試行しても変わらない)
   if (/reason_required/.test(msg)) return { kind: "invalid", code: "reason_required" };
   if (/invalid_points|invalid_key/.test(msg)) return { kind: "invalid", code: msg.match(/invalid_\w+/)[0] };
   // 目標と KPI(db/105)の入力の誤り: 取り込みの行・日付・客数・月・目標・KPI・段階
