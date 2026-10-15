@@ -238,7 +238,7 @@ try {
   const [popup] = await Promise.all([cc.waitForEvent("popup"), cc.click("#ccNihondo")]); await popup.close();
   for (let i = 0; i < 50 && pg.exec(`select count(*) from constitution_referral_clicks where member_id=${ccMember};`) !== "1"; i++) await new Promise((r) => setTimeout(r, 100));
   assert.equal(pg.exec(`select count(*) from constitution_referral_clicks where member_id=${ccMember};`), "1");
-  await cc.click("#ccToCard"); await cc.waitForSelector("#ccEntry"); assert.equal(await text(cc, "#ccEntry"), "結果を見る");
+  await cc.click("#ccToCard"); await cc.waitForSelector("#ccEntry"); assert.equal(await text(cc, "#ccEntry"), "体質の結果と推移を見る");
   assert.match(await text(cc, "#ccTodayTea"), /今日の五巡茶: 五巡茶/); assert.equal(await cc.locator("#ccTodayPrompt").count(), 0);
   assert.equal(await text(cc, "#ccToday"), "今日の傾向: モヤモヤ渋滞タイプ"); assert.match(await text(cc, "#ccProfile"), /^あなたの体質: モヤモヤ渋滞タイプ/);
   assert.match(await text(cc, "#ccTodayDish"), /^今日のおすすめ: \(仮\)/);

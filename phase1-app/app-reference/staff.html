@@ -141,6 +141,11 @@ h1,h2,h3{margin:0}
 .stat .k{font-size:13px;color:var(--muted);font-weight:700}
 .stat .v{font-size:32px;font-weight:900;line-height:1.15;overflow-wrap:anywhere}
 .stat .v small{font-size:14px;font-weight:700;color:var(--muted);margin-left:4px}
+.stat.visit-rate{background:linear-gradient(135deg,#fff3dc,#fffaf0);border:2px solid #d98a1f;padding:20px 22px}
+.stat.visit-rate .k{font-size:15px;color:#9a5a0c}
+.stat.visit-rate .v{font-size:56px;color:#b5650f}
+.stat.visit-rate .v small{font-size:20px;color:#9a5a0c}
+.stat.visit-rate .hint{font-size:14px;color:#7a5a2e}
 .stat.t .v{color:var(--teal)} .stat.p .v{color:var(--purple)} .stat.o .v{color:var(--orange)} .stat.b .v{color:var(--blue)}
 #exportBox{--c:var(--blue);border-color:var(--blue)}
 /* 友だち紹介(集計の中。紫=会員の色) */
@@ -257,6 +262,7 @@ h1,h2,h3{margin:0}
   .card .go{grid-column:2/-1}
   .stats,.stats.three{grid-template-columns:repeat(2,minmax(0,1fr))}
   .stat .v{font-size:26px}
+  .stat.visit-rate .v{font-size:44px}
   .title{font-size:22px}
   #code{font-size:26px}
   #lookup{width:100%}
@@ -607,13 +613,14 @@ async function constitutionView() {
   if (d.scope === "full") {
     const ref = put(el("div", undefined, { class: "stat b", id: "ccReferral" }), el("div", "「薬日本堂の漢方相談へ」が押された数", { class: "k" }),
       put(el("div", n(d.referralClicks?.total), { class: "v num" }), el("small", `回(今月 ${n(d.referralClicks?.thisMonth)} 回)`)));
-    nodes.push(put(el("div", undefined, { class: "stats", id: "ccReach" }), ccStat("g", "実施した人数", d.checkedMembers, "人"), ccStat("g", "実施率(有効会員のうち)", d.checkRatePercent, "%", "ccRate"),
-      ccStat("p", "有効会員数", d.membersActive, "人"), ref));
+    // 来店時の実施率は、毎回チェックの定着を見るいちばん大事な数字なので、先頭に大きく出す(牧野さん 2026-10-15)
     // 来店時の実施率(今月・日本時間): 会員の来店日のうち、同じ日に体質チェックをした日の割合(db/107)
     const vc = d.visitCheckRate || {};
-    nodes.push(put(el("div", undefined, { class: "stat g", id: "ccVisitRate" }), el("div", `来店時の実施率(${vc.month ?? "今月"})`, { class: "k" }),
+    nodes.push(put(el("div", undefined, { class: "stat visit-rate", id: "ccVisitRate" }), el("div", `来店時の実施率(${vc.month ?? "今月"})`, { class: "k" }),
       put(el("div", n(vc.ratePercent), { class: "v num" }), el("small", "%")),
       el("p", `会員の来店 ${n(vc.visitDays)} 日のうち、同じ日にチェックした日 ${n(vc.checkedVisitDays)} 日`, { class: "hint num" })));
+    nodes.push(put(el("div", undefined, { class: "stats", id: "ccReach" }), ccStat("g", "実施した人数", d.checkedMembers, "人"), ccStat("g", "実施率(有効会員のうち)", d.checkRatePercent, "%", "ccRate"),
+      ccStat("p", "有効会員数", d.membersActive, "人"), ref));
     const types = bars([...ELEMENTS.map((e) => ({ k: [elKanji(e), ` ${ELEMENT_INFO[e].typeName}`], v: d.byType?.[e], el: e })), { k: BALANCED_NAME, v: d.byType?.balanced, el: null }], "ccTypes");
     const avg = d.averages ? radarSvg(document, d.averages, { labels: Object.fromEntries(ELEMENTS.map((e) => [e, ELEMENT_INFO[e].kanji])), max: 6, id: "ccAvgRadar", title: "五行ごとの平均(0〜6)",
       valueText: (x) => (typeof x === "number" ? Number(x).toFixed(1) : DASH), ...RADAR_COLORS }) : el("p", "まだ実施した人がいません", { class: "hint", id: "ccAvgRadar" });

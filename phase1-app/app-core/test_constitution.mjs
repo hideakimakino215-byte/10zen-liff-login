@@ -228,7 +228,7 @@ try {
                   { checkedOn: "2026-09-01", primary: "water", balanced: true, scores: {} }, { checkedOn: "2026-08-01", primary: "nope", balanced: false }];
     const card = (over) => constitutionCardView({ ...base, constitution: c, constitutionProfile: pf, constitutionHistory: hist, constitutionConsent: true, todayTea: "metal", yourTea: "water", season, visitedToday: true, ...over }, t);
     const done = card({});
-    assert.equal(done.entryLabel, "結果を見る"); assert.equal(done.entryHref, "check.html?view=result"); assert.equal(done.startHref, "check.html?start=1");
+    assert.equal(done.entryLabel, "体質の結果と推移を見る"); assert.equal(done.entryHref, "check.html?view=result"); assert.equal(done.startHref, "check.html?start=1");
     assert.equal("seasonPrompt" in done, false); assert.equal("needsCondition" in done, false); assert.equal("condition" in done, false);   // 季節の案内・今日の体調はやめた
     assert.equal(done.todayPrompt, true); assert.equal(done.todayStr, "2026-10-16"); assert.equal(done.checkedToday, false); assert.equal(done.latestLabel, "前回の傾向(10/10)");
     assert.equal(done.result.typeName, "うるおい不足タイプ"); assert.equal(done.result.typeLine, CT.TYPE_LINES.metal);                 // 今日の傾向(最新の結果)

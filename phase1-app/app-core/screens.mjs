@@ -184,7 +184,7 @@ export function constitutionCardView(member, nowMs = Date.now()) {
   const result = c ? constitutionResultView(c, ctx) : null;
   return {
     done: !!c,
-    entryLabel: c ? "結果を見る" : CHECK_NAME,
+    entryLabel: c ? "体質の結果と推移を見る" : CHECK_NAME,
     entryHref: c ? "check.html?view=result" : "check.html",
     startHref: "check.html?start=1",
     consented: !!member.constitutionConsent,
