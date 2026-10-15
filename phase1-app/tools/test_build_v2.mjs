@@ -6,11 +6,11 @@ const out = fs.mkdtempSync(path.join(os.tmpdir(), "v2-"));
 const KEY = "sb_publishable_" + "A".repeat(32);
 const lines = build({ liffId: "2011158053-ABCDEFGH", supabaseKey: KEY, out });
 const files = lines.map((l) => l.split("  ")[1]);
-for (const f of ["app-core/member-client.mjs", "app-core/screens.mjs", "app-core/staff-client.mjs", "app-reference/card.html", "app-reference/index.html", "app-reference/staff.html", "app-reference/qr.html", "app-reference/whoami.html", "app-reference/config.js", "app-reference/vendor/liff.js", "app-reference/vendor/supabase.js", "app-reference/vendor/qrcode.js", "robots.txt"]) assert.ok(files.includes(f), f);
+for (const f of ["app-core/member-client.mjs", "app-core/screens.mjs", "app-core/staff-client.mjs", "app-reference/card.html", "app-reference/check.html", "app-core/constitution.mjs", "app-core/constitution-content.mjs", "app-core/radar.mjs", "app-reference/index.html", "app-reference/staff.html", "app-reference/qr.html", "app-reference/whoami.html", "app-reference/config.js", "app-reference/vendor/liff.js", "app-reference/vendor/supabase.js", "app-reference/vendor/qrcode.js", "robots.txt"]) assert.ok(files.includes(f), f);
 assert.ok(!files.some((f) => /test/.test(f)));
-ok("配信物の構成: 3画面・クライアント・同梱ライブラリ・LIFF 読み込み・robots.txt。テストファイルは含まない");
+ok("配信物の構成: 画面(会員証・体質チェック・スタッフ・店頭QR)・クライアント・同梱ライブラリ・LIFF 読み込み・robots.txt。テストファイルは含まない");
 // すべての <script src> と import の参照先が存在する
-for (const html of ["card.html", "staff.html", "qr.html", "whoami.html"]) {
+for (const html of ["card.html", "check.html", "staff.html", "qr.html", "whoami.html"]) {
   const dir = path.join(out, "app-reference"); const t = fs.readFileSync(path.join(dir, html), "utf8");
   for (const m of t.matchAll(/<script src="([^"]+)"/g)) assert.ok(fs.existsSync(path.join(dir, m[1])), `${html}: ${m[1]}`);
   for (const m of t.matchAll(/from "([^"]+\.mjs)"/g)) assert.ok(fs.existsSync(path.resolve(dir, m[1])), `${html}: ${m[1]}`);
