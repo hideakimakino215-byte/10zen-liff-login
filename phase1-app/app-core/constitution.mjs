@@ -1,4 +1,4 @@
-// 1分体質チェックの判定(見た目に依存しない・依存なし)。設計: CONSTITUTION_CHECK_DESIGN_20261015.md
+// 1分体質チェックの判定(見た目に依存しない・依存なし。五行の色の定数だけは画面どうしで共有するためここに置く)。設計: CONSTITUTION_CHECK_DESIGN_20261015.md
 // 判定の正本は DB(db/103_constitution_check.sql の _cc_result / _cc_focus / _tea_of_day)。ここは表示とテストのための同じ決め方の写し。
 // 一致は app-core/test_constitution.mjs が多数の回答と日付で確かめる。お客様向けの説明文は constitution-content.mjs に分けている。
 export const ELEMENTS = ["wood", "fire", "earth", "metal", "water"];
@@ -12,6 +12,15 @@ export const ELEMENT_INFO = Object.freeze({
   water: { kanji: "水", organ: "腎", state: "陽虚(ようきょ)",        typeName: "ぽかぽかパワー不足タイプ" },
 });
 export const BALANCED_NAME = "バランス良好";
+
+// 五行の五色(2026-10-15 牧野さんの依頼「グラフが一色なので色つけて欲しい」)。白地で読みやすいように調整した色(金は白だと見えないので銀灰色)。
+// グラフ(棒・五角形の点)・タイプの印はすべてここから使う(スタッフ画面・体質チェックの結果)。app-core/test_constitution.mjs が色とコントラストを確かめる。
+//   ELEMENT_COLORS: 図形の色(棒・点・印の枠)。ELEMENT_TEXT_COLORS: 文字の色(白地・和紙色の地・ELEMENT_SOFT_COLORS の地で 4.5:1 以上になる濃いめの同系色)。
+//   ELEMENT_SOFT_COLORS: タイプの印の淡い地。NEUTRAL_COLOR: どの五行でもないもの(バランス良好・ふつう・元気・特になし)。金(銀灰色)と区別するため、棒は斜線にする
+export const ELEMENT_COLORS = Object.freeze({ wood: "#4f8a5b", fire: "#c2553f", earth: "#c39a2e", metal: "#8e99a6", water: "#2f3a56" });
+export const ELEMENT_TEXT_COLORS = Object.freeze({ wood: "#42744c", fire: "#ab4b37", earth: "#81661e", metal: "#616871", water: "#2f3a56" });
+export const ELEMENT_SOFT_COLORS = Object.freeze({ wood: "#e6efe8", fire: "#f6e7e4", earth: "#f7f1e2", metal: "#eff1f3", water: "#e2e3e7" });
+export const NEUTRAL_COLOR = "#b8bfc8";
 
 // 15問(設計書 3章の表のとおり。1〜3問=木、4〜6問=火、7〜9問=土、10〜12問=金、13〜15問=水)
 export const QUESTIONS = Object.freeze([
@@ -34,11 +43,11 @@ export const QUESTIONS = Object.freeze([
 export const ANSWER_OPTIONS = Object.freeze([{ value: 2, label: "よくある" }, { value: 1, label: "ときどき" }, { value: 0, label: "あまりない" }]);
 export const CONSENT_VERSION = "constitution_v1";
 
-// 今日の体調(1問1タップ。選んだ五行に2点を足す)。value は DB に送るコード
+// 今日の体調(1問1タップ。選んだ五行に2点を足す)。value は DB に送るコード。short はスタッフ画面の会員の詳細で1行にまとめるときの短い言葉
 export const CONDITION_QUESTIONS = Object.freeze([
-  { key: "temp", label: "今日のからだは?", options: [{ value: "cold", label: "冷えている", element: "water" }, { value: "hot", label: "ほてっている", element: "fire" }, { value: "normal", label: "ふつう", element: null }] },
-  { key: "energy", label: "今日の調子は?", options: [{ value: "tired", label: "疲れ・胃が重い", element: "earth" }, { value: "stress", label: "ストレス・張り", element: "wood" }, { value: "fine", label: "元気", element: null }] },
-  { key: "concern", label: "今日気になることは?", options: [{ value: "dry", label: "乾燥・のど", element: "metal" }, { value: "swelling", label: "むくみ・だるさ", element: "earth" }, { value: "none", label: "特になし", element: null }] },
+  { key: "temp", label: "今日のからだは?", options: [{ value: "cold", label: "冷えている", short: "冷えている", element: "water" }, { value: "hot", label: "ほてっている", short: "ほてっている", element: "fire" }, { value: "normal", label: "ふつう", short: "ふつう", element: null }] },
+  { key: "energy", label: "今日の調子は?", options: [{ value: "tired", label: "疲れ・胃が重い", short: "疲れ", element: "earth" }, { value: "stress", label: "ストレス・張り", short: "ストレス", element: "wood" }, { value: "fine", label: "元気", short: "元気", element: null }] },
+  { key: "concern", label: "今日気になることは?", options: [{ value: "dry", label: "乾燥・のど", short: "乾燥", element: "metal" }, { value: "swelling", label: "むくみ・だるさ", short: "むくみ", element: "earth" }, { value: "none", label: "特になし", short: "特になし", element: null }] },
 ]);
 
 // 五巡茶の曜日(曜日の名前どおり)。月曜・日曜は今の季節の五行

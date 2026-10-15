@@ -10,7 +10,7 @@ import { handle as memberApi } from "../functions/member-api/handler.ts";
 import { createMemberClient } from "./member-client.mjs";
 import * as CC from "./constitution.mjs";
 import * as CT from "./constitution-content.mjs";
-import { radarGeometry } from "./radar.mjs";
+import { radarGeometry, radarSvg } from "./radar.mjs";
 import { NIHONDO_CONSULT_URL } from "./store-info.mjs";
 import { cardScreen, memberView, constitutionCardView, constitutionResultView, checkSubmitScreen, conditionScreen } from "./screens.mjs";
 
@@ -130,6 +130,38 @@ try {
     assert.deepEqual([g.dots[4].x, g.dots[4].y], [g.axes[4].x, g.axes[4].y]); assert.deepEqual([g.dots[3].x, g.dots[3].y], [100, 100]);   // 上限で止める・null は 0
     assert.equal(g.rings.length, 3); assert.equal(g.polygon.split(" ").length, 5); }
   ok("五角形の座標: 木を上に時計回り(火・土・金・水)。6点で外周・0点で中心。範囲外は上限で止め、未取得は 0");
+
+  // ---- 4b. 五行の五色(グラフ・タイプの印)と五角形の色 ----
+  { assert.deepEqual(CC.ELEMENT_COLORS, { wood: "#4f8a5b", fire: "#c2553f", earth: "#c39a2e", metal: "#8e99a6", water: "#2f3a56" });   // 牧野さんの依頼(2026-10-15)の色
+    const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+    const lum = (h) => { const v = parseInt(h.slice(1), 16); return 0.2126 * lin(v >> 16) + 0.7152 * lin((v >> 8) & 255) + 0.0722 * lin(v & 255); };
+    const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    for (const e of CC.ELEMENTS) {
+      for (const map of [CC.ELEMENT_COLORS, CC.ELEMENT_TEXT_COLORS, CC.ELEMENT_SOFT_COLORS]) assert.match(map[e], /^#[0-9a-f]{6}$/, e);
+      // 文字の色: 白地・スタッフ画面の地・和紙色の地(体質チェック)・結果の詳細の強調の地・タイプの印の淡い地で 4.5:1 以上
+      for (const bg of ["#ffffff", "#f3f5f8", "#f7f4ee", "#fffefb", "#f3ebdd", CC.ELEMENT_SOFT_COLORS[e]]) assert.ok(contrast(CC.ELEMENT_TEXT_COLORS[e], bg) >= 4.5, `${e} on ${bg}: ${contrast(CC.ELEMENT_TEXT_COLORS[e], bg).toFixed(2)}`);
+    }
+    assert.equal(new Set(Object.values(CC.ELEMENT_COLORS)).size, 5); assert.ok(!Object.values(CC.ELEMENT_COLORS).includes(CC.NEUTRAL_COLOR));
+    // radarSvg: 色を渡すと点と軸の名前が五行の色(面は CSS のまま)。渡さなければ従来どおり。#rrggbb 以外の色は使わない
+    const fake = { createElementNS: (ns, tag) => ({ ns, tag, attrs: {}, kids: [], textContent: "", setAttribute(k, v) { this.attrs[k] = v; }, append(...k) { this.kids.push(...k); } }) };
+    const all = (n) => [n, ...n.kids.flatMap(all)];
+    const labels = Object.fromEntries(CC.ELEMENTS.map((e) => [e, CC.ELEMENT_INFO[e].kanji]));
+    const svg = radarSvg(fake, { wood: 1, fire: 2, earth: 3, metal: 4, water: 5 }, { labels, dotColors: CC.ELEMENT_COLORS, labelColors: { ...CC.ELEMENT_TEXT_COLORS, metal: "red;x:1" } });
+    const nodes = all(svg); assert.ok(nodes.every((x) => x.ns === "http://www.w3.org/2000/svg"));
+    const dots = nodes.filter((x) => x.attrs.class === "radar-dot"), texts = nodes.filter((x) => x.attrs.class === "radar-label");
+    assert.deepEqual(dots.map((d) => d.attrs["data-element"]), CC.ELEMENTS); assert.deepEqual(texts.map((t) => t.textContent), ["木", "火", "土", "金", "水"]);
+    for (const d of dots) assert.match(d.attrs.style, new RegExp(`^fill:${CC.ELEMENT_COLORS[d.attrs["data-element"]]};`));
+    for (const t of texts) if (t.attrs["data-element"] !== "metal") assert.match(t.attrs.style, new RegExp(`^fill:${CC.ELEMENT_TEXT_COLORS[t.attrs["data-element"]]};`));
+    assert.equal(texts.find((t) => t.attrs["data-element"] === "metal").attrs.style, undefined);                       // 形の違う色は無視
+    assert.equal(nodes.find((x) => x.attrs.class === "radar-area").attrs.style, undefined);                               // 面は無彩色(CSS)
+    const plain = all(radarSvg(fake, { wood: 1 }, { labels })); assert.ok(plain.every((x) => x.attrs.style === undefined));
+    // 画面: スタッフ画面と体質チェックの結果は共通の色を使い、色の値を画面に直接書かない(棒・五角形・タイプの印)
+    for (const f of ["../app-reference/staff.html", "../app-reference/check.html"]) {
+      const src = fs.readFileSync(new URL(f, import.meta.url), "utf8");
+      assert.match(src, /ELEMENT_COLORS/, f); assert.match(src, /ELEMENT_TEXT_COLORS/, f);
+      for (const c of [...Object.values(CC.ELEMENT_COLORS), ...Object.values(CC.ELEMENT_TEXT_COLORS)]) assert.equal(src.toLowerCase().includes(c), false, `${f} ${c}`);
+    } }
+  ok("五行の五色: 木=緑・火=赤・土=黄土・金=銀灰・水=紺(白地で見えるよう調整)を constitution.mjs の1か所に置く。文字の色は白地・和紙色の地・タイプの印の地で 4.5:1 以上。五角形は点と軸の名前を五行の色にし、面は無彩色のまま。スタッフ画面と体質チェックは共通の色を使う");
 
   // ---- 5. 画面用データ ----
   { const base = { memberNo: "u", displayName: "x", rank: "white_opal", points: 0, yenPer100pt: 10, lifetimePoints: 0, lifetimeConfirmed: true, nextRank: null, expiresOn: null, redeemUnit: 100 };

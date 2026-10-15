@@ -1,6 +1,7 @@
 <!doctype html>
 <!-- スタッフ画面(B案: 白地+機能ごとの色。ティール=ポイント使用・紫=会員・オレンジ=本日の来店・青=集計。成功=緑/注意=オレンジ/失敗=赤)。
-     権限の判定は DB の関数側(画面の出し分けは補助)。描画は textContent のみ(innerHTML は使わない)。外部の CDN・フォントは使わない。 -->
+     権限の判定は DB の関数側(画面の出し分けは補助)。描画は textContent のみ(innerHTML は使わない)。外部の CDN・フォントは使わない。
+     体質チェックの五行の色は app-core/constitution.mjs の ELEMENT_COLORS など(ここに色の値を書かない)。会員の体質(db/104)は店長・スタッフだけ。 -->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
 <title>10ZEN スタッフ</title>
 <style>
@@ -153,12 +154,25 @@ h1,h2,h3{margin:0}
 .bars li{display:grid;grid-template-columns:9.5em minmax(0,1fr) 3.5em;gap:10px;align-items:center;font-size:14px}
 .bars .track{height:12px;background:#eef1f5;border-radius:999px;overflow:hidden}
 .bars .track i{display:block;height:100%;background:var(--sage);border-radius:999px}
+/* 五行の色は app-core/constitution.mjs の ELEMENT_COLORS(棒ごとに style で入れる)。どの五行でもないもの(バランス良好・ふつう など)は灰色の斜線(金の銀灰色と区別) */
+.bars .track i.neutral{background:#dde1e7}   /* 実際の斜線は NEUTRAL_COLOR から(スクリプト) */
 .bars .cnt{text-align:right;font-weight:800}
 .bars .lbl{overflow-wrap:anywhere}
+.bars .lbl b{font-weight:800}
 .radar{display:block;width:100%;max-width:300px;height:auto;margin:0 auto}
 .radar-ring,.radar-axis{fill:none;stroke:var(--line);stroke-width:1}
-.radar-area{fill:rgba(79,125,58,.2);stroke:var(--sage);stroke-width:2;stroke-linejoin:round}
+.radar-area{fill:rgba(91,102,117,.13);stroke:#7d8794;stroke-width:2;stroke-linejoin:round}   /* 面は無彩色。点と軸の名前を五行の色にする */
 .radar-dot{fill:var(--sage)}
+/* 体質のタイプの印(五行の色。文字は濃いめの同系色) */
+.cc-chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:800;padding:2px 9px;border-radius:999px;border:1.5px solid #b8bfc8;background:#f1f3f6;color:var(--muted);white-space:nowrap;line-height:1.5;vertical-align:middle}
+.cc-chip.big{font-size:15px;padding:4px 12px}
+.row .nm .cc-chip{margin-left:8px}
+.cc-member{border-top:1px dashed var(--line);padding-top:14px;display:grid;grid-template-columns:minmax(0,1fr) 168px;gap:6px 16px;align-items:center}
+.cc-member h3{grid-column:1/-1}
+.cc-member .cc-info{display:grid;gap:8px;justify-items:start}
+.cc-member p{margin:0;font-size:15px;overflow-wrap:anywhere}
+.cc-member .radar{max-width:168px}
+.cc-member .radar-label{font-size:17px}
 .radar-label{font-size:15px;font-weight:700;fill:var(--fg)}
 .radar-value{font-size:12px;font-weight:500;fill:var(--muted)}
 .cmp{width:100%;border-collapse:collapse;font-size:15px}
@@ -166,11 +180,14 @@ h1,h2,h3{margin:0}
 .cmp th:first-child,.cmp td:first-child{text-align:left}
 .cmp th{font-size:13px;color:var(--muted)}
 .week{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
-.week .bars li{grid-template-columns:7.5em minmax(0,1fr) 2.5em}
+.week .bars li{grid-template-columns:9em minmax(0,1fr) 2.5em}
 
 @media (max-width:760px){
   .cards{grid-template-columns:1fr}
   .cc-grid,.week{grid-template-columns:1fr}
+  .cc-member{grid-template-columns:minmax(0,1fr)}
+  .cc-member .radar{max-width:168px}
+  .cc-chip.big{white-space:normal}
   .card{min-height:0;grid-template-columns:auto 1fr auto;justify-items:start;align-items:center;text-align:left;padding:14px 16px}
   .card svg{width:40px;height:40px;grid-row:span 2}
   .card .pill{grid-column:3;grid-row:1}
@@ -199,7 +216,7 @@ h1,h2,h3{margin:0}
 <script src="vendor/supabase.js"></script>
 <script type="module">
 import { createStaffClient, redeemReduce, redeemInitial } from "../app-core/staff-client.mjs";
-import { ELEMENTS, ELEMENT_INFO, CONDITION_QUESTIONS } from "../app-core/constitution.mjs";
+import { ELEMENTS, ELEMENT_INFO, CONDITION_QUESTIONS, BALANCED_NAME, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, ELEMENT_SOFT_COLORS, NEUTRAL_COLOR } from "../app-core/constitution.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
@@ -214,6 +231,19 @@ const DASH = "—";                                                          // 
 const n = (v) => (typeof v === "number" && Number.isFinite(v) ? v.toLocaleString("ja-JP") : DASH);
 const rankLabel = (c) => (c ? String(c).replace(/_/g, " ").toUpperCase() : DASH);
 const rankChip = (c) => el("span", rankLabel(c), { class: `rank r-${String(c || "").replace(/[^a-z_]/g, "")}` });   // 色は会員証と同じ
+// 体質のタイプ(DB の staff_list_members / staff_member_detail の constitution。店長・スタッフにだけ返る)。c: { primary, balanced }
+const isEl = (e) => ELEMENTS.includes(e);
+const ccTypeText = (c) => (c?.balanced ? BALANCED_NAME : isEl(c?.primary) ? `${ELEMENT_INFO[c.primary].kanji} ${ELEMENT_INFO[c.primary].typeName}` : DASH);
+// タイプの印(五行の色)。一覧は小さく五行の漢字だけ(バランス良好は「バランス」)、会員の詳細は大きくタイプ名まで
+function ccChip(c, { big = false, id } = {}) {
+  const e = !c.balanced && isEl(c.primary) ? c.primary : null;
+  const chip = el("span", big ? ccTypeText(c) : e ? ELEMENT_INFO[e].kanji : "バランス",
+    { class: `cc-chip${big ? " big" : ""}`, "data-element": e ?? "balanced", title: `体質: ${ccTypeText(c)}`, ...(big ? {} : { "aria-label": `体質: ${ccTypeText(c)}` }), ...(id ? { id } : {}) });
+  if (e) { chip.style.borderColor = ELEMENT_COLORS[e]; chip.style.background = ELEMENT_SOFT_COLORS[e]; chip.style.color = ELEMENT_TEXT_COLORS[e]; }
+  else chip.style.borderColor = NEUTRAL_COLOR;                                     // バランス良好は灰色(文字は既定の濃い灰色)
+  return chip;
+}
+const conditionText = (t) => CONDITION_QUESTIONS.map((q) => q.options.find((o) => o.value === t?.[q.key])?.short ?? DASH).join("・");
 const jst = (iso, withTime = true) => {
   if (!iso) return null; const d = new Date(iso); if (Number.isNaN(d.getTime())) return null;
   const p = Object.fromEntries(new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(d).map((x) => [x.type, x.value]));
@@ -352,7 +382,9 @@ async function membersView(query = "") {
     if (r.kind !== "ok") { if (!shown) show(band, failView("取得できませんでした", () => membersView(query))); return; }
     count.textContent = `${n(r.data.total)} 件`;
     for (const m of r.data.items) {
-      const a = put(el("button", undefined, { "data-id": m.id, class: "row num" }), el("span", m.memberNo, { class: "no" }), el("span", m.displayName ?? DASH, { class: "nm" }),
+      const nm = el("span", m.displayName ?? DASH, { class: "nm" });
+      if (role !== "viewer" && m.constitution) nm.append(ccChip(m.constitution));      // 体質のタイプの印(店長・スタッフ。閲覧には DB が返さない)
+      const a = put(el("button", undefined, { "data-id": m.id, class: "row num" }), el("span", m.memberNo, { class: "no" }), nm,
         el("span", `${n(m.points)}pt`, { class: "pt" }), rankChip(m.rank), el("span", "›", { class: "arrow", "aria-hidden": "true" }));
       a.onclick = () => detailView(m.id, query); list.append(put(el("li"), a));
     }
@@ -380,8 +412,10 @@ async function detailView(id, backQuery = "") {
   const head = put(el("h2"), document.createTextNode(m.displayName ?? DASH), el("span", `(${m.memberNo})`, { class: "no" }));
   const panel = put(el("section", undefined, { class: "panel detail" }), put(el("div", undefined, { class: "head" }), back), head,
     put(el("p", `${m.points}pt / ランク `, { id: "detail", class: "num" }), rankChip(m.rank), document.createTextNode(` / 累計 ${m.lifetimePoints}${m.lifetimeConfirmed ? "" : "(未確認)"}`)),
-    el("p", `登録日 ${jst(m.createdAt, false) ?? DASH} / 最終の来店・利用日 ${m.lastActivityOn ?? DASH}`, { class: "hint num" }),
-    el("h3", r.data.ledger.length >= 100 ? "履歴(新しい順・直近100件)" : "履歴(新しい順)"), ul);
+    el("p", `登録日 ${jst(m.createdAt, false) ?? DASH} / 最終の来店・利用日 ${m.lastActivityOn ?? DASH}`, { class: "hint num" }));
+  // 体質チェック(店長・スタッフ。店内でのおすすめ用)。閲覧(本部)には DB が返さない(キーごとない)ので出さない。15問の回答と食事の気分は DB も返さない
+  if (role !== "viewer" && "constitution" in r.data) panel.append(memberConstitution(r.data.constitution));
+  panel.append(el("h3", r.data.ledger.length >= 100 ? "履歴(新しい順・直近100件)" : "履歴(新しい順)"), ul);
   if (role === "manager") {
     const pts = el("input", undefined, { id: "adjPoints", type: "number", inputmode: "numeric", class: "input", placeholder: "ポイント(マイナス可)", "aria-label": "ポイント(マイナス可)" });
     const why = el("input", undefined, { id: "adjReason", class: "input", placeholder: "理由(必須)", "aria-label": "理由(必須)" });
@@ -395,6 +429,21 @@ async function detailView(id, backQuery = "") {
     panel.append(put(el("div", undefined, { class: "adjust" }), el("h3", "手動調整(店長のみ)"), put(el("div", undefined, { class: "row-flex" }), pts, why, go), out));
   }
   show(panel);
+}
+
+// 会員の詳細の体質チェック: タイプの印・実施日(日本時間)・小さな五角形・今日の体調(今日答えていれば)。未実施は「体質チェック: 未実施」
+function memberConstitution(c) {
+  const box = put(el("section", undefined, { class: "cc-member", id: "ccMember", "aria-label": "体質チェック" }), el("h3", "体質チェック(店内でのおすすめに)"));
+  if (!c) { box.append(el("p", "体質チェック: 未実施", { id: "ccMemberDate", class: "muted" })); return box; }
+  const info = put(el("div", undefined, { class: "cc-info" }), ccChip(c, { big: true, id: "ccMemberType" }), el("p", `体質チェック: ${c.checkedOn ?? DASH} 実施`, { id: "ccMemberDate", class: "num" }));
+  if (c.today) {
+    const t = put(el("p", undefined, { id: "ccMemberToday" }), document.createTextNode(`今日の体調: ${conditionText(c.today)} → 今日のおすすめ: `));
+    t.append(isEl(c.today.focus) ? elKanji(c.today.focus) : document.createTextNode(DASH));
+    info.append(t);
+  }
+  box.append(info, radarSvg(document, c.scores, { labels: Object.fromEntries(ELEMENTS.map((e) => [e, ELEMENT_INFO[e].kanji])), max: 6, id: "ccMemberRadar",
+    title: `五行ごとの点数(0〜6): ${ELEMENTS.map((e) => `${ELEMENT_INFO[e].kanji}${c.scores?.[e] ?? DASH}`).join("・")}`, ...RADAR_COLORS }));
+  return box;
 }
 
 // ---- 集計(青) ----
@@ -428,15 +477,21 @@ async function dashView() {
 // ---- 体質チェック(セージ)。権限は DB(staff_constitution_stats)が判定: 店長・閲覧=すべて、スタッフ=今週の体調の傾向だけ ----
 //  スタッフには、実施人数・タイプ・平均・再来店率・相談ボタンの数を DOM ごと出さない(DB もスタッフには返さない)
 const ccStat = (cls, k, v, unit, id) => put(el("div", undefined, { class: `stat ${cls}`, ...(id ? { id } : {}) }), el("div", k, { class: "k" }), put(el("div", n(v), { class: "v num" }), el("small", unit)));
+// 棒グラフ。x.el が五行なら五行の色(ELEMENT_COLORS)、null ならどの五行でもないもの(灰色の斜線)。x.k は文字か、色つきの漢字を含む要素
 function bars(items, id) {
   const max = Math.max(1, ...items.map((x) => (typeof x.v === "number" ? x.v : 0)));
   const ul = el("ul", undefined, { class: "bars num", ...(id ? { id } : {}) });
   for (const x of items) {
     const tr = el("span", undefined, { class: "track" }), i = el("i"); i.style.width = `${Math.round((100 * (x.v || 0)) / max)}%`; tr.append(i);
-    ul.append(put(el("li"), el("span", x.k, { class: "lbl" }), tr, el("span", n(x.v), { class: "cnt" })));
+    if (isEl(x.el)) i.style.background = ELEMENT_COLORS[x.el]; else if (x.el === null) { i.className = "neutral"; i.style.background = `repeating-linear-gradient(135deg,${NEUTRAL_COLOR} 0 4px,#dde1e7 4px 8px)`; }
+    ul.append(put(el("li", undefined, isEl(x.el) ? { "data-element": x.el } : x.el === null ? { "data-element": "none" } : {}),
+      typeof x.k === "string" ? el("span", x.k, { class: "lbl" }) : put(el("span", undefined, { class: "lbl" }), ...[].concat(x.k)), tr, el("span", n(x.v), { class: "cnt" })));
   }
   return ul;
 }
+// 五行の漢字を、その五行の文字の色で(白地で 4.5:1 以上)
+const elKanji = (e) => { const b = el("b", ELEMENT_INFO[e].kanji); b.style.color = ELEMENT_TEXT_COLORS[e]; return b; };
+const RADAR_COLORS = { dotColors: ELEMENT_COLORS, labelColors: ELEMENT_TEXT_COLORS };
 async function constitutionView() {
   const reload = el("button", "更新", { class: "btn sub", id: "reloadCc", style: "--c:var(--sage)" }); reload.onclick = constitutionView;
   const head = put(el("div", undefined, { class: "head" }), title("constitution", "体質チェック", "c-sage-text"));
@@ -450,9 +505,9 @@ async function constitutionView() {
       put(el("div", n(d.referralClicks?.total), { class: "v num" }), el("small", `回(今月 ${n(d.referralClicks?.thisMonth)} 回)`)));
     nodes.push(put(el("div", undefined, { class: "stats", id: "ccReach" }), ccStat("g", "実施した人数", d.checkedMembers, "人"), ccStat("g", "実施率(有効会員のうち)", d.checkRatePercent, "%", "ccRate"),
       ccStat("p", "有効会員数", d.membersActive, "人"), ref));
-    const types = bars([...ELEMENTS.map((e) => ({ k: `${ELEMENT_INFO[e].kanji} ${ELEMENT_INFO[e].typeName}`, v: d.byType?.[e] })), { k: "バランス良好", v: d.byType?.balanced }], "ccTypes");
+    const types = bars([...ELEMENTS.map((e) => ({ k: [elKanji(e), ` ${ELEMENT_INFO[e].typeName}`], v: d.byType?.[e], el: e })), { k: BALANCED_NAME, v: d.byType?.balanced, el: null }], "ccTypes");
     const avg = d.averages ? radarSvg(document, d.averages, { labels: Object.fromEntries(ELEMENTS.map((e) => [e, ELEMENT_INFO[e].kanji])), max: 6, id: "ccAvgRadar", title: "五行ごとの平均(0〜6)",
-      valueText: (x) => (typeof x === "number" ? Number(x).toFixed(1) : DASH) }) : el("p", "まだ実施した人がいません", { class: "hint", id: "ccAvgRadar" });
+      valueText: (x) => (typeof x === "number" ? Number(x).toFixed(1) : DASH), ...RADAR_COLORS }) : el("p", "まだ実施した人がいません", { class: "hint", id: "ccAvgRadar" });
     nodes.push(put(el("section", undefined, { class: "cc-sec" }), el("h2", "体質(会員ごとの最新の結果)"),
       put(el("div", undefined, { class: "cc-grid" }), put(el("div"), el("h3", "タイプ別の人数"), types), put(el("div"), el("h3", "五行ごとの平均(五角形)"), avg))));
     const rv = d.revisit || {};
@@ -463,11 +518,13 @@ async function constitutionView() {
       put(el("table", undefined, { class: "cmp num" }), put(el("thead"), put(el("tr"), el("th", "区分"), el("th", "人数"), el("th", "再来店率"), el("th", "来店頻度"))),
         put(el("tbody"), row("実施した人", rv.checked), row("していない人", rv.unchecked)))));
   }
-  const group = (key, h) => { const q = CONDITION_QUESTIONS.find((x) => x.key === key); return put(el("div"), el("h3", h), bars(q.options.map((o) => ({ k: o.label, v: w[key]?.[o.value] })))); };
+  // 体調の棒は、その選択肢が足す五行の色(冷えている=水・ほてっている=火・疲れ=土・ストレス=木・乾燥=金・むくみ=土)。ふつう・元気・特になしは灰色の斜線
+  const opt = (o) => (isEl(o.element) ? [`${o.label}(`, elKanji(o.element), ")"] : o.label);
+  const group = (key, h) => { const q = CONDITION_QUESTIONS.find((x) => x.key === key); return put(el("div"), el("h3", h), bars(q.options.map((o) => ({ k: opt(o), v: w[key]?.[o.value], el: isEl(o.element) ? o.element : null })))); };
   nodes.push(put(el("section", undefined, { class: "cc-sec", id: "ccWeek" }), el("h2", "今週の体調の傾向"),
     el("p", `直近7日(${w.since ?? DASH} 〜 ${w.until ?? DASH})・回答 ${n(w.answers)} 件。会員証の「今日の体調」の回答の集計です`, { class: "hint num" }),
     put(el("div", undefined, { class: "week" }), group("temp", "からだ"), group("energy", "調子"), group("concern", "気になること")),
-    put(el("div"), el("h3", "今日のおすすめの五行(回答から)"), bars(ELEMENTS.map((e) => ({ k: ELEMENT_INFO[e].kanji, v: w.focus?.[e] })), "ccWeekFocus"))));
+    put(el("div"), el("h3", "今日のおすすめの五行(回答から)"), bars(ELEMENTS.map((e) => ({ k: elKanji(e), v: w.focus?.[e], el: e })), "ccWeekFocus"))));
   show(...nodes);
 }
 
@@ -504,24 +561,26 @@ function exportBox() {
     if (!window.confirm(`会員 ${all.length} 人分の詳細を取得して出力します。会員ごとに閲覧の記録が残ります。続けますか?`)) { busy(false); out.textContent = ""; return; }
     const startedAt = jst(new Date().toISOString());
     const head = ["会員番号", "会員の状態", "登録日", "最終の来店・利用日", "残高pt", "ランク", "累計付与pt(確認済みのみ。未確認は空欄)", "付与件数(登録)", "付与件数(来店)", "付与件数(その他)", "付与pt合計",
-      "使用件数", "使用pt合計", "調整件数", "調整pt合計", "来店ポイント付与日(台帳より。来店記録そのものではない)", "台帳が100件以上(集計は直近100件のみ・不完全)", "詳細の取得", "取得開始時刻(会員ごとに順番に取得。厳密な同一時刻ではない)"];
+      "使用件数", "使用pt合計", "調整件数", "調整pt合計", "来店ポイント付与日(台帳より。来店記録そのものではない)", "台帳が100件以上(集計は直近100件のみ・不完全)", "体質タイプ", "体質チェック実施日", "詳細の取得", "取得開始時刻(会員ごとに順番に取得。厳密な同一時刻ではない)"];
     const rows = [head]; let failed = 0;
     for (let i = 0; i < all.length; i++) {
       const m = all[i]; out.textContent = `会員の詳細を取得しています… ${i + 1} / ${all.length}`;
       const r = await staff.memberDetail(m.id);
-      if (r.kind !== "ok" || r.data.status !== "ok") { failed++; rows.push([m.memberNo, m.status, "", m.lastActivityOn, m.points, rankLabel(m.rank), "", "", "", "", "", "", "", "", "", "", "", "取得失敗", startedAt]); continue; }
+      if (r.kind !== "ok" || r.data.status !== "ok") { failed++; rows.push([m.memberNo, m.status, "", m.lastActivityOn, m.points, rankLabel(m.rank), "", "", "", "", "", "", "", "", "", "", "", "", "", "取得失敗", startedAt]); continue; }
       const d = r.data.member, L = r.data.ledger, sum = (f) => L.filter(f).reduce((a, l) => a + l.points, 0), cnt = (f) => L.filter(f).length;
       const earn = (l) => l.type === "earn", visit = (l) => earn(l) && l.rule === "visit", welcome = (l) => earn(l) && l.rule === "welcome";
       const visitDays = [...new Set(L.filter(visit).map((l) => jst(l.at, false)).filter(Boolean))].sort().join(" ");
       rows.push([d.memberNo, d.status, jst(d.createdAt, false), d.lastActivityOn, d.points, rankLabel(d.rank), d.lifetimeConfirmed ? d.lifetimePoints : "",
         cnt(welcome), cnt(visit), cnt((l) => earn(l) && !visit(l) && !welcome(l)), sum(earn), cnt((l) => l.type === "redeem"), -sum((l) => l.type === "redeem"),
-        cnt((l) => l.type === "adjust"), sum((l) => l.type === "adjust"), visitDays, yn(L.length >= 100), "取得済み", startedAt]);
+        cnt((l) => l.type === "adjust"), sum((l) => l.type === "adjust"), visitDays, yn(L.length >= 100),
+        // 体質(最新の結果のタイプと実施日だけ。回答は含めない)。未実施は「未実施」、応答に体質がない(104 未適用など)ときは空欄
+        "constitution" in r.data ? (r.data.constitution ? ccTypeText(r.data.constitution) : "未実施") : "", r.data.constitution?.checkedOn ?? "", "取得済み", startedAt]);
     }
     busy(false); download(`10zen_members_${stamp()}.csv`, toCsv(rows));
     out.style.color = failed ? "var(--warn)" : ""; out.textContent = `出力しました(${all.length} 人・取得開始 ${startedAt}。会員ごとに順番に取得したため、厳密な同一時刻ではありません)` + (failed ? `。${failed} 人は詳細を取得できず、その行は「取得失敗」です` : "");
   };
   return put(el("section", undefined, { class: "panel", id: "exportBox" }), el("h3", "分析用の出力(CSV・店長のみ)"),
-    el("p", "氏名・LINE ID は含めません。集計のスナップショットは、集計した時刻のデータです。会員別は会員ごとに順番に読み込むため、取得開始時刻を記録します(厳密な同一時刻のデータではありません)。履歴は直近100件で集計します。人数が多いと時間がかかります。", { class: "hint" }),
+    el("p", "氏名・LINE ID は含めません。集計のスナップショットは、集計した時刻のデータです。会員別は会員ごとに順番に読み込むため、取得開始時刻を記録します(厳密な同一時刻のデータではありません)。履歴は直近100件で集計します。体質チェックは最新のタイプと実施日だけです(回答は含めません)。人数が多いと時間がかかります。", { class: "hint" }),
     put(el("div", undefined, { class: "row-flex" }), b1, b2), out);
 }
 start();

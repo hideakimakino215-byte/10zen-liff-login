@@ -13,6 +13,8 @@ import { makeJwt, lineVerify } from "../patches/jwtstub.mjs";
 import { handle as memberApi } from "../functions/member-api/handler.ts";
 import { handle as staffQrApi } from "../functions/staff-qr/handler.ts";
 import { RECOMMENDATIONS, DISCLAIMER } from "../app-core/constitution-content.mjs";
+import { ELEMENTS, ELEMENT_COLORS, ELEMENT_TEXT_COLORS } from "../app-core/constitution.mjs";
+const rgb = (h) => `rgb(${[0, 2, 4].map((i) => parseInt(h.slice(1 + i, 3 + i), 16)).join(", ")})`;   // #rrggbb → ブラウザの計算値の形
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pg = startPg();
@@ -69,6 +71,7 @@ try {
     alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;`);
   pg.loadFile("100_phase1_schema.sql"); pg.loadFile("101_search_path_fix.sql"); pg.loadFile("102_rank_perks.sql");   // 102: ランク特典(スタッフ画面のコード入力は staff_lookup_code を使う)
   pg.loadFile("103_constitution_check.sql");                                                                            // 103: 1分体質チェック
+  pg.loadFile("104_member_constitution_link.sql");                                                                      // 104: 会員の詳細・一覧に体質(店長・スタッフのみ)
   pg.exec(`update system_state set state='open';`);
   pg.exec(`update app_settings set value='false' where key='register_counts_as_visit';`);   // 登録日の扱い(既定=来店日として扱う)は DB テストと下の専用ケースで検証。ここでは来店の流れを見るため解除
   pg.exec(`insert into auth.users(id) values ${Object.values(U).map((u) => `('${u}')`).join(",")};
@@ -177,12 +180,14 @@ try {
   const mgr = await newPage(); await mgr.goto(`${BASE}/app-reference/staff.html`); await mgr.fill("#email", "mgr@t"); await mgr.fill("#password", "pw"); await mgr.click("#login"); await mgr.waitForSelector("#who:has-text('manager')");
   await mgr.click("[data-tab=members]"); await mgr.fill("#q", "試験"); await mgr.click("#search"); await mgr.waitForSelector("#list button"); await mgr.click("#list button");
   await mgr.waitForSelector("#adjust"); assert.match(await text(mgr, "#detail"), new RegExp(`${before - 100}pt`));
+  assert.equal(await text(mgr, "#ccMemberDate"), "体質チェック: 未実施"); assert.equal(await mgr.locator("#ccMemberRadar").count(), 0);   // 体質チェックをまだしていない会員
   await mgr.fill("#adjPoints", "50"); await mgr.click("#adjust"); await mgr.waitForSelector("#adjOut:has-text('入力を確認')");
   await mgr.fill("#adjReason", "紙の台帳との差異の訂正"); await mgr.click("#adjust"); await mgr.waitForSelector("#ledger li:has-text('紙の台帳との差異の訂正')");
   assert.match(await text(mgr, "#detail"), new RegExp(`${before - 100 + 50}pt`));
   const view = await newPage(); await view.goto(`${BASE}/app-reference/staff.html`); await view.fill("#email", "viewer@t"); await view.fill("#password", "pw"); await view.click("#login"); await view.waitForSelector("#who:has-text('viewer')");
   await view.click("[data-tab=redeem]"); await view.fill("#code", "123456"); await view.click("#lookup"); await view.waitForSelector("#redeemMsg:has-text('権限がありません')");
   await view.click("[data-tab=members]"); await view.waitForSelector("#list button"); await view.click("#list button"); await view.waitForSelector("#detail"); assert.equal(await view.locator("#adjust").count(), 0);
+  assert.equal(await view.locator("#ccMember").count(), 0);                                                        // 閲覧(本部)には体質の欄を出さない
   ok("店長: 検索→詳細→理由なしは拒否・理由つきで手動調整→履歴に理由が出る。閲覧のみ: 使用確認は拒否、会員の閲覧はでき、調整フォームは出ない");
 
   // ---- 1分体質チェック: 会員証の入口 → 同意 → 15問+気分(1問1画面・戻る)→ 結果 → 薬日本堂 → 会員証(来店した日の今日の体調) ----
@@ -205,6 +210,10 @@ try {
   await cc.click('#ccOptions button[data-value="noodle"]'); await cc.waitForSelector("#ccTypeName");
   assert.equal(await text(cc, "#ccTypeName"), "モヤモヤ渋滞タイプ"); assert.match(await text(cc, "#ccTypeLine"), /張りつめがち/);
   assert.equal(await cc.locator("#ccRadar polygon.radar-area").count(), 1); assert.equal(await cc.locator("#ccRadar text.radar-label").count(), 5);
+  // 五角形の点と軸の名前は五行の色(面は無彩色)
+  const fillOf = (p, sel) => p.evaluate((s) => getComputedStyle(document.querySelector(s)).fill, sel);
+  for (const e of ELEMENTS) { assert.equal(await fillOf(cc, `#ccRadar circle.radar-dot[data-element=${e}]`), rgb(ELEMENT_COLORS[e]), e); assert.equal(await fillOf(cc, `#ccRadar text.radar-label[data-element=${e}]`), rgb(ELEMENT_TEXT_COLORS[e]), e); }
+  assert.ok(!Object.values(ELEMENT_COLORS).map(rgb).includes(await fillOf(cc, "#ccRadar polygon.radar-area")));
   assert.equal(await cc.locator("#ccDetail").isVisible(), false); await cc.click("#ccDetailToggle"); assert.equal(await cc.locator("#ccDetail").isVisible(), true);
   assert.match(await text(cc, "#ccDetail"), /五行: 木 \/ 五臓: 肝 \/ 状態: 気滞/);
   assert.match(await text(cc, "#ccDish"), new RegExp(RECOMMENDATIONS.wood.noodle.replace(/[()]/g, "\\$&")));
@@ -250,6 +259,50 @@ try {
   await stf.click("[data-tab=redeem]"); await stf.waitForSelector("#ccPill:has-text('今週の体調 1 件')");
   assert.equal(await stf.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
   ok("体質チェックの集計(スタッフ画面): 店長・閲覧は実施人数・実施率・タイプ別・五行の平均(五角形)・再来店率の比較・相談の数・今週の体調。スタッフは今週の体調の傾向だけで、ほかの数字は DOM にもない。ホームに体質チェックの入口。店頭タブレットは集計の関数も呼べない");
+
+  // ---- 体質チェックと会員の紐づけ: 店長・スタッフは一覧のタイプの印と詳細(タイプ・実施日・五角形・今日の体調)、閲覧には出さない ----
+  for (const p of [mgr, stf]) {
+    await p.click("[data-tab=members]"); await p.fill("#q", "体質"); await p.click("#search"); await p.waitForSelector("#list button .cc-chip");
+    const chip = p.locator("#list button .cc-chip"); assert.equal(await chip.count(), 1);
+    assert.equal(await chip.textContent(), "木"); assert.equal(await chip.getAttribute("data-element"), "wood");
+    assert.equal(await chip.evaluate((x) => getComputedStyle(x).color), rgb(ELEMENT_TEXT_COLORS.wood)); assert.equal(await chip.evaluate((x) => getComputedStyle(x).borderTopColor), rgb(ELEMENT_COLORS.wood));
+    await p.click("#list button"); await p.waitForSelector("#ccMember");
+    assert.equal(await text(p, "#ccMemberType"), "木 モヤモヤ渋滞タイプ"); assert.equal(await text(p, "#ccMemberDate"), `体質チェック: ${jstToday} 実施`);
+    assert.equal(await text(p, "#ccMemberToday"), "今日の体調: 冷えている・疲れ・乾燥 → 今日のおすすめ: 木");
+    assert.equal(await p.locator("#ccMemberRadar circle.radar-dot").count(), 5); assert.equal(await p.locator("#ccMemberRadar text.radar-label").count(), 5);
+    assert.equal(await fillOf(p, "#ccMemberRadar circle.radar-dot[data-element=water]"), rgb(ELEMENT_COLORS.water));
+    assert.doesNotMatch(await p.textContent("#app"), /noodle|麺|よくある|ときどき/);                                       // 回答・食事の気分は出さない
+    assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+  }
+  assert.equal(await mgr.locator("#adjust").count(), 1); assert.equal(await stf.locator("#adjust").count(), 0);
+  await view.click("[data-tab=members]"); await view.fill("#q", "体質"); await view.click("#search"); await view.waitForSelector("#list button");
+  assert.equal(await view.locator("#list .cc-chip").count(), 0);
+  await view.click("#list button"); await view.waitForSelector("#detail");
+  assert.equal(await view.locator("#ccMember").count(), 0); assert.doesNotMatch(await view.textContent("#app"), /体質チェック|モヤモヤ|今日の体調/);
+  ok("体質チェックと会員: 店長・スタッフは会員の一覧に五行の色のタイプの印、詳細にタイプ・実施日(日本時間)・小さな五角形(五行の色)・今日の体調と今日のおすすめを見られる(回答・気分は出ない)。閲覧(本部)には一覧にも詳細にも出ない");
+
+  // ---- 体質チェックの集計の色・店長の CSV(体質タイプ・実施日) ----
+  await mgr.click("[data-tab=constitution]"); await mgr.waitForSelector("#ccTypes");
+  const barColor = (sel) => mgr.evaluate((s) => getComputedStyle(document.querySelector(s)).backgroundColor, sel);
+  const barImage = (sel) => mgr.evaluate((s) => getComputedStyle(document.querySelector(s)).backgroundImage, sel);
+  for (const e of ELEMENTS) { assert.equal(await barColor(`#ccTypes li[data-element=${e}] .track i`), rgb(ELEMENT_COLORS[e]), e); assert.equal(await barColor(`#ccWeekFocus li[data-element=${e}] .track i`), rgb(ELEMENT_COLORS[e]), e); }
+  assert.match(await barImage("#ccTypes li[data-element=none] .track i"), /repeating-linear-gradient/);                  // バランス良好は灰色の斜線
+  assert.match(await text(mgr, "#ccTypes li[data-element=none]"), /バランス良好/);
+  const weekEls = await mgr.locator("#ccWeek .week li").evaluateAll((xs) => xs.map((x) => x.dataset.element));
+  assert.deepEqual(weekEls, ["water", "fire", "none", "earth", "wood", "none", "metal", "earth", "none"]);                      // 冷え=水・ほてり=火・疲れ=土・ストレス=木・乾燥=金・むくみ=土・ほかは灰色
+  assert.match(await text(mgr, "#ccWeek"), /冷えている\(水\)/);
+  assert.equal(await fillOf(mgr, "#ccAvgRadar circle.radar-dot[data-element=earth]"), rgb(ELEMENT_COLORS.earth));
+  await mgr.click("[data-tab=dash]"); await mgr.waitForSelector("#exportMembers");
+  mgr.once("dialog", (d) => d.accept());
+  const [dl] = await Promise.all([mgr.waitForEvent("download"), mgr.click("#exportMembers")]);
+  const csv = fs.readFileSync(await dl.path(), "utf8").replace(/^﻿/, "").trim().split("\r\n").map((l) => l.split(","));
+  const hi = csv[0].indexOf("体質タイプ"); assert.ok(hi > 0); assert.equal(csv[0][hi + 1], "体質チェック実施日");
+  assert.ok(csv.every((r) => r.length === csv[0].length));
+  const typed = csv.slice(1).filter((r) => r[hi] !== "未実施");
+  assert.equal(typed.length, 1); assert.deepEqual(typed[0].slice(hi, hi + 2), ["木 モヤモヤ渋滞タイプ", jstToday]);
+  assert.ok(csv.slice(1).filter((r) => r[hi] === "未実施").every((r) => r[hi + 1] === "")); assert.ok(csv.length > 3);
+  assert.doesNotMatch(csv.flat().join(","), /noodle|cold|tired/);                                                          // 回答・気分・体調は含めない
+  ok("色: 体質チェックの集計の棒(タイプ別・今日のおすすめの五行)は五行の色、バランス良好は灰色の斜線。体調の棒は選択肢が足す五行の色(ふつう・元気・特になしは灰色)。五角形の点も五行の色。店長の CSV「会員別の利用状況」に体質タイプと実施日(回答は含めない)");
 
   // ---- 表示の安全性 ----
   const evil = await newPage(tokFor(sub("b"), "<img src=x onerror=window.__x=1><script>window.__x=2</script>"));

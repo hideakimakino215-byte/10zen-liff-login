@@ -44,10 +44,10 @@ button { font-family:inherit; color:inherit; }
 .radar { display:block; width:100%; max-width:320px; height:auto; margin:0 auto; cursor:pointer; }
 .radar-ring { fill:none; stroke:#e4dccf; stroke-width:1; }
 .radar-axis { stroke:#e4dccf; stroke-width:1; }
-.radar-area { fill:rgba(138,106,59,.22); stroke:var(--accent); stroke-width:2; stroke-linejoin:round; }
+.radar-area { fill:rgba(122,116,107,.16); stroke:#8f887d; stroke-width:2; stroke-linejoin:round; }   /* 面は無彩色。点と軸の名前を五行の色にする(app-core/constitution.mjs の ELEMENT_COLORS) */
 .radar-dot { fill:var(--accent); }
-.radar-label { font-size:15px; fill:var(--ink); font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; }
-.radar-value { font-size:12px; fill:var(--sub); font-family:system-ui,sans-serif; }
+.radar-label { font-size:16px; fill:var(--ink); font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; }
+.radar-value { font-size:12px; font-weight:400; fill:var(--sub); font-family:system-ui,sans-serif; }
 .toggle { display:block; margin:6px auto 0; min-height:44px; padding:0 16px; border:1px solid var(--line); border-radius:999px; background:#fff; font-size:13px; cursor:pointer; }
 .detail { list-style:none; margin:12px 0 0; padding:0; display:grid; gap:6px; }
 .detail li { text-align:left; display:grid; grid-template-columns:2.4em 1fr auto; gap:8px; align-items:baseline; padding:8px 10px; border:1px solid var(--line); border-radius:10px; font-size:13px; line-height:1.5; background:#fff; }
@@ -77,7 +77,7 @@ button { font-family:inherit; color:inherit; }
 <script type="module">
 import { createMemberClient } from "../app-core/member-client.mjs";
 import { cardScreen, checkSubmitScreen } from "../app-core/screens.mjs";
-import { QUESTIONS, ANSWER_OPTIONS, ELEMENTS, ELEMENT_INFO } from "../app-core/constitution.mjs";
+import { QUESTIONS, ANSWER_OPTIONS, ELEMENTS, ELEMENT_INFO, ELEMENT_COLORS, ELEMENT_TEXT_COLORS } from "../app-core/constitution.mjs";
 import { MOODS, MOOD_QUESTION, CONSENT_TEXT, INTRO_TEXT, CHECK_NAME, DISCLAIMER, NIHONDO_LEAD, NIHONDO_BUTTON } from "../app-core/constitution-content.mjs";
 import { NIHONDO_CONSULT_URL } from "../app-core/store-info.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
@@ -160,9 +160,11 @@ function resultView(v) {
     el("p", "あなたの体質の傾向", { class: "label" }),
     el("h2", r.typeName, { id: "ccTypeName", class: "serif" }), el("p", r.typeLine, { id: "ccTypeLine", class: "line" }));
   const labels = Object.fromEntries(ELEMENTS.map((e) => [e, ELEMENT_INFO[e].kanji]));
-  const svg = radarSvg(document, r.scores, { labels, max: 6, id: "ccRadar", title: "五行ごとの点数(0〜6)", valueText: (x) => String(x ?? "—") });
+  const svg = radarSvg(document, r.scores, { labels, max: 6, id: "ccRadar", title: "五行ごとの点数(0〜6)", valueText: (x) => String(x ?? "—"),
+    dotColors: ELEMENT_COLORS, labelColors: ELEMENT_TEXT_COLORS });                  // 五行の五色(点と軸の名前)
   const detail = el("ul", undefined, { class: "detail", id: "ccDetail", hidden: "" });
-  for (const d of r.details) detail.append(kids(el("li", undefined, d.isPrimary ? { class: "on" } : {}), el("span", d.kanji, { class: "k serif" }),
+  const kanji = (d) => { const k = el("span", d.kanji, { class: "k serif" }); if (ELEMENT_TEXT_COLORS[d.element]) k.style.color = ELEMENT_TEXT_COLORS[d.element]; return k; };
+  for (const d of r.details) detail.append(kids(el("li", undefined, d.isPrimary ? { class: "on" } : {}), kanji(d),
     el("span", `五臓: ${d.organ} / ${d.state}`), el("span", `${d.score ?? "—"}点`, { class: "s" })));
   const toggle = el("button", "五行・五臓・正式名称を見る", { id: "ccDetailToggle", class: "toggle", "aria-expanded": "false", "aria-controls": "ccDetail" });
   const flip = () => { const open = detail.hidden; detail.hidden = !open; toggle.setAttribute("aria-expanded", String(open)); toggle.textContent = open ? "閉じる" : "五行・五臓・正式名称を見る"; };
