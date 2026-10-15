@@ -97,7 +97,8 @@ const median = (xs) => { if (!xs.length) return null; const s = [...xs].sort((a,
 // 戻り値: { ok, error?, encoding, delimiter, header, headerRow, mapping, days:[{date, customers, line, flag}], skipped:[{line, reason, value}], median, months:[…] }
 //  error: empty(中身がない)/ no_date_column / no_customers_column / no_customer_rows(縦持ちで客数の行がない)/ no_days(日付と客数の組が1つもない)
 //  mapping を渡すと列を選び直せる({ dateCol, customersCol }。縦持ちのファイルでは集計対象が「客数」の行に限る)
-export function analyzePosFile(bytes, { mapping = null } = {}) {
+//  today('YYYY-MM-DD'。日本時間の今日)を渡すと、それより後の日付は future_date として飛ばす(DB も未来の日付は受け付けない)
+export function analyzePosFile(bytes, { mapping = null, today = null } = {}) {
   const { text, encoding } = decodeBytes(bytes);
   const delimiter = detectDelimiter(text);
   const all = parseDelimited(text, delimiter);
@@ -120,6 +121,7 @@ export function analyzePosFile(bytes, { mapping = null } = {}) {
   for (const { r, line } of rows) {
     const rawDate = String(r[map.dateCol] ?? "").trim(), date = parseDate(rawDate);
     if (!date) { res.skipped.push({ line, reason: "not_a_date", value: rawDate }); continue; }
+    if (today && date > today) { res.skipped.push({ line, reason: "future_date", value: date, date }); continue; }
     const rawC = String(r[map.customersCol] ?? "").trim(), c = parseCount(rawC);
     if (c === null) { res.skipped.push({ line, reason: "bad_customers", value: rawC, date }); continue; }
     if (seen.has(date)) { res.skipped.push({ line, reason: "duplicate_date", value: date, date }); continue; }
@@ -152,7 +154,7 @@ export function rowsForImport(days, include = new Set()) {
 export function chunk(rows, size = MAX_ROWS_PER_CALL) { const out = []; for (let i = 0; i < rows.length; i += size) out.push(rows.slice(i, i + size)); return out; }
 
 // 画面の文言(飛ばした理由・エラー)
-export const SKIP_REASONS = { not_a_date: "日付ではない行(合計・週計・平均など)", bad_customers: "客数が空か数値ではない", duplicate_date: "同じ日付の2回目", not_customers_row: "客数ではない行(注文金額など)" };
+export const SKIP_REASONS = { not_a_date: "日付ではない行(合計・週計・平均など)", bad_customers: "客数が空か数値ではない", duplicate_date: "同じ日付の2回目", future_date: "今日より後の日付", not_customers_row: "客数ではない行(注文金額など)" };
 export const ERRORS = {
   empty: "ファイルの中身がありません",
   no_date_column: "日付の列が見つかりません。下で列を選んでください",

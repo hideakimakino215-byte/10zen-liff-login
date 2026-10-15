@@ -84,8 +84,10 @@ ok("文字コードと区切り: UTF-8(BOM あり/なし)・カンマ・CRLF・�
   for (const [v, c] of [["12", 12], ["1,234", 1234], ["1,234人", 1234], [" ７ ", 7], ["0", 0], ["-3", null], ["1.5", null], ["‐", null], ["", null], ["約10", null]]) assert.equal(parseCount(v), c, v);
   assert.equal(detectDelimiter("a\tb,c\td"), "\t"); assert.equal(detectDelimiter("a,b,c"), ",");
   assert.deepEqual(parseDelimited('"a ""q""",b\r\n"1,2",3\n\n', ","), [['a "q"', "b"], ["1,2", "3"]]);
-  assert.ok(Object.keys(SKIP_REASONS).length === 4); }
-ok("列の選び方: 日付・客数の見出しの言葉(英語も)で自動で選び、前年などは選ばない。選べないときはエラーを返し、列を選び直すと読める。説明の行の後の見出しも見つける。日付(YYYYMMDD・曜日つき・年月日・全角)と客数(カンマ・人・全角)の読み方");
+  const fut = analyzePosFile(Buffer.from("日付,客数\n2026-05-01,3\n2026-05-03,4\n"), { today: "2026-05-02" });
+  assert.deepEqual(fut.days.map((d) => d.date), ["2026-05-01"]); assert.deepEqual(fut.skipped.map((x) => [x.reason, x.date]), [["future_date", "2026-05-03"]]);
+  assert.ok(Object.keys(SKIP_REASONS).length === 5); }
+ok("列の選び方: 日付・客数の見出しの言葉(英語も)で自動で選び、前年などは選ばない。選べないときはエラーを返し、列を選び直すと読める。説明の行の後の見出しも見つける。日付(YYYYMMDD・曜日つき・年月日・全角)と客数(カンマ・人・全角)の読み方。今日より後の日付は飛ばす");
 
 // ---- 5. KPI の画面用の定義 ----
 { assert.deepEqual(KPI_DEFS.map((d) => d.code), ["member_visit_rate", "new_members", "check_rate", "revisit_rate", "referral_clicks"]);
