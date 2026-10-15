@@ -30,6 +30,11 @@ export function createStaffClient({ supabase, qrEndpoint, fetchFn = (...a) => fe
     lookupRedeem: (code) => rpc("staff_lookup_redeem", { p_code: String(code || "").replace(/\s/g, "") }),
     confirmRedeem: (requestId) => rpc("staff_confirm_redeem", { p_request_id: requestId }),
     cancelRedeem: (requestId) => rpc("staff_cancel_redeem", { p_request_id: requestId }),
+    // 入力欄は1つ: ポイント使用のコードか特典チケットのコードかは DB が見分ける(結果の data.kind が "points" / "ticket")
+    lookupCode: (code) => rpc("staff_lookup_code", { p_code: String(code || "").replace(/\s/g, "") }),
+    confirmTicket: (requestId) => rpc("staff_confirm_ticket", { p_request_id: requestId }),
+    cancelTicket: (requestId) => rpc("staff_cancel_ticket", { p_request_id: requestId }),
+    ticketStats: () => rpc("staff_ticket_stats"),
     // 店長のみ。key は1回の操作につき1つ作り、再送時は同じ key を使う(二重実行されない)
     newAdjustKey: () => `adj-${uuid()}`,
     adjust: ({ memberId, points, reason, key }) => rpc("manager_adjust", { p_member_id: memberId, p_points: points, p_reason: reason, p_idempotency_key: key }),
@@ -49,6 +54,8 @@ export function createStaffClient({ supabase, qrEndpoint, fetchFn = (...a) => fe
 
 // ポイント使用の確認フロー(画面の状態遷移。UI はこの state を表示するだけ)
 //   idle → (入力) → looking_up → confirm(内容を確認して確定を押す) → confirming → done / または not_found・expired・insufficient・locked・error
+//   特典チケットのコード(lookupCode の結果が kind="ticket")のときは state に kind:"ticket" と ticket(title など)が付き、
+//   確定の結果は done(title)/ expired(コードの期限)/ ticket_used(使用済み)/ ticket_expired(チケットの期限)/ cancelled / not_found
 export const redeemInitial = { step: "idle" };
 export function redeemReduce(state, ev) {
   switch (ev.type) {
@@ -57,13 +64,19 @@ export function redeemReduce(state, ev) {
       const r = ev.result;
       if (r.kind === "locked") return { step: "locked" };
       if (r.kind !== "ok") return r.kind === "forbidden" || r.kind === "not_staff" ? { step: "forbidden" } : { step: "error", retry: true };
+      if (r.data.status === "ok" && r.data.kind === "ticket") return { step: "confirm", kind: "ticket", request: r.data.request, member: r.data.member, ticket: r.data.ticket };
       return r.data.status === "ok" ? { step: "confirm", request: r.data.request, member: r.data.member } : { step: "not_found" };
     }
     case "confirm_start": return state.step === "confirm" ? { ...state, step: "confirming" } : state;      // 二重押し下げは無視
     case "confirm_result": {
-      const r = ev.result;
-      if (r.kind !== "ok") return { step: "error", retry: true, request: state.request, member: state.member };   // 結果不明: 同じ申請で再確認(確定は冪等)
+      const r = ev.result, ticket = state.kind === "ticket";
+      if (r.kind !== "ok") return { step: "error", retry: true, request: state.request, member: state.member, ...(ticket ? { kind: "ticket", ticket: state.ticket } : {}) };   // 結果不明: 同じ申請で再確認(確定は冪等)
       const st = r.data.status;
+      if (ticket) {
+        if (st === "confirmed" || st === "already_confirmed") return { step: "done", kind: "ticket", title: r.data.title ?? state.ticket?.title ?? null };
+        if (st === "expired" || st === "ticket_used" || st === "ticket_expired") return { step: st };
+        return { step: st === "cancelled" ? "cancelled" : "not_found" };
+      }
       if (st === "confirmed" || st === "already_confirmed") return { step: "done", points: r.data.points, yen: r.data.yen, balanceAfter: r.data.balanceAfter ?? null };
       if (st === "expired") return { step: "expired" };
       if (st === "insufficient_balance") return { step: "insufficient", balance: r.data.points };

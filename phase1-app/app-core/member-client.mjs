@@ -36,6 +36,9 @@ export function createMemberClient({ endpoint, getIdToken, fetchFn = (...a) => f
     checkin: (qrToken) => call("checkin", { token: qrToken }),
     redeemRequest: (points) => call("redeem_request", { points }),
     redeemCancel: () => call("redeem_cancel"),
+    // 特典チケット: 「使う」で6桁コードを出す / 取り消す
+    ticketRequest: (ticketId) => call("ticket_request", { ticketId: String(ticketId || "") }),
+    ticketCancel: () => call("ticket_cancel"),
   };
 }
 

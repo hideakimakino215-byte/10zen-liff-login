@@ -79,6 +79,13 @@ h1,h2,h3{margin:0}
 .bal{color:var(--muted)}
 #rAmount{margin:0;font-size:38px;font-weight:900;line-height:1.15}
 #rAmount small{font-size:20px;font-weight:700;color:var(--muted)}
+#rTicket{margin:0;font-size:26px;font-weight:900;line-height:1.3;overflow-wrap:anywhere;display:flex;gap:10px;align-items:flex-start}
+#rTicket svg{width:30px;height:30px;flex:none;color:var(--teal);margin-top:2px}
+#rTicket small{display:block;font-size:15px;font-weight:700;color:var(--muted);margin-top:4px}
+.stats.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+#ticketStats{display:grid;gap:10px}
+#ticketStats h2{font-size:17px;display:flex;align-items:center;gap:8px;color:var(--teal)}
+#ticketStats h2 svg{width:24px;height:24px}
 .actions{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center;margin-top:4px}
 #cancelReq{min-height:52px;padding:0 20px;border:2px solid var(--line);background:var(--card);border-radius:14px;font-size:16px;font-weight:700;color:var(--muted)}
 #confirm{min-height:76px;flex:1 1 240px;border:0;border-radius:14px;background:var(--ok);color:#fff;font-size:24px;font-weight:900}
@@ -141,7 +148,7 @@ h1,h2,h3{margin:0}
   .card svg{width:40px;height:40px;grid-row:span 2}
   .card .pill{grid-column:3;grid-row:1}
   .card .go{grid-column:2/-1}
-  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stats,.stats.three{grid-template-columns:repeat(2,minmax(0,1fr))}
   .stat .v{font-size:26px}
   .title{font-size:22px}
   #code{font-size:26px}
@@ -189,6 +196,7 @@ const ICONS = {
   redeem: [["rect", { x: 4, y: 3, width: 16, height: 18, rx: 2 }], ["path", { d: "M9 3v2h6V3" }], ["path", { d: "m8.5 13 2.5 2.5 4.5-5" }]],
   members: [["circle", { cx: 9, cy: 8, r: 3.5 }], ["path", { d: "M2.5 20a6.5 6.5 0 0 1 13 0" }], ["circle", { cx: 17, cy: 9, r: 2.5 }], ["path", { d: "M15.5 14.5A5 5 0 0 1 22 19" }]],
   dash: [["path", { d: "M4 20h16" }], ["rect", { x: 5, y: 11, width: 3.5, height: 7, rx: 1 }], ["rect", { x: 10.25, y: 6, width: 3.5, height: 12, rx: 1 }], ["rect", { x: 15.5, y: 9, width: 3.5, height: 9, rx: 1 }]],
+  ticket: [["path", { d: "M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z" }], ["path", { d: "M14 6v12", "stroke-dasharray": "2 2" }]],
 };
 function icon(name) {
   const s = document.createElementNS(SVGNS, "svg");
@@ -249,17 +257,23 @@ function redeemView() {
     out.replaceChildren();
     const say = (kind, t, id) => out.append(msgBox(kind, t, id || "redeemMsg"));
     if (st.step === "confirm" || st.step === "confirming") {
+      const ticket = st.kind === "ticket";                                    // 特典チケットのコード(DB が判定)。ポイントのときは従来どおり
       const who = put(el("p", undefined, { id: "rMember" }), el("span", st.member.displayName ?? "会員", { class: "name" }), el("span", `(${st.member.memberNo})`, { class: "no" }));
-      const amount = put(el("p", undefined, { id: "rAmount", class: "num" }), document.createTextNode(`使用 ${st.request.points}pt`), el("small", ` = ${st.request.yen}円`));
+      const amount = ticket
+        ? put(el("p", undefined, { id: "rTicket" }), icon("ticket"), put(el("span", `特典チケット: ${st.ticket?.title ?? DASH}`), el("small", `有効期限 ${st.ticket?.validThrough ?? DASH} まで`)))
+        : put(el("p", undefined, { id: "rAmount", class: "num" }), document.createTextNode(`使用 ${st.request.points}pt`), el("small", ` = ${st.request.yen}円`));
       const c = el("button", st.step === "confirming" ? "確定しています…" : "✓ 確定する", { id: "confirm" }); c.disabled = st.step === "confirming";
-      c.onclick = async () => { st = redeemReduce(st, { type: "confirm_start" }); render(); st = redeemReduce(st, { type: "confirm_result", result: await staff.confirmRedeem(st.request.id) }); render(); };
+      c.onclick = async () => { st = redeemReduce(st, { type: "confirm_start" }); render(); st = redeemReduce(st, { type: "confirm_result", result: await (ticket ? staff.confirmTicket(st.request.id) : staff.confirmRedeem(st.request.id)) }); render(); };
       const x = el("button", "取消", { id: "cancelReq" }); x.disabled = st.step === "confirming";
-      x.onclick = async () => { await staff.cancelRedeem(st.request.id); st = redeemInitial; render(); };
+      x.onclick = async () => { await (ticket ? staff.cancelTicket(st.request.id) : staff.cancelRedeem(st.request.id)); st = redeemInitial; render(); };
       out.append(put(el("div", undefined, { class: "confirm" }),
         put(el("div", undefined, { class: "member" }), who, el("span", `残高 ${n(st.member.points)}pt`, { class: "bal num" })),
         amount, put(el("div", undefined, { class: "actions" }), x, c)));
     } else if (st.step === "looking_up") say("info", "確認しています…", "redeemBusy");     // 結果の表示(#redeemMsg)とは別の id
+    else if (st.step === "done" && st.kind === "ticket") { const b = msgBox("ok", `確定しました: ${st.title ?? "特典チケット"}`, "rDone", "商品をお渡しください"); b.classList.add("done"); out.append(b); }
     else if (st.step === "done") { const b = msgBox("ok", `確定しました: ${st.points}pt(${st.yen}円分)。残高 ${st.balanceAfter ?? DASH}pt`, "rDone"); b.classList.add("done"); out.append(b); }
+    else if (st.step === "ticket_used") say("bad", "このチケットは使用済みです");
+    else if (st.step === "ticket_expired") say("bad", "このチケットは有効期限が切れています");
     else if (st.step === "not_found") say("bad", "コードが見つかりません(期限切れの可能性があります)");
     else if (st.step === "expired") say("bad", "有効時間が過ぎました。お客様に再申請してもらってください");
     else if (st.step === "insufficient") say("bad", `残高が足りません(残高 ${n(st.balance)}pt)`);
@@ -268,11 +282,11 @@ function redeemView() {
     else if (st.step === "forbidden") say("bad", "この操作の権限がありません");
     else if (st.step === "error") say("bad", "通信できませんでした。もう一度「確認」を押してください");
   };
-  const lookup = async () => { if (go.disabled) return; st = redeemReduce(st, { type: "lookup_start" }); render(); st = redeemReduce(st, { type: "lookup_result", result: await staff.lookupRedeem(code.value) }); render(); };
+  const lookup = async () => { if (go.disabled) return; st = redeemReduce(st, { type: "lookup_start" }); render(); st = redeemReduce(st, { type: "lookup_result", result: await staff.lookupCode(code.value) }); render(); };   // ポイントか特典チケットかは DB が判定
   go.onclick = lookup; code.onkeydown = (ev) => { if (ev.key === "Enter") lookup(); };
   render();
   const hero = put(el("section", undefined, { class: "hero", "aria-labelledby": "redeemTitle" }), title("redeem", "ポイント使用"),
-    el("p", "お客様の画面に表示された6桁のコードを入力してください。", { class: "hint" }), stepsEl,
+    el("p", "お客様の画面に表示された6桁のコードを入力してください。ポイントの使用も、特典チケット(豆花・お茶など)も同じ欄です。", { class: "hint" }), stepsEl,
     put(el("div", undefined, { class: "row-flex" }), code, go), out);
   hero.firstChild.id = "redeemTitle";
   // 下の入口(会員・集計)。件数は集計から(取れなければ「—」)。本日の来店は集計にまとめた
@@ -352,7 +366,7 @@ const STATE = { open: { label: "運用中", cls: "ok" }, test: { label: "試験�
 async function dashView() {
   const reload = el("button", "更新", { class: "btn sub", id: "reloadDash", style: "--c:var(--blue)" }); reload.onclick = dashView;
   const head = put(el("div", undefined, { class: "head" }), title("dash", "集計", "c-blue-text"));
-  const [r, tv] = await Promise.all([staff.dashboard(), staff.todayVisits()]);
+  const [r, tv, tk] = await Promise.all([staff.dashboard(), staff.todayVisits(), staff.ticketStats()]);
   if (r.kind !== "ok") return show(head, failView("取得できませんでした", dashView));
   const d = r.data, s = STATE[d.state] ?? { label: d.state ?? DASH, cls: "unknown" };
   head.append(put(el("span", undefined, { class: `state ${s.cls}`, id: "dashState" }), el("i"), document.createTextNode(s.label)), el("span", `${jst(d.asOf) ?? DASH} 時点`, { class: "asof num" }), reload);
@@ -363,10 +377,14 @@ async function dashView() {
   if (typeof d.pendingRedeems === "number" && d.pendingRedeems > 0) warn.push(msgBox("warn", `確定待ちのポイント使用: ${n(d.pendingRedeems)} 件`, undefined, "お客様が使用コードを表示中で、まだ確定していません。3分たつと自動で無効になります"));
   // 本日の来店のうち、同じ30秒に6人以上の来店記録(QRの写真の拡散などの疑い)。取れなければ出さない
   if (tv.kind === "ok" && tv.data.suspiciousSlots.length) warn.unshift(msgBox("warn", `要確認: 本日、同じ時刻に ${tv.data.suspiciousSlots.map((x) => x.count).join("人・")}人の来店記録があります`, "suspicious", "店の外でQRの写真が使われた疑いがあります"));
+  if (tk.kind === "ok" && typeof tk.data.pendingTickets === "number" && tk.data.pendingTickets > 0) warn.push(msgBox("warn", `確定待ちの特典チケット: ${n(tk.data.pendingTickets)} 件`, undefined, "お客様がチケットのコードを表示中で、まだ確定していません。3分たつと自動で無効になります"));
   if (d.balanceMismatches === 0) ok.push(msgBox("ok", "残高と履歴は一致しています"));
   const stat = (cls, k, v, unit) => put(el("div", undefined, { class: `stat ${cls}` }), el("div", k, { class: "k" }), put(el("div", n(v), { class: "v num" }), el("small", unit)));
   const nodes = [head, put(el("div", undefined, { class: "alerts" }), ...bad, ...warn, ...ok),
     put(el("div", undefined, { class: "stats" }), stat("p", "有効会員数", d.membersActive, "人"), stat("o", "本日の来店", d.visitsToday, "人"), stat("t", "今月の付与ポイント", d.pointsIssuedThisMonth, "pt"), stat("b", "今月の使用ポイント", d.pointsRedeemedThisMonth, "pt"))];
+  // 特典チケット(累計): 発行数・使用数・使用率(使用数÷発行数)。取れなければ出さない
+  if (tk.kind === "ok") nodes.push(put(el("section", undefined, { id: "ticketStats", "aria-label": "特典チケット" }), put(el("h2"), icon("ticket"), document.createTextNode("特典チケット(累計)")),
+    put(el("div", undefined, { class: "stats three" }), stat("t", "発行", tk.data.issued, "枚"), stat("t", "使用", tk.data.used, "枚"), stat("t", "使用率", tk.data.usageRatePercent, "%"))));
   if (role === "manager") nodes.push(exportBox());                // CSV 出力は店長のみ(既存の API の範囲)
   show(...nodes);
 }

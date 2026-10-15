@@ -66,7 +66,7 @@ try {
     grant usage on schema public, auth to anon, authenticated, service_role; grant execute on function auth.uid() to anon, authenticated, service_role;
     alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
     alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;`);
-  pg.loadFile("100_phase1_schema.sql");
+  pg.loadFile("100_phase1_schema.sql"); pg.loadFile("101_search_path_fix.sql"); pg.loadFile("102_rank_perks.sql");   // 102: ランク特典(スタッフ画面のコード入力は staff_lookup_code を使う)
   pg.exec(`update system_state set state='open';`);
   pg.exec(`update app_settings set value='false' where key='register_counts_as_visit';`);   // 登録日の扱い(既定=来店日として扱う)は DB テストと下の専用ケースで検証。ここでは来店の流れを見るため解除
   pg.exec(`insert into auth.users(id) values ${Object.values(U).map((u) => `('${u}')`).join(",")};
@@ -115,9 +115,10 @@ try {
   assert.equal(await kio.locator("button, input, a, select, textarea, nav").count(), 0);
   // 店頭アカウントの資格情報を使って管理用の関数を直接呼んでも、すべて拒否される
   const denied = await kio.evaluate(async () => { const s = JSON.parse(localStorage.getItem("sess")); const out = [];
-    for (const [fn, args] of [["staff_list_members", { p_query: null }], ["staff_dashboard", {}], ["staff_today_visits", {}], ["staff_lookup_redeem", { p_code: "123456" }]]) {
+    for (const [fn, args] of [["staff_list_members", { p_query: null }], ["staff_dashboard", {}], ["staff_today_visits", {}], ["staff_lookup_redeem", { p_code: "123456" }],
+                              ["staff_lookup_code", { p_code: "123456" }], ["staff_ticket_stats", {}]]) {
       const r = await fetch("/rpc/" + fn, { method: "POST", headers: { "x-test-uid": s.user.id, "content-type": "application/json" }, body: JSON.stringify(args) }); out.push(r.status); } return out; });
-  assert.deepEqual(denied, [400, 400, 400, 400]);
+  assert.deepEqual(denied, [400, 400, 400, 400, 400, 400]);
   // 店頭アカウントで通常のスタッフ画面にログインしても入れない
   const stk = await newPage(); await stk.goto(`${BASE}/app-reference/staff.html`); await stk.fill("#email", "kiosk@t"); await stk.fill("#password", "pw"); await stk.click("#login"); await stk.waitForSelector("#msg:has-text('店頭QR専用')");
   assert.equal(await stk.locator("#nav").isVisible(), false);
@@ -142,6 +143,34 @@ try {
   await stf.waitForSelector("#redeemMsg"); assert.match(await text(stf, "#redeemMsg"), /見つかりません/);
   ok("ポイント使用: お客様の申請→コード表示→スタッフがコード入力・内容確認・確定→お客様の画面に自動で『使用しました』・残高-100。使い終えたコードは再利用できない");
 
+  // ---- 特典チケット: 会員証の「使う」→ コード → スタッフ画面の同じ入力欄で確定 → お客様に完了表示 ----
+  const tk = await newPage(tokFor(sub("c"), "試験 花子"));
+  await tk.goto(`${BASE}/app-reference/card.html`); await tk.waitForSelector("#register"); await tk.click("#register"); await tk.waitForSelector("#points");
+  assert.equal(await tk.locator("#tickets").count(), 0); assert.equal(await tk.locator("#rankPerks").count(), 0);       // WHITE OPAL: チケットも来るたびの特典もまだない
+  const clock1 = await text(tk, "#liveClock"); assert.match(clock1, /^\d{2}:\d{2}:\d{2}$/);
+  await tk.waitForFunction((c) => document.getElementById("liveClock")?.textContent !== c, clock1, { timeout: 3000 });  // 毎秒更新される
+  assert.notEqual(await tk.evaluate(() => getComputedStyle(document.querySelector(".front .in"), "::after").animationName), "none");   // 表面の模様がゆっくり動く
+  pg.exec(`select public._grant(m.id, 'earn', 'visit', 1000 - public._effective_lifetime(m), 'e2e:amber', 'test', null, now()) from members m where display_name = '試験 花子';`);
+  await tk.reload(); await tk.waitForSelector("#tickets button[data-ticket-id]");
+  assert.match(await text(tk, "#rank"), /AMBER/); assert.match(await text(tk, "#tickets"), /AMBER 到達のお祝い・豆花 1つ/); assert.match(await text(tk, "#tickets"), /まで/);
+  assert.match(await text(tk, "#rankPerks"), /ディナーの漢方茶 無料/); assert.doesNotMatch(await text(tk, "#rankPerks"), /薬日本堂/);   // 薬日本堂のご優待は EMERALD から
+  assert.match(await text(tk, "#benefits"), /1,000pt達成/); assert.doesNotMatch(await tk.textContent("body"), /5%OFF/);
+  assert.match(await text(tk, "#next"), /EMERALDまで あと 2,000 pt/); assert.match(await text(tk, "#lifetime"), /1,000 \/ 3,000 pt/);
+  await tk.click("#tickets button[data-ticket-id]"); await tk.waitForSelector("#ticketCode");
+  const tcode = (await text(tk, "#ticketCode")).replace(/\s/g, ""); assert.match(tcode, /^\d{6}$/); assert.match(await text(tk, "#ticketPendingInfo"), /豆花 1つ/);
+  assert.equal(await tk.locator("#tickets button[data-ticket-id]").isDisabled(), true);
+  await stf.click("[data-tab=redeem]"); await stf.fill("#code", tcode); await stf.click("#lookup"); await stf.waitForSelector("#confirm");
+  assert.match(await text(stf, "#rMember"), /試験 花子\(user\d{5}\)/); assert.match(await text(stf, "#rTicket"), /特典チケット: AMBER 到達のお祝い・豆花 1つ/); assert.equal(await stf.locator("#rAmount").count(), 0);
+  await stf.click("#confirm"); await stf.waitForSelector("#rDone"); assert.match(await text(stf, "#rDone"), /確定しました: AMBER 到達のお祝い・豆花 1つ/);
+  await tk.waitForSelector("#lastTicket", { timeout: 8000 }); assert.match(await text(tk, "#lastTicket"), /ご利用いただきました/); assert.match(await text(tk, "#notice"), /ご利用いただきました/);
+  assert.equal(await tk.locator("#tickets button[data-ticket-id]").count(), 0); assert.equal(await tk.locator("#ticketCode").count(), 0);
+  await stf.click("#lookup").catch(() => {}); await stf.waitForSelector("#redeemMsg"); assert.match(await text(stf, "#redeemMsg"), /見つかりません/);   // 使い終えたコードは再利用できない
+  await stf.click("[data-tab=dash]"); await stf.waitForSelector("#ticketStats"); assert.match(await text(stf, "#ticketStats"), /発行1枚.*使用1枚.*使用率100%/);
+  await tk.emulateMedia({ reducedMotion: "reduce" });                                                                // 動きを減らす設定: 模様は止まり、時刻は更新し続ける
+  assert.equal(await tk.evaluate(() => getComputedStyle(document.querySelector(".front .in"), "::after").animationName), "none");
+  const clock2 = await text(tk, "#liveClock"); await tk.waitForFunction((c) => document.getElementById("liveClock")?.textContent !== c, clock2, { timeout: 3000 });
+  ok("特典チケット: AMBER に上がると会員証にお祝いのチケットと『ディナーの漢方茶 無料』が出る→『使う』で6桁コード→スタッフ画面の同じ入力欄でチケットと判定・確定→お客様の画面に自動で『ご利用いただきました』。使い終えたコードは再利用できず、集計に発行・使用・使用率。表面に毎秒の時刻と動く模様(動きを減らす設定では模様だけ止まる)");
+
   // ---- 店長の手動調整・閲覧のみの制限 ----
   const mgr = await newPage(); await mgr.goto(`${BASE}/app-reference/staff.html`); await mgr.fill("#email", "mgr@t"); await mgr.fill("#password", "pw"); await mgr.click("#login"); await mgr.waitForSelector("#who:has-text('manager')");
   await mgr.click("[data-tab=members]"); await mgr.fill("#q", "試験"); await mgr.click("#search"); await mgr.waitForSelector("#list button"); await mgr.click("#list button");
@@ -161,7 +190,8 @@ try {
   await mgr.click("[data-tab=members]"); await mgr.fill("#q", "img"); await mgr.click("#search"); await mgr.waitForSelector("#list button"); assert.equal(await mgr.evaluate(() => window.__x), undefined);
   ok("表示名にHTML/スクリプトがあっても実行されず、文字として表示される(お客様画面・スタッフ画面とも)");
   const ptsNoOverflow = await cust.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth); assert.ok(ptsNoOverflow);
-  for (const p of [cust, stf, mgr, view, evil]) assert.deepEqual(p.errs, [], p.errs.join("|"));
+  for (const p of [cust, stf, mgr, view, evil, tk]) assert.deepEqual(p.errs, [], p.errs.join("|"));
+  assert.equal(await tk.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
   assert.equal(Number(pg.exec(`select count(*) from public.verify_balances();`)), 0);
   ok("ブラウザのエラーなし・横スクロールなし・全会員で残高=台帳の合計");
   console.log(`\n${n} e2e tests passed`);

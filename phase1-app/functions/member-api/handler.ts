@@ -107,6 +107,16 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
         const r = await rpc("app_redeem_cancel", { p_issuer: issuer, p_subject: subject, p_now: now });
         return json(r, r.status === "not_registered" ? 404 : 200, ch);
       }
+      // 特典チケットの使用申請(db/102_rank_perks.sql)。チケットが本人のものかどうかは DB の関数が確認する
+      case "ticket_request": {
+        if (typeof body.ticketId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.ticketId)) return json({ error: "invalid_ticket" }, 400, ch);
+        const r = await rpc("app_ticket_request", { p_issuer: issuer, p_subject: subject, p_ticket_id: body.ticketId.toLowerCase(), p_now: now });
+        return json(r, r.status === "not_registered" ? 404 : r.status === "pending" ? 200 : 409, ch);
+      }
+      case "ticket_cancel": {
+        const r = await rpc("app_ticket_cancel", { p_issuer: issuer, p_subject: subject, p_now: now });
+        return json(r, r.status === "not_registered" ? 404 : 200, ch);
+      }
       default: return json({ error: "unknown_action" }, 400, ch);
     }
   } catch (e) {

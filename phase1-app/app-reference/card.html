@@ -72,8 +72,31 @@ details.benefits summary::-webkit-details-marker { display:none; }
 .benefit .chip { min-width:112px; text-align:center; white-space:nowrap; font-size:10.5px; padding:5px 8px; }
 .ticket { margin-top:16px; text-align:center; background:#0f172a; color:#d4af37; border-radius:12px; padding:14px; font-size:14px; font-weight:600; line-height:1.6; }
 .ticket small { display:block; font-weight:400; font-size:12px; color:#e2e8f0; }
+.benefit-note { font-size:11.5px; color:var(--sub); line-height:1.6; padding:10px 0 12px; border-top:1px solid var(--line); }
+/* ---- 画面写真の使い回し対策: 表面に今の時刻(毎秒更新)と、ゆっくり動く模様 ---- */
+.who .clock { display:inline-flex; align-items:center; gap:6px; margin-top:5px; font-size:12px; font-weight:600; letter-spacing:.08em; color:var(--on); font-variant-numeric:tabular-nums; }
+.who .clock::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor; animation:blink 2s ease-in-out infinite; }
+.front .in::after { content:""; position:absolute; inset:-40%; pointer-events:none; z-index:0; opacity:.5;
+  background:repeating-linear-gradient(115deg, rgba(255,255,255,0) 0 20px, rgba(255,255,255,.55) 20px 24px, rgba(255,255,255,0) 24px 48px);
+  animation:drift 16s linear infinite; }
+.front .in > * { z-index:1; }
+@keyframes drift { from { transform:translate3d(0,0,0); } to { transform:translate3d(43.5px,20.3px,0); } }   /* 模様の1周期ぶん(48px)を斜めに動かして継ぎ目なく繰り返す */
+@keyframes blink { 50% { opacity:.25; } }
+/* ---- ランクの特典・特典チケット ---- */
+.perks { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:6px; }
+.perks li { font-size:13.5px; line-height:1.5; padding-left:16px; position:relative; }
+.perks li::before { content:""; position:absolute; left:2px; top:.55em; width:7px; height:7px; border-radius:50%; background:linear-gradient(135deg,var(--r1),var(--r2)); }
+.perks li.small { font-size:11.5px; color:var(--sub); }
+.tickets { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:8px; }
+.tickets li { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px dashed var(--accent); border-radius:10px; background:#fff; }
+.tickets .tt { flex:1; min-width:0; }
+.tickets .tt b { display:block; font-size:14px; font-weight:600; line-height:1.45; overflow-wrap:anywhere; }
+.tickets .tt small { font-size:11.5px; color:var(--sub); }
+.tickets .use { height:40px; min-width:72px; border-radius:10px; border:0; background:var(--ink); color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
+.tickets .use:disabled { opacity:.4; cursor:default; }
 @media (max-width:340px) { .points { font-size:36px; } .code { font-size:36px; } .back .in { padding:12px 10px 8px; } .back .hours, .back .addr, .back .tel { font-size:12.5px; margin-top:5px; } .back .btn { font-size:11.5px; min-height:38px; padding:4px; } .who h1 { font-size:16px; } }
-@media (prefers-reduced-motion: reduce) { .card { transition:none; } }
+/* 動きを減らす設定では模様と点滅を止める(時刻は更新し続ける) */
+@media (prefers-reduced-motion: reduce) { .card { transition:none; } .front .in::after, .who .clock::before { animation:none; } }
 </style></head>
 <body>
 <main id="app" aria-live="polite"><p id="loading" class="msg">読み込み中…</p></main>
@@ -81,15 +104,22 @@ details.benefits summary::-webkit-details-marker { display:none; }
 <script src="vendor/liff.js"></script>
 <script type="module">
 import { createMemberClient, qrTokenFromLocation } from "../app-core/member-client.mjs";
-import { cardScreen, checkinScreen, redeemScreen, redeemWatch } from "../app-core/screens.mjs";
+import { cardScreen, checkinScreen, redeemScreen, redeemWatch, ticketScreen, ticketWatch } from "../app-core/screens.mjs";
 import { STORE, quizUrl, flowFromLocation } from "../app-core/store-info.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 const kids = (parent, ...nodes) => { for (const n of nodes) if (n) parent.append(n); return parent; };
 const show = (...nodes) => { app.replaceChildren(...nodes); };
 let client, prevView = null, poll = null, notice = null, lineUserId = null, flipped = false;
-const BENEFITS = [["white_opal", "WHITE OPAL", "100pt = 10円としてお会計時にいつでも利用可能"], ["amber", "AMBER", "10,000pt達成:季節の薬膳茶を1杯プレゼント"], ["emerald", "EMERALD", "50,000pt達成:限定薬膳スイーツご提供"],
-  ["ruby", "RUBY", "100,000pt達成:お会計5%OFF & 特別席優先案内"], ["onyx", "ONYX", "200,000pt達成:新メニュー特別試食会ご招待 & 特別優待"]];
+// ランク特典(RANK_PERKS_DESIGN_20261015.md)。店頭QR画面(qr.html の KIOSK_COPY)と DB の基準(db/102_rank_perks.sql)に合わせる。食い違いは tools/test_kiosk_copy.mjs が検出する
+const BENEFITS = [["white_opal", "WHITE OPAL", "100pt = 10円としてお会計時にいつでも利用可能"], ["amber", "AMBER", "1,000pt達成:豆花を1つプレゼント・ディナーの漢方茶 無料"],
+  ["emerald", "EMERALD", "3,000pt達成:持ち帰り用のお茶を1袋プレゼント・季節ごとに豆花チケット(年4枚)"], ["ruby", "RUBY", "6,000pt達成:持ち帰り用のお茶を1袋プレゼント・席・予約の優先案内"],
+  ["onyx", "ONYX", "10,000pt達成:持ち帰り用のお茶を1袋プレゼント・新メニュー試食会へご招待"]];
+const BENEFIT_NOTE = "上のランクでは、下のランクの特典も続けてご利用いただけます。ランクは累計ポイントで決まり、下がりません。到達のお祝いのチケットは発行から60日間、季節の豆花チケットはその季節の終わりまで有効です。";
+// 今の時刻(日本時間 HH:MM:SS)。会員証の表面に出し、毎秒更新する(画面写真の使い回し対策)
+const clockFmt = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+const clockText = () => clockFmt.format(new Date());
+setInterval(() => { const c = document.getElementById("liveClock"); if (c) c.textContent = clockText(); }, 1000);
 
 // 表面(会員証: ロゴ・氏名・会員番号・ランク+生薬の飾り)と裏面(店舗情報)。タップで裏返る。リンクのタップでは裏返らない
 const HERBS = [["chili", "right:21%;top:5%;width:18%"], ["chenpi", "right:4%;top:6%;width:16%"], ["goji", "right:23%;top:34%;width:16%"], ["anise", "right:4%;top:43%;width:16%"],
@@ -101,7 +131,8 @@ function cardFace(view) {
   for (const [name, pos] of HERBS) fin.append(el("img", undefined, { src: `assets/herb-${name}.webp`, alt: "", "aria-hidden": "true", class: "herb", style: pos, decoding: "async" }));
   if (view) {
     fin.append(el("span", view.rankLabel, { id: "rank", class: `chip rank-${view.rank}` }));
-    kids(fin, kids(el("div", undefined, { class: "who" }), el("h1", view.displayName, { id: "name" }), el("p", `会員番号 ${view.memberNo}`, { id: "memberNo" })));
+    kids(fin, kids(el("div", undefined, { class: "who" }), el("h1", view.displayName, { id: "name" }), el("p", `会員番号 ${view.memberNo}`, { id: "memberNo" }),
+      el("p", clockText(), { id: "liveClock", class: "clock", "aria-label": "現在の時刻" })));
   }
   front.append(fin);
   const back = el("div", undefined, { class: "face back" }), bin = el("div", undefined, { class: "in" });
@@ -130,7 +161,7 @@ function cardNodes(view) {
   kids(pts, el("p", "保有ポイント", { class: "label" }), el("p", view.pointsText, { id: "points", class: "points" }), el("p", view.yenText, { id: "yen", class: "yen" }));
   const bar = el("div", undefined, { class: "bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(view.next.percent ?? 0), "aria-label": "次のランクまで" });
   const fill = el("i"); fill.style.width = `${Math.max(0, Math.min(100, Number(view.next.percent) || 0))}%`; bar.append(fill);
-  const target = { AMBER: 10000, EMERALD: 50000, RUBY: 100000, ONYX: 200000 }[view.next.label], life = String(view.lifetimeText || "—").replace(/ pt$/, "");
+  const target = view.next.target, life = String(view.lifetimeText || "—").replace(/ pt$/, "");     // 次のランクの基準は DB から(rank_thresholds)
   const row = el("div", undefined, { class: "nextrow" });
   kids(row, el("span", view.next.label ? `${view.next.label}まで ${view.next.remainingText}` : view.next.remainingText, { id: "next" }),
     el("span", target ? `累計 ${life} / ${target.toLocaleString("ja-JP")} pt` : `累計 ${view.lifetimeText}`, { id: "lifetime", class: "life" }));
@@ -149,10 +180,37 @@ function cardNodes(view) {
     b.onclick = async () => { const s = redeemScreen(await client.redeemRequest(Number(i.value)), Date.now()); if (s.error) { notice = s.error; } else { notice = s.notice || null; } load(); };
     kids(row, i, b); kids(box, el("p", `ポイントを使う(${view.redeemUnit}pt単位)`, { class: "label" }), row); n.push(box);
   }
+  // 特典チケット(1回で終わる特典)。「使う」→6桁コード→スタッフが確定(ポイント使用と同じ流れ)
+  if (view.pendingTicket) {
+    const p = view.pendingTicket, box = el("section", undefined, { class: "panel pending", id: "ticketPending" });
+    kids(box, el("p", `チケットを使用中: ${p.title}`, { id: "ticketPendingInfo", class: "label" }), el("p", p.codeText, { id: "ticketCode", class: "code" }),
+      el("p", `あと ${p.secondsLeft} 秒・スタッフにこのコードをお見せください`, { id: "ticketLeft", class: "meta" }));
+    const c = el("button", "使用を取り消す", { id: "ticketCancel", class: "ghost full" }); c.onclick = async () => { await client.ticketCancel(); load(); }; box.append(c); n.push(box);
+  }
+  if (view.tickets.length || view.lastTicket) {
+    const box = el("section", undefined, { class: "panel", id: "tickets" }), ul = el("ul", undefined, { class: "tickets" });
+    box.append(el("p", "特典チケット", { class: "label" }));
+    for (const t of view.tickets) {
+      const b = el("button", "使う", { class: "use", "data-ticket-id": t.id, "aria-label": `${t.title}を使う` });
+      if (view.pendingTicket) b.disabled = true;                                  // コードを表示中は、ほかのチケットを使えない(先に取り消す)
+      b.onclick = async () => { b.disabled = true; const s = ticketScreen(await client.ticketRequest(t.id), Date.now()); notice = s.error || s.message || null; load(); };
+      ul.append(kids(el("li"), kids(el("div", undefined, { class: "tt" }), el("b", t.title), el("small", t.validThroughText)), b));
+    }
+    if (view.tickets.length) box.append(ul); else box.append(el("p", "使えるチケットはありません", { class: "meta" }));
+    if (view.lastTicket) box.append(el("p", view.lastTicket.message, { id: "lastTicket", class: "meta" }));
+    n.push(box);
+  }
   const d = el("details", undefined, { class: "benefits", id: "benefits" }); d.append(el("summary", "会員ランク特典"));
+  // いまのランクで使える特典(来るたびに使える特典。下のランクの分も含む)
+  if (view.perks.length) {
+    const sec = el("div", undefined, { class: "benefit", id: "rankPerks" }), ul = el("ul", undefined, { class: `perks rank-${view.rank}` });
+    for (const p of view.perks) ul.append(el("li", p.text, p.small ? { class: "small" } : {}));
+    sec.style.display = "block"; kids(sec, el("span", `${view.rankLabel} のいまの特典`, { class: "label" }), ul); d.append(sec); d.open = true;
+  }
   for (const [code, label, text] of BENEFITS) { const r = el("div", undefined, { class: "benefit" }); kids(r, el("span", label, { class: `chip rank-${code}` }), el("span", text)); d.append(r); }
+  d.append(el("p", BENEFIT_NOTE, { class: "benefit-note" }));
   n.push(d);
-  if (view.rank === "onyx") { const t = el("div", "ONYX 会員特別ご招待券", { id: "specialTicket", class: "ticket" }); t.append(el("small", "新メニュー先行試食会 & 特別優待をご用意しております")); n.push(t); }
+  if (view.rank === "onyx") { const t = el("div", "ONYX 会員特別ご招待", { id: "specialTicket", class: "ticket" }); t.append(el("small", "新メニュー試食会へご招待します。ご案内は LINE でお送りします")); n.push(t); }
   return n;
 }
 async function load() {
@@ -160,8 +218,9 @@ async function load() {
   const s = cardScreen(await client.me(), Date.now());
   if (s.screen === "card") {
     const w = redeemWatch(prevView, s.view); if (w.change === "confirmed" || w.change === "cancelled" || w.change === "expired") notice = w.message || notice;
+    const wt = ticketWatch(prevView, s.view); if (wt.change === "confirmed" || wt.change === "cancelled" || wt.change === "expired") notice = wt.message || notice;
     prevView = s.view; show(...cardNodes(s.view));
-    if (s.view.pending) poll = setTimeout(load, 3000);
+    if (s.view.pending || s.view.pendingTicket) poll = setTimeout(load, 3000);
   } else if (s.screen === "register") {
     const b = el("button", "会員登録する", { id: "register", class: "primary full" }); b.onclick = async () => { const prof = await window.liff.getProfile?.().catch?.(() => null); await client.register({ displayName: prof?.displayName }); load(); };
     show(cardFace(null), el("p", s.message, { id: "msg", class: "msg" }), b);
