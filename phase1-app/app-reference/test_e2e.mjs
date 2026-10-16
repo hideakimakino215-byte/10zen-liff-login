@@ -345,6 +345,54 @@ try {
     pg.exec(`delete from constitution_checks where id in (${ids.map(q).join(",")});`); }
   ok("一覧の体質の印: 全部同点で高めの会員は一覧で「全体」、詳細で「全体的にゆらぎやすいタイプ」。一覧を開くと、印を見せた会員が記録に残る");
 
+  // ---- お席の QR(?table=)→ 体質チェック → そのまま注文(ダイニーの店舗IDを設定したとき。2026-10-16 牧野さん承認) ----
+  { const SHOP = "3fdf5fed-fee4-47df-b541-0cb32e93d14a", DLIFF = "1653687169-wzDlrXnN";
+    const withDinii = async (p) => { await p.route("**/app-reference/config.js", (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: CONFIG.replace("};", `,diniiShopId:"${SHOP}",diniiLiffId:"${DLIFF}"};`) })); return p; };
+    const visited = pg.exec(`select exists(select 1 from visits where member_id = ${ccMember} and visit_on = (now() at time zone 'Asia/Tokyo')::date);`) === "t";
+    const tp = await withDinii(await newPage(tokFor(sub("d"), "試験 体質")));
+    await tp.goto(`${BASE}/app-reference/check.html?table=T07`); await tp.waitForSelector("#ccStart, #ccAgree");
+    await tp.goto(`${BASE}/app-reference/check.html?view=result`); await tp.waitForSelector("#ccTypeName");          // 画面を移っても、お席の QR から入ったことを覚えている
+    assert.equal(await tp.getAttribute("#ccOrderTable", "href"), `https://liff.line.me/${DLIFF}/shops/${SHOP}/items?shopId=${SHOP}&tableCode=T07`);
+    assert.equal(await text(tp, "#ccOrderTable"), "このまま注文する"); assert.equal(await tp.locator("#ccOrderScan").count(), 0);
+    const bad = await withDinii(await newPage(tokFor(sub("d"), "試験 体質")));
+    await bad.goto(`${BASE}/app-reference/check.html?table=${encodeURIComponent("<x>")}&view=result`); await bad.waitForSelector("#ccTypeName");
+    assert.equal(await bad.locator("#ccOrderTable").count(), 0);                                                       // 形の違うテーブルは使わない
+    assert.equal(await bad.locator("#ccOrder").count(), visited ? 1 : 0);                                              // お席の QR からでなければ、来店した日だけ(読み取りのボタン)
+    const home = await withDinii(await newPage(tokFor(sub("d"), "試験 体質")));
+    if (visited) { await home.close(); }
+    else { await home.goto(`${BASE}/app-reference/check.html?view=result`); await home.waitForSelector("#ccTypeName"); assert.equal(await home.locator("#ccOrder").count(), 0); }   // 家など(来店していない・お席の QR でもない)は出さない
+    for (const p of [tp, bad]) assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+  }
+  ok("お席の QR から体質チェック: 結果の「このまま注文する」は読み直さずにそのテーブルのダイニーの注文画面へ(画面を移っても覚えている)。形の違うテーブルは使わない。お席の QR からでなければ来店した日だけ読み取りのボタン、家などでは出さない");
+
+  // ---- Web 版の体質チェック(ログインなし・何も送らない)と、お席の QR の印刷ページ ----
+  { const LIFFID = "2011158053-fsQb9Hvf", cfgWith = async (p) => { await p.route("**/app-reference/config.js", (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: CONFIG.replace('liffId:"x"', `liffId:"${LIFFID}"`) })); return p; };
+    const wc = await cfgWith(await newPage(null)); const sent = [];
+    wc.on("request", (r) => { const u = new URL(r.url()); if (u.pathname.startsWith("/member-api") || u.pathname.startsWith("/rpc") || u.hostname !== "127.0.0.1") sent.push(r.url()); });
+    await wc.goto(`${BASE}/app-reference/web-check.html`); await wc.waitForSelector("#wcStart");
+    assert.match(await text(wc, "#wcPrivacy"), /保存・送信しません/);
+    await wc.click("#wcStart");
+    for (let i = 1; i <= 15; i++) { await wc.waitForSelector(`#wcStep:has-text('${i} / 15')`); await wc.click(`#wcOptions button[data-value="${i >= 10 && i <= 12 ? 2 : 0}"]`); }   // 金6
+    await wc.waitForSelector("#wcTypeName");
+    assert.equal(await text(wc, "#wcTypeName"), "うるおい不足タイプ"); assert.equal(await wc.getAttribute("#wcTypeName", "data-element"), "metal");
+    assert.equal(await wc.locator("#wcRadar polygon.radar-area").count(), 1); assert.match(await text(wc, "#wcYourTea"), /五巡茶\(金\)/); assert.equal(await text(wc, "#wcYourTeaDay"), "金曜日はあなたのお茶の日");
+    assert.equal(await wc.getAttribute("#wcLine", "href"), `https://liff.line.me/${LIFFID}`);
+    assert.equal(await text(wc, "#wcDisclaimer"), DISCLAIMER); assert.doesNotMatch(await wc.textContent("body"), /治る|効く|改善|\(仮\)/);
+    await wc.click("#wcRetake"); await wc.click("#wcStart");
+    for (let i = 1; i <= 15; i++) { await wc.waitForSelector(`#wcStep:has-text('${i} / 15')`); await wc.click('#wcOptions button[data-value="2"]'); }
+    await wc.waitForSelector("#wcTypeName"); assert.equal(await text(wc, "#wcTypeName"), "全体的にゆらぎやすいタイプ"); assert.equal(await wc.locator("#wcFormal").count(), 0);
+    assert.deepEqual(sent, []);                                                                                         // 回答はどこにも送らない
+    assert.equal(await wc.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true); assert.deepEqual(wc.errs, []);
+    const tq = await cfgWith(await newPage(null));
+    await tq.goto(`${BASE}/app-reference/table-qr.html`); await tq.fill("#list", "A1,T01\nA2,T02\nB,<x>"); await tq.click("#make");
+    assert.equal(await tq.locator(".pop").count(), 2); assert.equal(await tq.locator(".pop svg").count(), 2);
+    assert.equal(await tq.getAttribute(".pop[data-table=T01] .qr", "data-url"), `https://liff.line.me/${LIFFID}/check.html?table=T01`);
+    assert.match(await text(tq, ".pop[data-table=T02]"), /1分体質チェック.*このままご注文いただけます.*お席 A2/);
+    assert.match(await text(tq, "#skipped"), /3行目: テーブルコードの形が違います/); assert.equal(await tq.isVisible("#print"), true);
+    assert.equal(await tq.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true); assert.deepEqual(tq.errs, []);
+  }
+  ok("Web 版の体質チェック: ログインなしで15問 → タイプ・五角形・あなたの五巡茶・季節・LINE の会員証への登録・薬日本堂・診断ではない旨。全部同点で高めは「全体的にゆらぎやすいタイプ」。回答はどこにも送らない。お席の QR の印刷ページは一覧から QR カードを作り、形の違う行は行番号つきで飛ばす");
+
   // ---- 体質チェックの集計の色・店長の CSV(体質タイプ・実施日) ----
   await mgr.click("[data-tab=constitution]"); await mgr.waitForSelector("#ccTypes");
   const barColor = (sel) => mgr.evaluate((s) => getComputedStyle(document.querySelector(s)).backgroundColor, sel);

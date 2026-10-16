@@ -1,5 +1,5 @@
 // 配信用の v2/ を組み立てる(リポジトリの公開サイトの /v2/ に置く)。実行: node tools/build_v2.mjs --liff-id <LIFF ID> --supabase-key <公開キー> [--out <出力先>]
-//  * app-core と app-reference(card.html / check.html / staff.html / qr.html)をそのままコピーし、config.js と vendor/liff.js を生成する。
+//  * app-core と app-reference(card.html / check.html / staff.html / qr.html / web-check.html / table-qr.html)をそのままコピーし、config.js と vendor/liff.js を生成する。
 //  * 秘密は入れない(公開キー sb_publishable_… と、秘密ではない値だけ)。service_role や秘密鍵らしい文字列があれば中止する。
 //  * 出力先に MANIFEST.txt(ファイル一覧と SHA-256)を書く。
 import fs from "node:fs";
@@ -18,7 +18,7 @@ export function build({ liffId, supabaseKey, out, supabaseUrl = "https://ynqnhjv
   fs.rmSync(out, { recursive: true, force: true });
   const copy = (from, to) => { fs.mkdirSync(path.dirname(to), { recursive: true }); fs.copyFileSync(from, to); };
   for (const f of fs.readdirSync(path.join(ROOT, "app-core"))) if (/\.mjs$/.test(f) && !/^test/.test(f)) copy(path.join(ROOT, "app-core", f), path.join(out, "app-core", f));
-  for (const f of ["card.html", "check.html", "staff.html", "qr.html", "whoami.html"]) copy(path.join(ROOT, "app-reference", f), path.join(out, "app-reference", f));
+  for (const f of ["card.html", "check.html", "staff.html", "qr.html", "whoami.html", "web-check.html", "table-qr.html"]) copy(path.join(ROOT, "app-reference", f), path.join(out, "app-reference", f));
   for (const f of fs.readdirSync(path.join(ROOT, "app-reference", "assets"))) copy(path.join(ROOT, "app-reference", "assets", f), path.join(out, "app-reference", "assets", f));   // 会員証の画像(表面)
   for (const f of ["supabase.js", "qrcode.js", "README.md"]) copy(path.join(ROOT, "app-reference", "vendor", f), path.join(out, "app-reference", "vendor", f));
   const v = path.join(out, "app-reference");
