@@ -1,0 +1,78 @@
+<!doctype html>
+<!-- お席に置く QR の印刷用ページ(2026-10-16 牧野さん承認)。テーブルの一覧を入れると、1枚ずつ「1分体質チェック → そのまま注文」の QR カードを作る。
+     QR の中身は会員証の LIFF の check.html?table=<テーブルコード>(app-core/dinii.mjs の tableQrUrl)。テーブルコードはダイニーの席の QR の tableCode と同じ値。
+     入力はこの端末の中だけで使い、どこにも送らない・保存しない。表示は textContent だけ。QR は同梱の qrcode.js(外部の CDN は使わない)。 -->
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
+<title>10ZEN お席のQR</title>
+<style>
+:root { --ink:#2b2926; --sub:#7a746b; --line:#e7e1d8; --bg:#f7f4ee; --paper:#fffefb; --accent:#8a6a3b; --warn:#a4452c; }
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+html, body { margin:0; background:var(--bg); color:var(--ink); font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Noto Sans JP",system-ui,sans-serif; -webkit-text-size-adjust:100%; }
+main { max-width:900px; margin:0 auto; padding:16px 16px 40px; }
+h1, h2, p { margin:0; }
+.serif { font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; }
+.panel { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:16px; margin-top:14px; }
+.panel h1 { font-size:20px; } .meta { font-size:13px; color:var(--sub); line-height:1.7; margin-top:6px; }
+textarea { width:100%; min-height:140px; margin-top:10px; padding:10px; border:1px solid var(--line); border-radius:10px; font:inherit; font-size:16px; }
+.row { display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+button { min-height:48px; padding:0 18px; border-radius:12px; font:inherit; font-weight:600; cursor:pointer; border:1px solid var(--ink); background:#fff; color:var(--ink); }
+button.primary { background:var(--ink); color:#fff; border:0; }
+.skipped { margin:10px 0 0; padding-left:1.2em; color:var(--warn); font-size:14px; line-height:1.7; }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:14px; margin-top:16px; }
+.pop { background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px 16px; text-align:center; break-inside:avoid; page-break-inside:avoid; }
+.pop img { width:120px; height:auto; display:block; margin:0 auto; }
+.pop h2 { font-size:22px; letter-spacing:.08em; margin-top:10px; }
+.pop .qr svg { display:block; width:170px; height:170px; margin:10px auto 6px; }
+.pop .scan { font-size:12.5px; color:var(--sub); line-height:1.6; }
+.pop .after { font-size:14px; font-weight:600; line-height:1.6; margin-top:6px; }
+.pop .tbl { font-size:12px; color:var(--sub); margin-top:8px; font-variant-numeric:tabular-nums; }
+@media print {
+  body { background:#fff; } main { max-width:none; padding:0; } .no-print { display:none !important; }
+  .cards { grid-template-columns:repeat(2, 1fr); gap:8mm; margin:0; } .pop { border:1px dashed #999; border-radius:0; }
+}
+</style></head>
+<body>
+<main>
+  <section class="panel no-print" id="form">
+    <h1 class="serif">お席のQRを作る</h1>
+    <p class="meta">1行に1つ「表示名,テーブルコード」を入れてください(例: A1,T01)。テーブルコードは、ダイニーの席の QR に入っている値と同じものです。入れた内容はこの端末の中だけで使い、保存しません。</p>
+    <textarea id="list" aria-label="テーブルの一覧" placeholder="A1,T01&#10;A2,T02"></textarea>
+    <div class="row"><button id="make" class="primary" type="button">QR を作る</button><button id="print" type="button" hidden>印刷する</button></div>
+    <p id="count" class="meta" role="status"></p>
+    <ul id="skipped" class="skipped" hidden></ul>
+  </section>
+  <section id="cards" class="cards" aria-label="お席のQR"></section>
+</main>
+<script src="config.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script type="module">
+import { tableQrUrl, parseTableList, TABLE_POP } from "../app-core/dinii.mjs";
+const cfg = window.APP_CONFIG;
+const $ = (id) => document.getElementById(id);
+const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+// URL を QR の SVG にする(qr.html と同じ。SVG は DOMParser で読み、文字列を HTML として差し込まない)
+function qrSvg(text) {
+  const q = window.qrcode(0, "M"); q.addData(text); q.make();
+  const doc = new DOMParser().parseFromString(q.createSvgTag({ cellSize: 8, margin: 8, scalable: true }), "image/svg+xml");
+  return document.importNode(doc.documentElement, true);
+}
+function make() {
+  const { rows, skipped } = parseTableList($("list").value);
+  const cards = rows.map(({ label, table }) => {
+    const url = tableQrUrl(cfg.liffId, table); if (!url) return null;
+    const qr = el("div", undefined, { class: "qr", "data-url": url }); qr.append(qrSvg(url));
+    const card = el("article", undefined, { class: "pop", "data-table": table });
+    card.append(el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT" }), el("h2", TABLE_POP.title, { class: "serif" }), qr,
+      el("p", TABLE_POP.scan, { class: "scan" }), el("p", TABLE_POP.after, { class: "after" }), el("p", `お席 ${label}`, { class: "tbl" }));
+    return card;
+  }).filter(Boolean);
+  $("cards").replaceChildren(...cards);
+  $("count").textContent = cards.length ? `${cards.length}枚 作りました` : "作れる行がありません";
+  $("skipped").replaceChildren(...skipped.map((s) => el("li", `${s.line}行目: ${s.reason}`)));
+  $("skipped").hidden = !skipped.length; $("print").hidden = !cards.length;
+}
+$("make").onclick = make;
+$("print").onclick = () => window.print();
+</script>
+</body></html>

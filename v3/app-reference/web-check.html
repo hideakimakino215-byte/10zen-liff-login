@@ -1,0 +1,179 @@
+<!doctype html>
+<!-- 1分体質チェックの Web 版(SNS・Google・Web サイトに置く。2026-10-16 牧野さん承認)。ログインなし・LINE なしで使える。
+     回答はこの画面の中だけで判定し(app-core/constitution.mjs の evaluate。DB の判定と同じ)、どこにも送らない・保存しない(同意は不要)。
+     流れ: はじめの画面 → 15問(1問1画面・会員証の体質チェックと同じ見た目)→ 結果(タイプ・五角形・あなたの五巡茶・今日の五巡茶・季節のひとこと)
+           → LINE の会員証への登録(会員証の LIFF)・薬日本堂・診断ではない旨。食事の気分とおすすめの一品は、会員証の体質チェックだけ。
+     表示は screens.mjs の constitutionResultView をそのまま使う。値は textContent で入れる。外部のライブラリ・CDN・フォント・計測タグは使わない。 -->
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10ZEN 1分体質チェック</title>
+<meta name="description" content="15問で、いまの体質の傾向がわかる 10ZEN の1分体質チェック">
+<style>
+:root { --ink:#2b2926; --sub:#7a746b; --line:#e7e1d8; --bg:#f7f4ee; --paper:#fffefb; --accent:#8a6a3b; --accent-soft:#f3ebdd; --ok:#2f6b4f; --warn:#a4452c; }
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+html, body { margin:0; background:var(--bg); color:var(--ink); font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Noto Sans JP",system-ui,sans-serif; -webkit-text-size-adjust:100%; }
+main { max-width:440px; margin:0 auto; padding:16px 16px 40px; }
+h1, h2, h3, p { margin:0; }
+a { color:inherit; }
+button { font-family:inherit; color:inherit; }
+.serif { font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; }
+.top { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+.top img { width:96px; height:auto; display:block; }
+.top h1 { font-size:18px; font-weight:600; letter-spacing:.08em; margin-left:auto; }
+.panel { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:18px; margin-top:14px; }
+.label { font-size:11px; letter-spacing:.14em; color:var(--sub); }
+.lead { font-size:15px; line-height:1.8; margin-top:8px; }
+.meta { font-size:12px; color:var(--sub); line-height:1.7; margin-top:6px; }
+.msg { text-align:center; font-size:15px; line-height:1.7; margin:24px 0 8px; }
+.notice { background:#fff; border:1px solid var(--line); border-left:4px solid var(--warn); border-radius:8px; padding:12px 14px; margin:0 0 14px; font-size:14px; line-height:1.6; }
+.primary, .ghost { display:flex; align-items:center; justify-content:center; width:100%; min-height:52px; border-radius:12px; font-size:16px; font-weight:600; cursor:pointer; text-decoration:none; margin-top:14px; }
+.primary { border:0; background:var(--ink); color:#fff; } .ghost { border:1px solid var(--ink); background:#fff; color:var(--ink); }
+/* ---- 1問1画面 ---- */
+.progress { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--sub); font-variant-numeric:tabular-nums; }
+.bar { flex:1; height:6px; background:#ece6dc; border-radius:999px; overflow:hidden; }
+.bar > i { display:block; height:100%; background:linear-gradient(90deg,#b99256,#8a6a3b); border-radius:999px; transition:width .25s ease; }
+.q { min-height:7.2em; display:flex; align-items:center; font-size:22px; line-height:1.6; font-weight:600; margin:22px 2px 6px; overflow-wrap:anywhere; }
+.opts { display:grid; gap:10px; margin-top:8px; }
+.opt { min-height:64px; width:100%; border:1px solid var(--line); border-radius:14px; background:var(--paper); font-size:18px; font-weight:600; letter-spacing:.06em; cursor:pointer; box-shadow:0 1px 2px rgba(60,45,20,.06); }
+.opt[aria-pressed=true], .opt:active { background:var(--accent-soft); border-color:var(--accent); }
+.back { margin-top:18px; min-height:44px; padding:0 14px; border:0; background:none; color:var(--sub); font-size:14px; cursor:pointer; }
+/* ---- 結果 ---- */
+.type { text-align:center; padding-top:22px; }
+.type h2 { font-size:26px; font-weight:600; letter-spacing:.06em; margin-top:6px; }
+.type p.line { font-size:14.5px; line-height:1.8; margin-top:10px; text-align:left; }
+.radar-wrap { margin-top:10px; }
+.radar { display:block; width:100%; max-width:320px; height:auto; margin:0 auto; cursor:pointer; }
+.radar-ring { fill:none; stroke:#e4dccf; stroke-width:1; }
+.radar-axis { stroke:#e4dccf; stroke-width:1; }
+.radar-area { fill:rgba(122,116,107,.16); stroke:#8f887d; stroke-width:2; stroke-linejoin:round; }   /* 面は無彩色。点と軸の名前を五行の色にする(app-core/constitution.mjs の ELEMENT_COLORS) */
+.radar-dot { fill:var(--accent); }
+.radar-label { font-size:16px; fill:var(--ink); font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; }
+.radar-value { font-size:12px; font-weight:400; fill:var(--sub); font-family:system-ui,sans-serif; }
+.toggle { display:block; margin:6px auto 0; min-height:44px; padding:0 16px; border:1px solid var(--line); border-radius:999px; background:#fff; font-size:13px; cursor:pointer; }
+.detail { list-style:none; margin:12px 0 0; padding:0; display:grid; gap:6px; }
+.detail li { text-align:left; display:grid; grid-template-columns:2.4em 1fr auto; gap:8px; align-items:baseline; padding:8px 10px; border:1px solid var(--line); border-radius:10px; font-size:13px; line-height:1.5; background:#fff; }
+.detail li.on { border-color:var(--accent); background:var(--accent-soft); }
+.detail .k { font-size:18px; text-align:center; }
+.detail .s { color:var(--sub); font-variant-numeric:tabular-nums; }
+.item h3 { font-size:17px; font-weight:600; margin-top:6px; line-height:1.5; }
+.item p.body { font-size:14px; line-height:1.75; margin-top:4px; }
+.tea-day { display:inline-block; margin-top:8px; font-size:13px; font-weight:600; color:var(--accent); border:1px solid var(--accent); border-radius:999px; padding:4px 12px; }
+.nihondo { text-align:center; }
+.nihondo a { display:flex; align-items:center; justify-content:center; min-height:52px; margin-top:12px; border-radius:12px; border:1px solid var(--accent); color:var(--accent); background:#fff; font-weight:600; text-decoration:none; }
+.profile h2 { font-size:22px; font-weight:600; letter-spacing:.06em; margin-top:6px; text-align:center; }
+.profile .basis { text-align:center; }
+.profile .radar { max-width:240px; cursor:default; }
+.history { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:6px; }
+.history li { display:grid; grid-template-columns:3.6em auto 1fr; gap:10px; align-items:center; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:#fff; font-size:13px; }
+.history li.latest { border-color:var(--accent); }
+.history .d { color:var(--sub); font-variant-numeric:tabular-nums; }
+.history .chip { display:inline-block; min-width:2.2em; text-align:center; padding:2px 8px; border-radius:999px; border:1.5px solid #b8bfc8; background:#f1f3f6; font-weight:700; font-size:13px; white-space:nowrap; }
+.history .t { overflow-wrap:anywhere; }
+.disclaimer { font-size:12px; color:var(--sub); text-align:center; line-height:1.7; margin-top:16px; }
+/* ---- 生薬の絵(会員証と同じ水彩の6種。飾りなので読み上げない) ---- */
+.hero { position:relative; height:118px; margin:2px 0 4px; }
+.hero img, .corner { position:absolute; height:auto; pointer-events:none; }
+.qherb { display:block; width:76px; height:auto; margin:16px auto 0; animation:herbIn .35s ease; }
+.type { position:relative; overflow:hidden; }
+.type > *:not(.corner) { position:relative; }
+.corner { opacity:.92; }
+@keyframes herbIn { from { opacity:0; transform:translateY(6px) rotate(-6deg); } to { opacity:1; transform:none; } }
+@media (prefers-reduced-motion: reduce) { .bar > i { transition:none; } .qherb { animation:none; } }
+.cta { text-align:center; border-color:var(--accent); }
+.cta a.primary { background:#06c755; }
+.note { font-size:12px; color:var(--sub); text-align:center; line-height:1.7; margin-top:8px; }
+</style></head>
+<body>
+<main id="app" aria-live="polite"><p id="loading" class="msg">読み込み中…</p></main>
+<script src="config.js"></script>
+<script type="module">
+import { constitutionResultView } from "../app-core/screens.mjs";
+import { QUESTIONS, ANSWER_OPTIONS, ELEMENTS, ELEMENT_INFO, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, evaluate, teaOfDay, seasonElement, jstDate } from "../app-core/constitution.mjs";
+import { CHECK_NAME, DISCLAIMER, NIHONDO_LEAD, NIHONDO_BUTTON, WEB_INTRO_TEXT, WEB_PRIVACY_NOTE, WEB_CTA_LEAD, WEB_CTA_BUTTON } from "../app-core/constitution-content.mjs";
+import { NIHONDO_CONSULT_URL } from "../app-core/store-info.mjs";
+import { radarSvg } from "../app-core/radar.mjs";
+const cfg = window.APP_CONFIG, app = document.getElementById("app");
+const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+const kids = (parent, ...nodes) => { for (const n of nodes) if (n) parent.append(n); return parent; };
+const inElementColor = (node, element) => { if (ELEMENT_TEXT_COLORS[element]) { node.style.color = ELEMENT_TEXT_COLORS[element]; node.dataset.element = element; } return node; };
+const header = () => kids(el("header", undefined, { class: "top" }), el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT", width: "1400", height: "518" }), el("h1", CHECK_NAME, { class: "serif" }));
+const show = (...nodes) => { app.replaceChildren(header(), ...nodes); window.scrollTo(0, 0); };
+const HERB_NAMES = ["goji", "chenpi", "jujube", "anise", "lotus", "chili"];
+const herb = (name, attrs = {}) => el("img", undefined, { src: `assets/herb-${name}.webp`, alt: "", "aria-hidden": "true", decoding: "async", ...attrs });
+const HERO = [["chili", "left:2%;top:6%;width:17%"], ["goji", "left:22%;top:38%;width:15%"], ["chenpi", "left:41%;top:2%;width:16%"],
+  ["jujube", "left:58%;top:44%;width:13%"], ["anise", "left:72%;top:4%;width:15%"], ["lotus", "right:1%;top:40%;width:17%"]];
+const TOTAL = QUESTIONS.length;
+const LIFF_RE = /^[0-9]{10}-[A-Za-z0-9]{8}$/;
+const memberUrl = LIFF_RE.test(cfg?.liffId ?? "") ? `https://liff.line.me/${cfg.liffId}` : null;   // 会員証(LINE で開く)
+let answers = [], idx = 0, busy = false;
+
+function introView() {
+  const box = el("section", undefined, { class: "panel", id: "wcIntro" });
+  const hero = el("div", undefined, { class: "hero", "aria-hidden": "true" });
+  for (const [name, pos] of HERO) hero.append(herb(name, { style: pos }));
+  const b = el("button", "はじめる", { id: "wcStart", class: "primary", type: "button" });
+  b.onclick = () => { answers = []; idx = 0; questionView(); };
+  show(kids(box, hero, el("p", "はじめに", { class: "label" }), el("p", WEB_INTRO_TEXT, { class: "lead" }), el("p", WEB_PRIVACY_NOTE, { id: "wcPrivacy", class: "meta" }),
+    el("p", DISCLAIMER, { class: "meta" }), b));
+}
+
+function questionView() {
+  const q = QUESTIONS[idx];
+  const fill = el("i"); fill.style.width = `${Math.round((100 * idx) / TOTAL)}%`;
+  const progress = kids(el("div", undefined, { class: "progress", id: "wcProgress" }), el("span", `${idx + 1} / ${TOTAL}`, { id: "wcStep" }),
+    kids(el("div", undefined, { class: "bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": String(TOTAL), "aria-valuenow": String(idx) }), fill));
+  const text = el("h2", q.text, { id: "wcQuestion", class: "q serif" });
+  const opts = el("div", undefined, { class: "opts", id: "wcOptions", role: "group", "aria-labelledby": "wcQuestion" });
+  for (const c of ANSWER_OPTIONS) {
+    const b = el("button", c.label, { class: "opt", type: "button", "data-value": String(c.value), "aria-pressed": String(answers[idx] === c.value) });
+    b.onclick = () => {
+      if (busy) return;
+      b.setAttribute("aria-pressed", "true"); answers[idx] = c.value; idx += 1; busy = true;
+      setTimeout(() => { busy = false; if (idx >= TOTAL) resultView(); else questionView(); }, 160);
+    };
+    opts.append(b);
+  }
+  const back = el("button", "‹ 戻る", { id: "wcBack", class: "back", type: "button" });
+  back.onclick = () => { if (busy) return; if (idx === 0) introView(); else { idx -= 1; questionView(); } };
+  show(progress, herb(HERB_NAMES[idx % HERB_NAMES.length], { class: "qherb" }), text, opts, back);
+}
+
+const LABELS = Object.fromEntries(ELEMENTS.map((e) => [e, ELEMENT_INFO[e].kanji]));
+function resultView() {
+  const today = jstDate(Date.now());
+  const ev = evaluate(answers.slice(0, TOTAL), today);
+  if (!ev) return introView();
+  const r = constitutionResultView({ ...ev, mood: null }, { todayTea: teaOfDay(today), seasonElement: seasonElement(today), todayStr: today });
+  const type = kids(el("section", undefined, { class: "panel type", id: "wcResult" }),
+    herb("goji", { class: "corner", style: "left:-6px;top:-4px;width:58px" }), herb("chenpi", { class: "corner", style: "right:-4px;top:-2px;width:60px" }),
+    el("p", "あなたの体質の傾向", { class: "label" }),
+    inElementColor(el("h2", r.typeName, { id: "wcTypeName", class: "serif" }), r.element), el("p", r.typeLine, { id: "wcTypeLine", class: "line" }));
+  const svg = radarSvg(document, r.scores, { labels: LABELS, max: 6, id: "wcRadar", title: "五行ごとの点数(0〜6)", valueText: (x) => String(x ?? "—"),
+    dotColors: ELEMENT_COLORS, labelColors: ELEMENT_TEXT_COLORS });
+  const detail = el("ul", undefined, { class: "detail", id: "wcDetail", hidden: "" });
+  const kanji = (d) => { const k = el("span", d.kanji, { class: "k serif" }); if (ELEMENT_TEXT_COLORS[d.element]) k.style.color = ELEMENT_TEXT_COLORS[d.element]; return k; };
+  for (const d of r.details) detail.append(kids(el("li", undefined, d.isPrimary ? { class: "on" } : {}), kanji(d),
+    el("span", `五臓: ${d.organ} / ${d.state}`), el("span", `${d.score ?? "—"}点`, { class: "s" })));
+  if (r.formalText) detail.prepend(el("p", r.formalText, { id: "wcFormal", class: "meta" }));
+  const toggle = el("button", "五行・五臓・正式名称を見る", { id: "wcDetailToggle", class: "toggle", type: "button", "aria-expanded": "false", "aria-controls": "wcDetail" });
+  const flip = () => { const open = detail.hidden; detail.hidden = !open; toggle.setAttribute("aria-expanded", String(open)); toggle.textContent = open ? "閉じる" : "五行・五臓・正式名称を見る"; };
+  toggle.onclick = flip; svg.addEventListener("click", flip);
+  kids(type, kids(el("div", undefined, { class: "radar-wrap" }), svg), toggle, detail);
+  const nodes = [type];
+  nodes.push(kids(el("section", undefined, { class: "panel item", id: "wcYourTea" }), el("p", "あなたの五巡茶", { class: "label" }), inElementColor(el("h3", r.yourTea.name, { class: "serif" }), r.yourTea.element),
+    el("p", r.yourTea.line, { class: "body" }), el("span", r.yourTea.dayText, { id: "wcYourTeaDay", class: "tea-day" })));
+  if (r.todayTea) nodes.push(kids(el("section", undefined, { class: "panel item", id: "wcTodayTea" }), el("p", `今日の五巡茶(${r.todayTea.weekday})`, { class: "label" }),
+    inElementColor(el("h3", r.todayTea.name, { class: "serif" }), r.todayTea.element), el("p", r.todayTea.line, { class: "body" })));
+  if (r.season) nodes.push(kids(el("section", undefined, { class: "panel item", id: "wcSeason" }), el("p", `季節のひとこと(${r.season.name})`, { class: "label" }), el("p", r.season.line, { class: "body" })));
+  if (memberUrl) nodes.push(kids(el("section", undefined, { class: "panel cta", id: "wcCta" }), el("p", WEB_CTA_LEAD, { class: "lead" }),
+    el("a", WEB_CTA_BUTTON, { id: "wcLine", class: "primary", href: memberUrl })));
+  nodes.push(kids(el("section", undefined, { class: "panel nihondo" }), el("p", NIHONDO_LEAD, { class: "lead" }),
+    el("a", NIHONDO_BUTTON, { id: "wcNihondo", href: NIHONDO_CONSULT_URL, target: "_blank", rel: "noopener noreferrer" })));
+  nodes.push(el("p", DISCLAIMER, { id: "wcDisclaimer", class: "disclaimer" }), el("p", WEB_PRIVACY_NOTE, { class: "note" }));
+  const again = el("button", "もう一度チェックする", { id: "wcRetake", class: "ghost", type: "button" }); again.onclick = introView;
+  nodes.push(again);
+  show(...nodes);
+}
+introView();
+</script>
+</body></html>

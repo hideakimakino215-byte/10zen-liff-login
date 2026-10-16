@@ -104,3 +104,9 @@ export function profileBasisText(count) {
   if (count === 2) return "2回分のチェックの平均です(3回分そろうと、最近3回の平均になります)";
   return "1回分のチェックの結果です(来店のたびにチェックすると、最近3回の平均になります)";
 }
+
+// ---- Web 版の体質チェック(web-check.html。ログインなし・何も保存しない。2026-10-16 牧野さん承認)。文案(薬日本堂の表現チェック前) ----
+export const WEB_INTRO_TEXT = "15問で、いまの体質の傾向がわかります(約1分)。";
+export const WEB_PRIVACY_NOTE = "回答はこの画面の中だけで使い、保存・送信しません。";
+export const WEB_CTA_LEAD = "10ZEN の LINE 会員証に登録すると、体質チェックの結果を記録して、ご来店のたびに体質に合わせたお茶やお料理をご案内します。";
+export const WEB_CTA_BUTTON = "LINE で会員証に登録する";

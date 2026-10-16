@@ -3,6 +3,8 @@
      流れ: (初回だけ)同意 → 15問(1問1画面・タップで次へ)→ 食事の気分 → 結果。点数とタイプは DB が計算する(画面は回答だけを送る)。
      来店のたびに何度でもできる(任意。db/107)。結果は「今日の傾向」(今回の結果)と「あなたの体質」(最新3回の平均。DB が計算)の2つと、これまでのチェック(最新6回)。
      会員証の「今日のチェックをはじめる」(?start=1)からは、同意済みならはじめの画面を飛ばして1問目から。
+     お席の QR(?table=<テーブル>。2026-10-16 牧野さん承認)から入ったら、結果の「このまま注文する」でそのテーブルのダイニーの注文画面へ(読み直し不要)。
+     お席の QR から入っていなくても、来店した日(visitedToday)はお席の QR を読み取るボタン。どちらでもなければ(家など)注文のボタンは出さない。
      UI が守ること: 表示は screens.mjs の constitutionCardView / constitutionResultView の項目をそのまま使う。値は textContent で入れる(innerHTML 不可)。
      グラフは inline SVG(app-core/radar.mjs が createElementNS で組み立てる)。外部のライブラリ・CDN・フォントは使わない。
      お客様に見せる説明文は app-core/constitution-content.mjs に集約(言葉づかいのきまり: 「治る・効く・改善」を使わない)。 -->
@@ -92,7 +94,7 @@ import { QUESTIONS, ANSWER_OPTIONS, ELEMENTS, ELEMENT_INFO, ELEMENT_COLORS, ELEM
 import { MOODS, MOOD_QUESTION, CONSENT_TEXT, INTRO_TEXT, CHECK_NAME, DISCLAIMER, NIHONDO_LEAD, NIHONDO_BUTTON, PROFILE_LABEL, HISTORY_LABEL } from "../app-core/constitution-content.mjs";
 import { NIHONDO_CONSULT_URL } from "../app-core/store-info.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
-import { diniiEnabled, diniiOrderUrl, ORDER_LABEL, ORDER_BUTTON, ORDER_NOT_DINII, ORDER_NO_SCAN } from "../app-core/dinii.mjs";
+import { diniiEnabled, diniiOrderUrl, diniiTableUrl, rememberTable, recallTable, ORDER_LABEL, ORDER_BUTTON, ORDER_BUTTON_TABLE, ORDER_NOT_DINII, ORDER_NO_SCAN } from "../app-core/dinii.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 const kids = (parent, ...nodes) => { for (const n of nodes) if (n) parent.append(n); return parent; };
@@ -107,7 +109,9 @@ const herb = (name, attrs = {}) => el("img", undefined, { src: `assets/herb-${na
 const HERO = [["chili", "left:2%;top:6%;width:17%"], ["goji", "left:22%;top:38%;width:15%"], ["chenpi", "left:41%;top:2%;width:16%"],
   ["jujube", "left:58%;top:44%;width:13%"], ["anise", "left:72%;top:4%;width:15%"], ["lotus", "right:1%;top:40%;width:17%"]];
 const TOTAL = QUESTIONS.length + 1;                            // 15問+食事の気分
-let client, check = null, answers = [], idx = 0, consentGiven = false, busy = false;
+let client, check = null, answers = [], idx = 0, consentGiven = false, busy = false, visitedToday = false;
+const store = (() => { try { return window.sessionStorage; } catch (_e) { return null; } })();
+rememberTable(store, new URLSearchParams(location.search).get("table"));   // お席の QR から(会員登録で会員証へ移っても4時間覚える)
 
 function errorView(message, retry) {
   const nodes = [el("p", message, { id: "msg", class: "msg" })];
@@ -205,7 +209,11 @@ function resultView(v) {
   }
   if (r.dish) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccDish" }), el("p", v.checkedToday ? "今日のおすすめの一品(今日の傾向から)" : "おすすめの一品(前回の傾向から)", { class: "label" }),
     el("h3", r.dish.name, { class: "serif" }), el("p", r.dish.reason, { class: "body" })));
-  if (diniiEnabled(cfg)) nodes.push(orderNodes());                                        // ダイニー導入後(店舗IDを設定したら)だけ出す
+  if (diniiEnabled(cfg)) {                                                                 // ダイニー導入後(店舗IDを設定したら)だけ出す
+    const table = recallTable(store);
+    const order = table ? orderTableNodes(table) : visitedToday ? orderNodes() : null;
+    if (order) nodes.push(order);
+  }
   nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccYourTea" }), el("p", "あなたの五巡茶(あなたの体質から)", { class: "label" }), inElementColor(el("h3", r.yourTea.name, { class: "serif" }), r.yourTea.element),
     el("p", r.yourTea.line, { class: "body" }), el("span", r.yourTea.dayText, { id: "ccYourTeaDay", class: "tea-day" })));
   if (r.todayTea) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccTodayTea" }), el("p", `今日の五巡茶(${r.todayTea.weekday})`, { class: "label" }),
@@ -220,7 +228,15 @@ function resultView(v) {
   show(...nodes);
 }
 
-// このまま注文する: LIFF のカメラでお席のQRを読み、10ZEN のダイニーの注文用のQRのときだけ開く(app-core/dinii.mjs)。カメラが使えない端末では案内の文だけ
+// このまま注文する(お席の QR から入ったとき): そのテーブルのダイニーの注文画面へ。読み直さない
+function orderTableNodes(table) {
+  const url = diniiTableUrl(table, { shopId: cfg.diniiShopId, liffId: cfg.diniiLiffId });
+  if (!url) return null;
+  return kids(el("section", undefined, { class: "panel item", id: "ccOrder" }), el("p", ORDER_LABEL, { class: "label" }),
+    el("a", ORDER_BUTTON_TABLE, { id: "ccOrderTable", class: "primary", href: url }));
+}
+
+// このまま注文する(来店した日・お席の QR から入っていないとき): LIFF のカメラでお席のQRを読み、10ZEN のダイニーの注文用のQRのときだけ開く(app-core/dinii.mjs)。カメラが使えない端末では案内の文だけ
 function orderNodes() {
   const box = el("section", undefined, { class: "panel item", id: "ccOrder" }), msg = el("p", "", { id: "ccOrderMsg", class: "body", role: "status" });
   const canScan = typeof window.liff?.scanCodeV2 === "function" && window.liff.isApiAvailable?.("scanCodeV2") !== false;
@@ -241,7 +257,7 @@ async function start() {
   if (s.screen === "register") return show(el("p", "会員証で会員登録をしてから、体質チェックをお試しください", { id: "msg", class: "msg" }), toCard("会員証へ", "primary"));
   if (s.screen === "needs_login") { window.liff.login?.(); return errorView(s.message, false); }
   if (s.screen !== "card") return errorView(s.message, s.retry);
-  check = s.view.check;
+  check = s.view.check; visitedToday = !!s.view.visitedToday;
   if (!check) return errorView("ただいま体質チェックは準備中です", false);           // DB が未対応(103 未適用)
   const qs = new URLSearchParams(location.search);
   if (qs.get("view") === "result" && check.result) return resultView(check);
