@@ -95,6 +95,8 @@ import { radarSvg } from "../app-core/radar.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 const kids = (parent, ...nodes) => { for (const n of nodes) if (n) parent.append(n); return parent; };
+// タイプ名・五巡茶の名前は五行の文字色(会員証と同じ。白地・和紙色の地で 4.5:1 以上)。バランス良好は墨色のまま
+const inElementColor = (node, element) => { if (ELEMENT_TEXT_COLORS[element]) { node.style.color = ELEMENT_TEXT_COLORS[element]; node.dataset.element = element; } return node; };
 const header = () => kids(el("header", undefined, { class: "top" }), el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT", width: "1400", height: "518" }), el("h1", CHECK_NAME, { class: "serif" }));
 const show = (...nodes) => { app.replaceChildren(header(), ...nodes); window.scrollTo(0, 0); };
 const toCard = (text = "会員証へ戻る", cls = "ghost") => el("a", text, { id: "ccToCard", href: "card.html", class: cls });
@@ -173,7 +175,7 @@ function resultView(v) {
   const type = kids(el("section", undefined, { class: "panel type", id: "ccResult" }),
     herb("goji", { class: "corner", style: "left:-6px;top:-4px;width:58px" }), herb("chenpi", { class: "corner", style: "right:-4px;top:-2px;width:60px" }),
     el("p", v.latestLabel, { class: "label", id: "ccTodayLabel" }),
-    el("h2", r.typeName, { id: "ccTypeName", class: "serif" }), el("p", r.typeLine, { id: "ccTypeLine", class: "line" }));
+    inElementColor(el("h2", r.typeName, { id: "ccTypeName", class: "serif" }), r.balanced ? null : r.primary), el("p", r.typeLine, { id: "ccTypeLine", class: "line" }));
   const svg = radarSvg(document, r.scores, { labels: LABELS, max: 6, id: "ccRadar", title: "五行ごとの点数(0〜6)", valueText: (x) => String(x ?? "—"),
     dotColors: ELEMENT_COLORS, labelColors: ELEMENT_TEXT_COLORS });                  // 五行の五色(点と軸の名前)
   const detail = el("ul", undefined, { class: "detail", id: "ccDetail", hidden: "" });
@@ -189,7 +191,7 @@ function resultView(v) {
   // あなたの体質(最新3回の平均)。平均は小数1桁で見せる
   const p = v.profile;
   if (p) nodes.push(kids(el("section", undefined, { class: "panel profile", id: "ccProfile" }), el("p", PROFILE_LABEL, { class: "label" }),
-    el("h2", p.typeName, { id: "ccProfileName", class: "serif" }), el("p", p.basisText, { id: "ccProfileBasis", class: "meta basis" }),
+    inElementColor(el("h2", p.typeName, { id: "ccProfileName", class: "serif" }), p.element), el("p", p.basisText, { id: "ccProfileBasis", class: "meta basis" }),
     el("p", p.typeLine, { class: "lead", id: "ccProfileLine" }),
     radarSvg(document, p.scores, { labels: LABELS, max: 6, id: "ccProfileRadar", title: "あなたの体質: 五行ごとの点数の平均(0〜6)",
       valueText: (x) => (typeof x === "number" ? (Math.round(x * 10) / 10).toFixed(1) : "—"), dotColors: ELEMENT_COLORS, labelColors: ELEMENT_TEXT_COLORS })));
@@ -202,10 +204,10 @@ function resultView(v) {
   }
   if (r.dish) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccDish" }), el("p", v.checkedToday ? "今日のおすすめの一品(今日の傾向から)" : "おすすめの一品(前回の傾向から)", { class: "label" }),
     el("h3", r.dish.name, { class: "serif" }), el("p", r.dish.reason, { class: "body" })));
-  nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccYourTea" }), el("p", "あなたの五巡茶(あなたの体質から)", { class: "label" }), el("h3", r.yourTea.name, { class: "serif" }),
+  nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccYourTea" }), el("p", "あなたの五巡茶(あなたの体質から)", { class: "label" }), inElementColor(el("h3", r.yourTea.name, { class: "serif" }), r.yourTea.element),
     el("p", r.yourTea.line, { class: "body" }), el("span", r.yourTea.dayText, { id: "ccYourTeaDay", class: "tea-day" })));
   if (r.todayTea) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccTodayTea" }), el("p", `今日の五巡茶(${r.todayTea.weekday})`, { class: "label" }),
-    el("h3", r.todayTea.name, { class: "serif" }), el("p", r.todayTea.line, { class: "body" })));
+    inElementColor(el("h3", r.todayTea.name, { class: "serif" }), r.todayTea.element), el("p", r.todayTea.line, { class: "body" })));
   if (r.season) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccSeason" }), el("p", `季節のひとこと(${r.season.name})`, { class: "label" }), el("p", r.season.line, { class: "body" })));
   const link = el("a", NIHONDO_BUTTON, { id: "ccNihondo", href: NIHONDO_CONSULT_URL, target: "_blank", rel: "noopener noreferrer" });
   link.addEventListener("click", () => { client.referralClick().catch(() => {}); });         // 押された数だけを記録(結果は待たずに開く)
