@@ -207,7 +207,7 @@ function checkNodes(view) {
     box.append(kids(el("div", undefined, { id: "ccTodayPrompt", class: "cc-prompt" }), el("h2", TODAY_CHECK_TITLE), el("p", TODAY_CHECK_TEXT),
       el("a", TODAY_START, { id: "ccTodayStart", href: c.startHref, class: "cc-entry first" }), skip));
   }
-  if (c.checkedToday && c.result) box.append(ccLine("ccToday", c.latestLabel, c.result.typeName, null, c.result.balanced ? null : c.result.primary));
+  if (c.checkedToday && c.result) box.append(ccLine("ccToday", c.latestLabel, c.result.typeName, null, c.result.element));
   if (c.profile) box.append(ccLine("ccProfile", PROFILE_LABEL, c.profile.typeName, `(${c.profile.basisText})`, c.profile.element));
   if (c.result?.dish) box.append(ccLine("ccTodayDish", "今日のおすすめ", c.result.dish.name));
   if (c.todayTea) box.append(kids(el("p", undefined, { id: "ccTodayTea", class: "cc-tea" }), document.createTextNode("今日の五巡茶: "),

@@ -1,7 +1,7 @@
 // 画面の状態と表示用データ(見た目に依存しない)。UI は screen 名で分岐し、view の項目をそのまま表示する。
 // 文言は messages に集約(差し替え可能)。数値の未取得は null のまま渡し、画面側で「—」と表示する(0 に変換しない)。
 // 1分体質チェックの説明文は constitution-content.mjs、判定は constitution.mjs(DB と同じ決め方)。
-import { ELEMENTS, ELEMENT_INFO, BALANCED_NAME, teaWeekdayText, weekdayText, jstDate } from "./constitution.mjs";
+import { ELEMENTS, ELEMENT_INFO, BALANCED_NAME, ALL_HIGH_NAME, isAllHigh, teaWeekdayText, weekdayText, jstDate } from "./constitution.mjs";
 import { TYPE_LINES, TEA_LINES, TEA_NAME, SEASON_NAMES, SEASON_LINES, CHECK_NAME, TODAY_LABEL, latestLabel, profileBasisText, recommendDish, yourTeaDayText } from "./constitution-content.mjs";
 export const messages = {
   ja: {
@@ -134,7 +134,10 @@ export function registerNotice(res, lang = "ja") {
 
 // ---- 1分体質チェック(db/103・db/107: 来店のたびに任意でチェック) ----
 const teaView = (el, todayStr) => (ELEMENT_INFO[el] ? { element: el, name: `${TEA_NAME}(${ELEMENT_INFO[el].kanji})`, line: TEA_LINES[el], weekday: todayStr ? weekdayText(todayStr) : null } : null);
-const typeNameOf = (primary, balanced) => (balanced ? BALANCED_NAME : ELEMENT_INFO[primary]?.typeName ?? null);
+// 表示の区分: バランス良好 → 全部が同点で高め(allHigh) → 五行。typeNameOf / lineOf / 色(element)はこの区分で決める
+const kindOf = (primary, balanced, scores) => (balanced ? "balanced" : isAllHigh(scores) ? "allHigh" : primary);
+const typeNameOf = (primary, balanced, scores) => { const k = kindOf(primary, balanced, scores); return k === "balanced" ? BALANCED_NAME : k === "allHigh" ? ALL_HIGH_NAME : ELEMENT_INFO[primary]?.typeName ?? null; };
+const elementOf = (primary, balanced, scores) => (ELEMENT_INFO[kindOf(primary, balanced, scores)] ? primary : null);
 const shortDate = (s) => (typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) ? `${Number(s.slice(5, 7))}/${Number(s.slice(8, 10))}` : "—");
 // 結果の表示用データ(点数・タイプは DB が計算したもの)。今日のおすすめの一品は、この結果(今日チェックしていれば今日の、なければ最新の)の五行と食事の気分で選ぶ。
 //   あなたの五巡茶は yourTea(あなたの体質の五行)。渡されなければこの結果の五行。水の五巡茶のひとことには「冷えが気になる方は温かいほうで」を含むので、別の注記は出さない
@@ -142,13 +145,13 @@ export function constitutionResultView({ scores, primary, balanced, mood }, { yo
   const info = ELEMENT_INFO[primary]; if (!info) return null;
   const rec = recommendDish(primary, mood), tea = ELEMENT_INFO[yourTea] ? yourTea : primary;
   return {
-    primary, balanced: !!balanced, scores,
-    typeName: typeNameOf(primary, balanced),
-    typeLine: TYPE_LINES[balanced ? "balanced" : primary],
+    primary, balanced: !!balanced, allHigh: !balanced && isAllHigh(scores), element: elementOf(primary, balanced, scores), scores,
+    typeName: typeNameOf(primary, balanced, scores),
+    typeLine: TYPE_LINES[kindOf(primary, balanced, scores)],
     // タップで見せる正式名称(五行・五臓・状態の名称)。点数の高い順ではなく 木・火・土・金・水 の順
     details: ELEMENTS.map((el) => ({ element: el, kanji: ELEMENT_INFO[el].kanji, organ: ELEMENT_INFO[el].organ, state: ELEMENT_INFO[el].state, typeName: ELEMENT_INFO[el].typeName,
-      score: scores?.[el] ?? null, isPrimary: !balanced && el === primary })),
-    formalText: balanced ? null : `五行: ${info.kanji} / 五臓: ${info.organ} / 状態: ${info.state}`,
+      score: scores?.[el] ?? null, isPrimary: !balanced && !isAllHigh(scores) && el === primary })),
+    formalText: balanced || isAllHigh(scores) ? null : `五行: ${info.kanji} / 五臓: ${info.organ} / 状態: ${info.state}`,
     dish: rec ? { name: rec.dish, reason: rec.reason, element: primary } : null,
     yourTea: { ...teaView(tea), dayText: yourTeaDayText(teaWeekdayText(tea)), isToday: todayTea === tea },
     todayTea: teaView(todayTea, todayStr),
@@ -160,16 +163,18 @@ export function constitutionResultView({ scores, primary, balanced, mood }, { yo
 export function profileView(p) {
   if (!p || !ELEMENT_INFO[p.primary]) return null;
   const count = Number(p.count) || 1;
-  return { count, scores: p.scores, primary: p.primary, balanced: !!p.balanced, element: p.balanced ? null : p.primary,
-    typeName: typeNameOf(p.primary, p.balanced), typeLine: TYPE_LINES[p.balanced ? "balanced" : p.primary],
-    kanji: p.balanced ? "バランス" : ELEMENT_INFO[p.primary].kanji, basisText: profileBasisText(count) };
+  const kind = kindOf(p.primary, p.balanced, p.scores);
+  return { count, scores: p.scores, primary: p.primary, balanced: !!p.balanced, allHigh: kind === "allHigh", element: elementOf(p.primary, p.balanced, p.scores),
+    typeName: typeNameOf(p.primary, p.balanced, p.scores), typeLine: TYPE_LINES[kind],
+    kanji: kind === "balanced" ? "バランス" : kind === "allHigh" ? "全体" : ELEMENT_INFO[p.primary].kanji, basisText: profileBasisText(count) };
 }
 
 // これまでのチェック(app_me の constitutionHistory。新しい順・最大6回)→ 表示用(日付と五行の漢字の印)
 export function historyView(list) {
   return (Array.isArray(list) ? list : []).filter((h) => ELEMENT_INFO[h?.primary]).slice(0, 6).map((h) => ({
-    checkedOn: h.checkedOn ?? null, dateText: shortDate(h.checkedOn), primary: h.primary, balanced: !!h.balanced, element: h.balanced ? null : h.primary,
-    kanji: h.balanced ? "バランス" : ELEMENT_INFO[h.primary].kanji, typeName: typeNameOf(h.primary, h.balanced), scores: h.scores ?? null }));
+    checkedOn: h.checkedOn ?? null, dateText: shortDate(h.checkedOn), primary: h.primary, balanced: !!h.balanced, element: elementOf(h.primary, h.balanced, h.scores),
+    kanji: kindOf(h.primary, h.balanced, h.scores) === "balanced" ? "バランス" : kindOf(h.primary, h.balanced, h.scores) === "allHigh" ? "全体" : ELEMENT_INFO[h.primary].kanji,
+    typeName: typeNameOf(h.primary, h.balanced, h.scores), scores: h.scores ?? null }));
 }
 
 // 会員証・体質チェックの画面で使う情報(app_me の constitution / constitutionProfile / constitutionHistory / todayTea / season)

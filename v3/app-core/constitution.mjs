@@ -12,6 +12,15 @@ export const ELEMENT_INFO = Object.freeze({
   water: { kanji: "水", organ: "腎", state: "陽虚(ようきょ)",        typeName: "ぽかぽかパワー不足タイプ" },
 });
 export const BALANCED_NAME = "バランス良好";
+// 全部が同点で高め(2026-10-16 牧野さん決定・案A): 5つの点数がすべて同じで、どれも4点以上なら「全体的にゆらぎやすいタイプ」と表示する(表示だけ。DB の判定は変えない)。
+//   おすすめの料理と五巡茶は、今までどおり DB が選んだ五行(同点なので季節の五行)から出す。あなたの体質(平均)は小数第1位で比べる
+export const ALL_HIGH_NAME = "全体的にゆらぎやすいタイプ";
+export const ALL_HIGH_MIN = 4;
+export function isAllHigh(scores) {
+  if (!scores || !ELEMENTS.every((e) => typeof scores[e] === "number" && Number.isFinite(scores[e]))) return false;
+  const v = ELEMENTS.map((e) => Math.round(scores[e] * 10) / 10);
+  return v.every((x) => x === v[0]) && v[0] >= ALL_HIGH_MIN;
+}
 
 // 五行の五色(2026-10-15 牧野さんの依頼「グラフが一色なので色つけて欲しい」)。白地で読みやすいように調整した色(金は白だと見えないので銀灰色)。
 // グラフ(棒・五角形の点)・タイプの印はすべてここから使う(スタッフ画面・体質チェックの結果)。app-core/test_constitution.mjs が色とコントラストを確かめる。

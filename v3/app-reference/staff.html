@@ -285,7 +285,7 @@ h1,h2,h3{margin:0}
 <script src="vendor/supabase.js"></script>
 <script type="module">
 import { createStaffClient, redeemReduce, redeemInitial } from "../app-core/staff-client.mjs";
-import { ELEMENTS, ELEMENT_INFO, BALANCED_NAME, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, ELEMENT_SOFT_COLORS, NEUTRAL_COLOR } from "../app-core/constitution.mjs";
+import { ELEMENTS, ELEMENT_INFO, BALANCED_NAME, ALL_HIGH_NAME, isAllHigh, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, ELEMENT_SOFT_COLORS, NEUTRAL_COLOR } from "../app-core/constitution.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
 import { KPI_DEFS, KPI_BY_CODE, MILESTONES, statusOf, STATUS_LABELS, parseTargetInput, fmtValue, milestoneLabel } from "../app-core/kpi.mjs";
 import { analyzePosFile, summarize, rowsForImport, SKIP_REASONS, ERRORS as POS_ERRORS, ENCODING_LABELS, OUTLIER_FACTOR, MAX_FILE_BYTES } from "../app-core/pos-import.mjs";
@@ -304,10 +304,11 @@ const rankLabel = (c) => (c ? String(c).replace(/_/g, " ").toUpperCase() : DASH)
 const rankChip = (c) => el("span", rankLabel(c), { class: `rank r-${String(c || "").replace(/[^a-z_]/g, "")}` });   // 色は会員証と同じ
 // 体質のタイプ(DB の staff_list_members / staff_member_detail の constitution。店長・スタッフにだけ返る)。c: { primary, balanced }
 const isEl = (e) => ELEMENTS.includes(e);
-const ccTypeText = (c) => (c?.balanced ? BALANCED_NAME : isEl(c?.primary) ? `${ELEMENT_INFO[c.primary].kanji} ${ELEMENT_INFO[c.primary].typeName}` : DASH);
+// 全部が同点で高め(点数がある詳細のときだけ判定。一覧は点数が無いので五行のまま)は「全体的にゆらぎやすいタイプ」(会員証と同じ表示)
+const ccTypeText = (c) => (c?.balanced ? BALANCED_NAME : isAllHigh(c?.scores) ? ALL_HIGH_NAME : isEl(c?.primary) ? `${ELEMENT_INFO[c.primary].kanji} ${ELEMENT_INFO[c.primary].typeName}` : DASH);
 // タイプの印(五行の色)。一覧は小さく五行の漢字だけ(バランス良好は「バランス」)、会員の詳細は大きくタイプ名まで
 function ccChip(c, { big = false, id } = {}) {
-  const e = !c.balanced && isEl(c.primary) ? c.primary : null;
+  const e = !c.balanced && !isAllHigh(c.scores) && isEl(c.primary) ? c.primary : null;
   const chip = el("span", big ? ccTypeText(c) : e ? ELEMENT_INFO[e].kanji : "バランス",
     { class: `cc-chip${big ? " big" : ""}`, "data-element": e ?? "balanced", title: `体質: ${ccTypeText(c)}`, ...(big ? {} : { "aria-label": `体質: ${ccTypeText(c)}` }), ...(id ? { id } : {}) });
   if (e) { chip.style.borderColor = ELEMENT_COLORS[e]; chip.style.background = ELEMENT_SOFT_COLORS[e]; chip.style.color = ELEMENT_TEXT_COLORS[e]; }
