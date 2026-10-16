@@ -77,7 +77,7 @@ try {
   pg.loadFile("105_kpi.sql");                                                                                           // 105: 目標と KPI(店長・閲覧のみ)
   pg.loadFile("106_referral.sql");                                                                                      // 106: 友だち紹介と月次レポート
   pg.loadFile("107_constitution_each_visit.sql");                                                                       // 107: 体質チェックを来店のたびに(任意・スキップ可)
-  for (const f of ["108_restore_old_backup_fix.sql", "109_confirm_inactive_member.sql", "110_dinner_tea_mode_partition.sql", "111_safeupdate_where.sql", "112_ruby_seasonal_tea.sql"]) pg.loadFile(f);   // 108〜110: 監査(2026-10-15)の指摘への修正
+  for (const f of ["108_restore_old_backup_fix.sql", "109_confirm_inactive_member.sql", "110_dinner_tea_mode_partition.sql", "111_safeupdate_where.sql", "112_ruby_seasonal_tea.sql", "113_staff_list_cc_audit.sql"]) pg.loadFile(f);   // 108〜110: 監査(2026-10-15)の指摘への修正
   pg.exec(`update system_state set state='open';`);
   pg.exec(`update app_settings set value='false' where key='register_counts_as_visit';`);   // 登録日の扱い(既定=来店日として扱う)は DB テストと下の専用ケースで検証。ここでは来店の流れを見るため解除
   pg.exec(`insert into auth.users(id) values ${Object.values(U).map((u) => `('${u}')`).join(",")};
@@ -333,6 +333,17 @@ try {
   await view.click("#list button"); await view.waitForSelector("#detail");
   assert.equal(await view.locator("#ccMember").count(), 0); assert.doesNotMatch(await view.textContent("#app"), /体質チェック|モヤモヤ|今日の傾向/);
   ok("体質チェックと会員: 店長・スタッフは会員の一覧に五行の色のタイプの印(あなたの体質)、詳細にあなたの体質(最新3回の平均)・最新の実施日(日本時間)・今日チェックしていれば今日の傾向・小さな五角形(平均・五行の色)を見られる(回答・気分・今日の体調は出ない)。閲覧(本部)には一覧にも詳細にも出ない");
+  // 全部同点で高め(db/113 の allHigh): 一覧の印は「全体」(灰色)、詳細は「全体的にゆらぎやすいタイプ」。確かめた後、足した3回分を消して元に戻す
+  { const ids = pg.exec(`insert into constitution_checks(member_id, answers, mood, score_wood, score_fire, score_earth, score_metal, score_water, primary_element, balanced, season_key, season_element, created_at)
+      select c.member_id, c.answers, c.mood, 4, 4, 4, 4, 4, c.primary_element, false, c.season_key, c.season_element, c.created_at + (g || ' seconds')::interval
+      from (select * from constitution_checks where member_id = ${ccMember} order by created_at desc limit 1) c cross join generate_series(1, 3) g returning id;`).split("\n").filter(Boolean);
+    assert.equal(ids.length, 3);
+    await mgr.click("[data-tab=members]"); await mgr.fill("#q", "体質"); await mgr.click("#search"); await mgr.waitForSelector("#list button .cc-chip:has-text('全体')");
+    const chip = mgr.locator("#list button .cc-chip"); assert.equal(await chip.getAttribute("data-element"), "balanced"); assert.equal(await chip.getAttribute("aria-label"), "体質: 全体的にゆらぎやすいタイプ");
+    await mgr.click("#list button"); await mgr.waitForSelector("#ccMember"); assert.equal(await text(mgr, "#ccMemberType"), "全体的にゆらぎやすいタイプ");
+    assert.equal(JSON.parse(pg.exec(`select meta from audit_log where action = 'list_members' order by id desc limit 1;`)).constitutionShown.length, 1);   // 誰の印を見せたかを記録(db/113)
+    pg.exec(`delete from constitution_checks where id in (${ids.map(q).join(",")});`); }
+  ok("一覧の体質の印: 全部同点で高めの会員は一覧で「全体」、詳細で「全体的にゆらぎやすいタイプ」。一覧を開くと、印を見せた会員が記録に残る");
 
   // ---- 体質チェックの集計の色・店長の CSV(体質タイプ・実施日) ----
   await mgr.click("[data-tab=constitution]"); await mgr.waitForSelector("#ccTypes");
