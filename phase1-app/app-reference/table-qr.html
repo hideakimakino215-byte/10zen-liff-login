@@ -21,10 +21,15 @@ button { min-height:48px; padding:0 18px; border-radius:12px; font:inherit; font
 button.primary { background:var(--ink); color:#fff; border:0; }
 .skipped { margin:10px 0 0; padding-left:1.2em; color:var(--warn); font-size:14px; line-height:1.7; }
 .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:14px; margin-top:16px; }
-.pop { background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px 16px; text-align:center; break-inside:avoid; page-break-inside:avoid; }
+.pop { position:relative; overflow:hidden; background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px 16px; text-align:center; break-inside:avoid; page-break-inside:avoid; }
+.pop > *:not(.gogyo-mark) { position:relative; }
+/* 五行の図(app-core/gogyo-mark.mjs。10ZEN のオリジナル)を背景に薄く敷く。QR は白地の上に置いて読み取りやすさを保つ */
+.pop .gogyo-mark { position:absolute; left:50%; top:46%; width:118%; height:auto; transform:translate(-50%, -50%); opacity:.16; pointer-events:none; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+.pop .eyebrow { font-size:12px; letter-spacing:.16em; color:var(--accent); margin-top:10px; font-weight:600; }
+.pop .lead { font-size:13px; line-height:1.7; margin-top:6px; }
 .pop img { width:120px; height:auto; display:block; margin:0 auto; }
-.pop h2 { font-size:22px; letter-spacing:.08em; margin-top:10px; }
-.pop .qr svg { display:block; width:170px; height:170px; margin:10px auto 6px; }
+.pop h2 { font-size:21px; letter-spacing:.06em; margin-top:2px; line-height:1.4; }
+.pop .qr svg { display:block; width:170px; height:170px; margin:10px auto 6px; background:#fff; border-radius:6px; }
 .pop .scan { font-size:12.5px; color:var(--sub); line-height:1.6; }
 .pop .after { font-size:14px; font-weight:600; line-height:1.6; margin-top:6px; }
 .pop .direct { display:flex; align-items:center; justify-content:center; gap:10px; margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); }
@@ -53,6 +58,7 @@ button.primary { background:var(--ink); color:#fff; border:0; }
 <script src="vendor/qrcode.js"></script>
 <script type="module">
 import { tableQrUrl, parseTableList, diniiEnabled, diniiTableUrl, TABLE_POP } from "../app-core/dinii.mjs";
+import { gogyoMarkSvg } from "../app-core/gogyo-mark.mjs";
 const cfg = window.APP_CONFIG;
 const $ = (id) => document.getElementById(id);
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
@@ -68,7 +74,8 @@ function make() {
     const url = tableQrUrl(cfg.liffId, table); if (!url) return null;
     const qr = el("div", undefined, { class: "qr", "data-url": url }); qr.append(qrSvg(url));
     const card = el("article", undefined, { class: "pop", "data-table": table });
-    card.append(el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT" }), el("h2", TABLE_POP.title, { class: "serif" }), qr,
+    card.append(gogyoMarkSvg(document), el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT" }),
+      el("p", TABLE_POP.eyebrow, { class: "eyebrow" }), el("h2", TABLE_POP.title, { class: "serif" }), el("p", TABLE_POP.lead, { class: "lead" }), qr,
       el("p", TABLE_POP.scan, { class: "scan" }), el("p", TABLE_POP.after, { class: "after" }));
     const direct = diniiEnabled(cfg) ? diniiTableUrl(table, { shopId: cfg.diniiShopId, liffId: cfg.diniiLiffId }) : null;
     if (direct) { const d = el("div", undefined, { class: "direct qr", "data-url": direct }); d.append(qrSvg(direct), el("p", TABLE_POP.direct)); card.append(d); }

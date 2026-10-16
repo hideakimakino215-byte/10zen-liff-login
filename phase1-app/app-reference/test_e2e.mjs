@@ -385,15 +385,17 @@ try {
     assert.equal(await wc.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true); assert.deepEqual(wc.errs, []);
     const tq = await cfgWith(await newPage(null));
     await tq.goto(`${BASE}/app-reference/table-qr.html`); await tq.fill("#list", "A1,T01\nA2,T02\nB,<x>"); await tq.click("#make");
-    assert.equal(await tq.locator(".pop").count(), 2); assert.equal(await tq.locator(".pop svg").count(), 2);
+    assert.equal(await tq.locator(".pop").count(), 2); assert.equal(await tq.locator(".pop .qr svg").count(), 2);
     assert.equal(await tq.getAttribute(".pop[data-table=T01] .qr", "data-url"), `https://liff.line.me/${LIFFID}/check.html?table=T01`);
-    assert.match(await text(tq, ".pop[data-table=T02]"), /1分体質チェック.*このままご注文いただけます.*お席 A2/);
+    assert.match(await text(tq, ".pop[data-table=T02]"), /1分体質チェック.*あなたに合う一品を、1分で.*お料理とお茶をご提案.*そのままご注文いただけます.*お席 A2/);
+    assert.equal(await tq.locator(".pop[data-table=T02] svg.gogyo-mark circle[data-element]").count(), 5);                              // 背景の五行の図(オリジナル)
+    assert.equal(await tq.locator(".pop svg").count(), 4);
     assert.match(await text(tq, "#skipped"), /3行目: テーブルコードの形が違います/); assert.equal(await tq.isVisible("#print"), true);
     assert.equal(await tq.locator(".pop .direct").count(), 0); assert.equal(await tq.isVisible("#directNote"), true);                // ダイニーの店舗IDが未設定なら体質チェックの QR だけ
     const SHOP = "3fdf5fed-fee4-47df-b541-0cb32e93d14a", DLIFF = "1653687169-wzDlrXnN";
     const tq2 = await newPage(null); await tq2.route("**/app-reference/config.js", (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: CONFIG.replace('liffId:"x"', `liffId:"${LIFFID}"`).replace("};", `,diniiShopId:"${SHOP}",diniiLiffId:"${DLIFF}"};`) }));
     await tq2.goto(`${BASE}/app-reference/table-qr.html`); await tq2.fill("#list", "A1,T01"); await tq2.click("#make");
-    assert.equal(await tq2.locator(".pop svg").count(), 2); assert.equal(await tq2.isVisible("#directNote"), false);
+    assert.equal(await tq2.locator(".pop .qr svg").count(), 2); assert.equal(await tq2.isVisible("#directNote"), false);
     assert.equal(await tq2.getAttribute(".pop[data-table=T01] .direct", "data-url"), `https://liff.line.me/${DLIFF}/shops/${SHOP}/items?shopId=${SHOP}&tableCode=T01`);
     assert.match(await text(tq2, ".pop[data-table=T01] .direct"), /すぐにご注文の方はこちら/); assert.deepEqual(tq2.errs, []);
     assert.equal(await tq.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true); assert.deepEqual(tq.errs, []);
