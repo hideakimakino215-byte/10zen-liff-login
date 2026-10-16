@@ -22,9 +22,9 @@ button.primary { background:var(--ink); color:#fff; border:0; }
 .skipped { margin:10px 0 0; padding-left:1.2em; color:var(--warn); font-size:14px; line-height:1.7; }
 .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:14px; margin-top:16px; }
 .pop { position:relative; overflow:hidden; background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px 16px; text-align:center; break-inside:avoid; page-break-inside:avoid; }
-.pop > *:not(.gogyo-mark) { position:relative; }
-/* 五行の図(app-core/gogyo-mark.mjs。10ZEN のオリジナル)を背景に薄く敷く。QR は白地の上に置いて読み取りやすさを保つ */
-.pop .gogyo-mark { position:absolute; left:50%; top:46%; width:118%; height:auto; transform:translate(-50%, -50%); opacity:.16; pointer-events:none; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+.pop > *:not(.herb) { position:relative; }
+/* 背景: 会員証と同じ生薬の水彩(assets/herb-*.webp)を四隅に薄く(2026-10-16 牧野さん決定「A」)。QR は白地の上に置いて読み取りやすさを保つ */
+.pop .herb { position:absolute; opacity:.55; pointer-events:none; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 .pop .eyebrow { font-size:12px; letter-spacing:.16em; color:var(--accent); margin-top:10px; font-weight:600; }
 .pop .lead { font-size:13px; line-height:1.7; margin-top:6px; }
 .pop img { width:120px; height:auto; display:block; margin:0 auto; }
@@ -58,7 +58,6 @@ button.primary { background:var(--ink); color:#fff; border:0; }
 <script src="vendor/qrcode.js"></script>
 <script type="module">
 import { tableQrUrl, parseTableList, diniiEnabled, diniiTableUrl, TABLE_POP } from "../app-core/dinii.mjs";
-import { gogyoMarkSvg } from "../app-core/gogyo-mark.mjs";
 const cfg = window.APP_CONFIG;
 const $ = (id) => document.getElementById(id);
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
@@ -68,13 +67,17 @@ function qrSvg(text) {
   const doc = new DOMParser().parseFromString(q.createSvgTag({ cellSize: 8, margin: 8, scalable: true }), "image/svg+xml");
   return document.importNode(doc.documentElement, true);
 }
+// 四隅の生薬(クコ・陳皮・八角・蓮の実・なつめ)。QR と文字にかからない位置
+const HERBS = [["goji", "left:-10px;top:-6px;width:70px"], ["chenpi", "right:-8px;top:-4px;width:74px"], ["anise", "left:-12px;bottom:70px;width:62px"],
+  ["lotus", "right:-14px;bottom:60px;width:80px"], ["jujube", "left:40%;bottom:-14px;width:48px"]];
 function make() {
   const { rows, skipped } = parseTableList($("list").value);
   const cards = rows.map(({ label, table }) => {
     const url = tableQrUrl(cfg.liffId, table); if (!url) return null;
     const qr = el("div", undefined, { class: "qr", "data-url": url }); qr.append(qrSvg(url));
     const card = el("article", undefined, { class: "pop", "data-table": table });
-    card.append(gogyoMarkSvg(document), el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT" }),
+    card.append(...HERBS.map(([name, pos]) => el("img", undefined, { src: `assets/herb-${name}.webp`, alt: "", "aria-hidden": "true", class: "herb", style: pos })),
+      el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT" }),
       el("p", TABLE_POP.eyebrow, { class: "eyebrow" }), el("h2", TABLE_POP.title, { class: "serif" }), el("p", TABLE_POP.lead, { class: "lead" }), qr,
       el("p", TABLE_POP.scan, { class: "scan" }), el("p", TABLE_POP.after, { class: "after" }));
     const direct = diniiEnabled(cfg) ? diniiTableUrl(table, { shopId: cfg.diniiShopId, liffId: cfg.diniiLiffId }) : null;

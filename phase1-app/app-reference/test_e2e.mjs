@@ -388,8 +388,8 @@ try {
     assert.equal(await tq.locator(".pop").count(), 2); assert.equal(await tq.locator(".pop .qr svg").count(), 2);
     assert.equal(await tq.getAttribute(".pop[data-table=T01] .qr", "data-url"), `https://liff.line.me/${LIFFID}/check.html?table=T01`);
     assert.match(await text(tq, ".pop[data-table=T02]"), /1分体質チェック.*あなたに合う一品を、1分で.*お料理とお茶をご提案.*そのままご注文いただけます.*お席 A2/);
-    assert.equal(await tq.locator(".pop[data-table=T02] svg.gogyo-mark circle[data-element]").count(), 5);                              // 背景の五行の図(オリジナル)
-    assert.equal(await tq.locator(".pop svg").count(), 4);
+    assert.equal(await tq.locator(".pop[data-table=T02] img.herb").count(), 5);                                                        // 背景は会員証と同じ生薬の水彩
+    assert.equal(await tq.locator(".pop svg").count(), 2);
     assert.match(await text(tq, "#skipped"), /3行目: テーブルコードの形が違います/); assert.equal(await tq.isVisible("#print"), true);
     assert.equal(await tq.locator(".pop .direct").count(), 0); assert.equal(await tq.isVisible("#directNote"), true);                // ダイニーの店舗IDが未設定なら体質チェックの QR だけ
     const SHOP = "3fdf5fed-fee4-47df-b541-0cb32e93d14a", DLIFF = "1653687169-wzDlrXnN";
