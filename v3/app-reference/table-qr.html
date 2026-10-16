@@ -1,5 +1,6 @@
 <!doctype html>
 <!-- お席に置く QR の印刷用ページ(2026-10-16 牧野さん承認)。テーブルの一覧を入れると、1枚ずつ「1分体質チェック → そのまま注文」の QR カードを作る。
+     ダイニーの店舗IDを設定したら、同じカードに小さく「すぐにご注文の方はこちら」(そのテーブルのダイニーの注文 URL。LINE を使わない方も注文できる)の QR も並べる。
      QR の中身は会員証の LIFF の check.html?table=<テーブルコード>(app-core/dinii.mjs の tableQrUrl)。テーブルコードはダイニーの席の QR の tableCode と同じ値。
      入力はこの端末の中だけで使い、どこにも送らない・保存しない。表示は textContent だけ。QR は同梱の qrcode.js(外部の CDN は使わない)。 -->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
@@ -20,12 +21,20 @@ button { min-height:48px; padding:0 18px; border-radius:12px; font:inherit; font
 button.primary { background:var(--ink); color:#fff; border:0; }
 .skipped { margin:10px 0 0; padding-left:1.2em; color:var(--warn); font-size:14px; line-height:1.7; }
 .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:14px; margin-top:16px; }
-.pop { background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px 16px; text-align:center; break-inside:avoid; page-break-inside:avoid; }
+.pop { position:relative; overflow:hidden; background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px 16px; text-align:center; break-inside:avoid; page-break-inside:avoid; }
+.pop > *:not(.gogyo-mark) { position:relative; }
+/* 五行の図(app-core/gogyo-mark.mjs。10ZEN のオリジナル)を背景に薄く敷く。QR は白地の上に置いて読み取りやすさを保つ */
+.pop .gogyo-mark { position:absolute; left:50%; top:46%; width:118%; height:auto; transform:translate(-50%, -50%); opacity:.16; pointer-events:none; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+.pop .eyebrow { font-size:12px; letter-spacing:.16em; color:var(--accent); margin-top:10px; font-weight:600; }
+.pop .lead { font-size:13px; line-height:1.7; margin-top:6px; }
 .pop img { width:120px; height:auto; display:block; margin:0 auto; }
-.pop h2 { font-size:22px; letter-spacing:.08em; margin-top:10px; }
-.pop .qr svg { display:block; width:170px; height:170px; margin:10px auto 6px; }
+.pop h2 { font-size:21px; letter-spacing:.06em; margin-top:2px; line-height:1.4; }
+.pop .qr svg { display:block; width:170px; height:170px; margin:10px auto 6px; background:#fff; border-radius:6px; }
 .pop .scan { font-size:12.5px; color:var(--sub); line-height:1.6; }
 .pop .after { font-size:14px; font-weight:600; line-height:1.6; margin-top:6px; }
+.pop .direct { display:flex; align-items:center; justify-content:center; gap:10px; margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); }
+.pop .direct svg { display:block; width:84px; height:84px; }
+.pop .direct p { font-size:12.5px; font-weight:600; text-align:left; line-height:1.5; }
 .pop .tbl { font-size:12px; color:var(--sub); margin-top:8px; font-variant-numeric:tabular-nums; }
 @media print {
   body { background:#fff; } main { max-width:none; padding:0; } .no-print { display:none !important; }
@@ -36,7 +45,8 @@ button.primary { background:var(--ink); color:#fff; border:0; }
 <main>
   <section class="panel no-print" id="form">
     <h1 class="serif">お席のQRを作る</h1>
-    <p class="meta">1行に1つ「表示名,テーブルコード」を入れてください(例: A1,T01)。テーブルコードは、ダイニーの席の QR に入っている値と同じものです。入れた内容はこの端末の中だけで使い、保存しません。</p>
+    <p class="meta">1行に1つ「表示名,テーブルコード」を入れてください(例: A1,T01)。テーブルコードは、ダイニーの席の注文 URL に入っている値と同じものです。入れた内容はこの端末の中だけで使い、保存しません。</p>
+    <p id="directNote" class="meta" hidden>ダイニーの店舗IDを設定すると、「すぐにご注文の方はこちら」の QR も同じカードに並びます。</p>
     <textarea id="list" aria-label="テーブルの一覧" placeholder="A1,T01&#10;A2,T02"></textarea>
     <div class="row"><button id="make" class="primary" type="button">QR を作る</button><button id="print" type="button" hidden>印刷する</button></div>
     <p id="count" class="meta" role="status"></p>
@@ -47,7 +57,8 @@ button.primary { background:var(--ink); color:#fff; border:0; }
 <script src="config.js"></script>
 <script src="vendor/qrcode.js"></script>
 <script type="module">
-import { tableQrUrl, parseTableList, TABLE_POP } from "../app-core/dinii.mjs";
+import { tableQrUrl, parseTableList, diniiEnabled, diniiTableUrl, TABLE_POP } from "../app-core/dinii.mjs";
+import { gogyoMarkSvg } from "../app-core/gogyo-mark.mjs";
 const cfg = window.APP_CONFIG;
 const $ = (id) => document.getElementById(id);
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
@@ -63,8 +74,12 @@ function make() {
     const url = tableQrUrl(cfg.liffId, table); if (!url) return null;
     const qr = el("div", undefined, { class: "qr", "data-url": url }); qr.append(qrSvg(url));
     const card = el("article", undefined, { class: "pop", "data-table": table });
-    card.append(el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT" }), el("h2", TABLE_POP.title, { class: "serif" }), qr,
-      el("p", TABLE_POP.scan, { class: "scan" }), el("p", TABLE_POP.after, { class: "after" }), el("p", `お席 ${label}`, { class: "tbl" }));
+    card.append(gogyoMarkSvg(document), el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT" }),
+      el("p", TABLE_POP.eyebrow, { class: "eyebrow" }), el("h2", TABLE_POP.title, { class: "serif" }), el("p", TABLE_POP.lead, { class: "lead" }), qr,
+      el("p", TABLE_POP.scan, { class: "scan" }), el("p", TABLE_POP.after, { class: "after" }));
+    const direct = diniiEnabled(cfg) ? diniiTableUrl(table, { shopId: cfg.diniiShopId, liffId: cfg.diniiLiffId }) : null;
+    if (direct) { const d = el("div", undefined, { class: "direct qr", "data-url": direct }); d.append(qrSvg(direct), el("p", TABLE_POP.direct)); card.append(d); }
+    card.append(el("p", `お席 ${label}`, { class: "tbl" }));
     return card;
   }).filter(Boolean);
   $("cards").replaceChildren(...cards);
@@ -72,6 +87,7 @@ function make() {
   $("skipped").replaceChildren(...skipped.map((s) => el("li", `${s.line}行目: ${s.reason}`)));
   $("skipped").hidden = !skipped.length; $("print").hidden = !cards.length;
 }
+$("directNote").hidden = diniiEnabled(cfg);
 $("make").onclick = make;
 $("print").onclick = () => window.print();
 </script>

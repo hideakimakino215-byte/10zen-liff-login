@@ -181,11 +181,11 @@ h1,h2,h3{margin:0}
 .cc-chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:800;padding:2px 9px;border-radius:999px;border:1.5px solid #b8bfc8;background:#f1f3f6;color:var(--muted);white-space:nowrap;line-height:1.5;vertical-align:middle}
 .cc-chip.big{font-size:15px;padding:4px 12px}
 .row .nm .cc-chip{margin-left:8px}
-.cc-member{border-top:1px dashed var(--line);padding-top:14px;display:grid;grid-template-columns:minmax(0,1fr) 168px;gap:6px 16px;align-items:center}
+.cc-member{border-top:1px dashed var(--line);padding-top:14px;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:6px 16px;align-items:center}
 .cc-member h3{grid-column:1/-1}
 .cc-member .cc-info{display:grid;gap:8px;justify-items:start}
 .cc-member p{margin:0;font-size:15px;overflow-wrap:anywhere}
-.cc-member .radar{max-width:168px}
+.cc-member .radar{max-width:300px}   /* 2026-10-16 牧野さん「五角形を大きく」(168px → 300px) */
 .cc-member .radar-label{font-size:17px}
 .radar-label{font-size:15px;font-weight:700;fill:var(--fg)}
 .radar-value{font-size:12px;font-weight:500;fill:var(--muted)}
@@ -254,7 +254,7 @@ h1,h2,h3{margin:0}
   .cards{grid-template-columns:1fr}
   .cc-grid{grid-template-columns:1fr}
   .cc-member{grid-template-columns:minmax(0,1fr)}
-  .cc-member .radar{max-width:168px}
+  .cc-member .radar{max-width:300px}
   .cc-chip.big{white-space:normal}
   .card{min-height:0;grid-template-columns:auto 1fr auto;justify-items:start;align-items:center;text-align:left;padding:14px 16px}
   .card svg{width:40px;height:40px;grid-row:span 2}

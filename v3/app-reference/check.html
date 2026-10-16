@@ -94,7 +94,7 @@ import { QUESTIONS, ANSWER_OPTIONS, ELEMENTS, ELEMENT_INFO, ELEMENT_COLORS, ELEM
 import { MOODS, MOOD_QUESTION, CONSENT_TEXT, INTRO_TEXT, CHECK_NAME, DISCLAIMER, NIHONDO_LEAD, NIHONDO_BUTTON, PROFILE_LABEL, HISTORY_LABEL } from "../app-core/constitution-content.mjs";
 import { NIHONDO_CONSULT_URL } from "../app-core/store-info.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
-import { diniiEnabled, diniiOrderUrl, diniiTableUrl, rememberTable, recallTable, ORDER_LABEL, ORDER_BUTTON, ORDER_BUTTON_TABLE, ORDER_NOT_DINII, ORDER_NO_SCAN } from "../app-core/dinii.mjs";
+import { diniiEnabled, diniiOrderUrl, diniiTableUrl, rememberTable, recallTable, ORDER_LABEL, ORDER_BUTTON, ORDER_BUTTON_TABLE, ORDER_NOT_DINII, ORDER_NO_SCAN, ORDER_NOTE } from "../app-core/dinii.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 const kids = (parent, ...nodes) => { for (const n of nodes) if (n) parent.append(n); return parent; };
@@ -233,14 +233,15 @@ function orderTableNodes(table) {
   const url = diniiTableUrl(table, { shopId: cfg.diniiShopId, liffId: cfg.diniiLiffId });
   if (!url) return null;
   return kids(el("section", undefined, { class: "panel item", id: "ccOrder" }), el("p", ORDER_LABEL, { class: "label" }),
-    el("a", ORDER_BUTTON_TABLE, { id: "ccOrderTable", class: "primary", href: url }));
+    el("p", ORDER_NOTE, { id: "ccOrderNote", class: "meta" }), el("a", ORDER_BUTTON_TABLE, { id: "ccOrderTable", class: "primary", href: url }));
 }
 
 // このまま注文する(来店した日・お席の QR から入っていないとき): LIFF のカメラでお席のQRを読み、10ZEN のダイニーの注文用のQRのときだけ開く(app-core/dinii.mjs)。カメラが使えない端末では案内の文だけ
 function orderNodes() {
   const box = el("section", undefined, { class: "panel item", id: "ccOrder" }), msg = el("p", "", { id: "ccOrderMsg", class: "body", role: "status" });
   const canScan = typeof window.liff?.scanCodeV2 === "function" && window.liff.isApiAvailable?.("scanCodeV2") !== false;
-  if (!canScan) return kids(box, el("p", ORDER_LABEL, { class: "label" }), el("p", ORDER_NO_SCAN, { class: "body" }));
+  const note = el("p", ORDER_NOTE, { id: "ccOrderNote", class: "meta" });
+  if (!canScan) return kids(box, el("p", ORDER_LABEL, { class: "label" }), note, el("p", ORDER_NO_SCAN, { class: "body" }));
   const b = el("button", ORDER_BUTTON, { id: "ccOrderScan", class: "primary", type: "button" });
   b.onclick = async () => {
     msg.textContent = "";
@@ -249,7 +250,7 @@ function orderNodes() {
     if (!url) { msg.textContent = ORDER_NOT_DINII; return; }
     window.location.assign(url);
   };
-  return kids(box, el("p", ORDER_LABEL, { class: "label" }), b, msg);
+  return kids(box, el("p", ORDER_LABEL, { class: "label" }), note, b, msg);
 }
 
 async function start() {
