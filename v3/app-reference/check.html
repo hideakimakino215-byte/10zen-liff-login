@@ -92,6 +92,7 @@ import { QUESTIONS, ANSWER_OPTIONS, ELEMENTS, ELEMENT_INFO, ELEMENT_COLORS, ELEM
 import { MOODS, MOOD_QUESTION, CONSENT_TEXT, INTRO_TEXT, CHECK_NAME, DISCLAIMER, NIHONDO_LEAD, NIHONDO_BUTTON, PROFILE_LABEL, HISTORY_LABEL } from "../app-core/constitution-content.mjs";
 import { NIHONDO_CONSULT_URL } from "../app-core/store-info.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
+import { diniiEnabled, diniiOrderUrl, ORDER_LABEL, ORDER_BUTTON, ORDER_NOT_DINII, ORDER_NO_SCAN } from "../app-core/dinii.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 const kids = (parent, ...nodes) => { for (const n of nodes) if (n) parent.append(n); return parent; };
@@ -204,6 +205,7 @@ function resultView(v) {
   }
   if (r.dish) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccDish" }), el("p", v.checkedToday ? "今日のおすすめの一品(今日の傾向から)" : "おすすめの一品(前回の傾向から)", { class: "label" }),
     el("h3", r.dish.name, { class: "serif" }), el("p", r.dish.reason, { class: "body" })));
+  if (diniiEnabled(cfg)) nodes.push(orderNodes());                                        // ダイニー導入後(店舗IDを設定したら)だけ出す
   nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccYourTea" }), el("p", "あなたの五巡茶(あなたの体質から)", { class: "label" }), inElementColor(el("h3", r.yourTea.name, { class: "serif" }), r.yourTea.element),
     el("p", r.yourTea.line, { class: "body" }), el("span", r.yourTea.dayText, { id: "ccYourTeaDay", class: "tea-day" })));
   if (r.todayTea) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccTodayTea" }), el("p", `今日の五巡茶(${r.todayTea.weekday})`, { class: "label" }),
@@ -216,6 +218,22 @@ function resultView(v) {
   const again = el("button", "もう一度チェックする", { id: "ccRetake", class: "ghost" }); again.onclick = () => { answers = []; idx = 0; consentGiven = false; introView(); };
   nodes.push(toCard("会員証へ戻る", "primary"), again);
   show(...nodes);
+}
+
+// このまま注文する: LIFF のカメラでお席のQRを読み、10ZEN のダイニーの注文用のQRのときだけ開く(app-core/dinii.mjs)。カメラが使えない端末では案内の文だけ
+function orderNodes() {
+  const box = el("section", undefined, { class: "panel item", id: "ccOrder" }), msg = el("p", "", { id: "ccOrderMsg", class: "body", role: "status" });
+  const canScan = typeof window.liff?.scanCodeV2 === "function" && window.liff.isApiAvailable?.("scanCodeV2") !== false;
+  if (!canScan) return kids(box, el("p", ORDER_LABEL, { class: "label" }), el("p", ORDER_NO_SCAN, { class: "body" }));
+  const b = el("button", ORDER_BUTTON, { id: "ccOrderScan", class: "primary", type: "button" });
+  b.onclick = async () => {
+    msg.textContent = "";
+    let r; try { r = await window.liff.scanCodeV2(); } catch (_e) { msg.textContent = ORDER_NO_SCAN; return; }
+    const url = diniiOrderUrl(r?.value, { shopId: cfg.diniiShopId, liffId: cfg.diniiLiffId });
+    if (!url) { msg.textContent = ORDER_NOT_DINII; return; }
+    window.location.assign(url);
+  };
+  return kids(box, el("p", ORDER_LABEL, { class: "label" }), b, msg);
 }
 
 async function start() {
