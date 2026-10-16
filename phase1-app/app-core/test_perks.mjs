@@ -50,14 +50,14 @@ try {
   assert.deepEqual(rankPerks("white_opal"), []);
   assert.deepEqual(rankPerks("amber").map((p) => p.text), ["ディナーの五巡茶 無料"]);
   assert.deepEqual(rankPerks("emerald").map((p) => p.text), ["ディナーの五巡茶 無料", "季節の豆花チケット(季節ごとに1枚)", "薬日本堂のご優待(準備中)"]);
-  assert.deepEqual(rankPerks("ruby").map((p) => p.text), ["ディナーの五巡茶 無料", "季節の豆花チケット(季節ごとに1枚)", "席・予約の優先案内", "薬日本堂のご優待(準備中)"]);
-  assert.deepEqual(rankPerks("onyx").map((p) => p.text), ["ディナーの五巡茶 無料", "季節の豆花チケット(季節ごとに1枚)", "席・予約の優先案内", "新メニュー試食会へご招待", "薬日本堂のご優待(準備中)"]);
+  assert.deepEqual(rankPerks("ruby").map((p) => p.text), ["ディナーの五巡茶 無料", "季節の豆花チケット(季節ごとに1枚)", "あなたの体質の五巡茶(持ち帰り用)チケット(季節ごとに1枚)", "薬日本堂のご優待(準備中)"]);
+  assert.deepEqual(rankPerks("onyx").map((p) => p.text), ["ディナーの五巡茶 無料", "季節の豆花チケット(季節ごとに1枚)", "あなたの体質の五巡茶(持ち帰り用)チケット(季節ごとに1枚)", "新メニュー試食会へご招待", "薬日本堂のご優待(準備中)"]);
   assert.equal(rankPerks("onyx").find((p) => p.text.includes("薬日本堂")).small, true); assert.deepEqual(rankPerks("unknown"), []);
   for (const r of ["white_opal", "amber", "emerald", "ruby", "onyx"]) assert.ok(!rankPerks(r).some((p) => /5%|OFF/.test(p.text)));
   // 102 が未適用の応答(tickets などがない)でも表示用データは成立する
   const v0 = memberView({ memberNo: "u", displayName: "x", rank: "amber", points: 0, yenPer100pt: 10, lifetimePoints: 1000, lifetimeConfirmed: true, nextRank: null, expiresOn: null, redeemUnit: 100 }, NOW());
   assert.deepEqual(v0.tickets, []); assert.equal(v0.pendingTicket, null); assert.equal(v0.lastTicket, null); assert.equal(v0.perks.length, 1);
-  ok("ランクの特典(文字だけ): AMBER=ディナーの五巡茶 無料、RUBY=優先案内、ONYX=試食会。上のランクは下の分も続けて出る。EMERALD 以上に『薬日本堂のご優待(準備中)』を小さく添える。5%OFF はどこにもない。チケットの項目がない応答でも画面は成立");
+  ok("ランクの特典(文字だけ): AMBER=ディナーの五巡茶 無料、RUBY=あなたの体質の五巡茶(季節ごと。2026-10-16 優先案内から変更)、ONYX=試食会。上のランクは下の分も続けて出る。EMERALD 以上に『薬日本堂のご優待(準備中)』を小さく添える。5%OFF はどこにもない。チケットの項目がない応答でも画面は成立");
 
   // ---- 2. お客様: AMBER 到達 → 会員証にチケット → 「使う」で6桁コード ----
   let s = cardScreen(await member.register(), NOW()); assert.equal(s.screen, "card"); assert.deepEqual(s.view.tickets, []); assert.equal(s.view.next.target, 1000);

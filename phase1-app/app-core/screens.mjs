@@ -64,7 +64,7 @@ const RANK_ORDER = ["white_opal", "amber", "emerald", "ruby", "onyx"];
 export const RANK_PERKS = [
   ["amber", "ディナーの五巡茶 無料"],
   ["emerald", "季節の豆花チケット(季節ごとに1枚)"],
-  ["ruby", "席・予約の優先案内"],
+  ["ruby", "あなたの体質の五巡茶(持ち帰り用)チケット(季節ごとに1枚)"],
   ["onyx", "新メニュー試食会へご招待"],
   ["emerald", "薬日本堂のご優待(準備中)", true],
 ];

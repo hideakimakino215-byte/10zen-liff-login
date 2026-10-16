@@ -147,9 +147,9 @@ async function registerNow() {
 }
 // ランク特典(RANK_PERKS_DESIGN_20261015.md)。店頭QR画面(qr.html の KIOSK_COPY)と DB の基準(db/102_rank_perks.sql)に合わせる。食い違いは tools/test_kiosk_copy.mjs が検出する
 const BENEFITS = [["white_opal", "WHITE OPAL", "100pt = 10円としてお会計時にいつでも利用可能"], ["amber", "AMBER", "1,000pt達成:豆花を1つプレゼント・ディナーの五巡茶 無料"],
-  ["emerald", "EMERALD", "3,000pt達成:持ち帰り用のお茶を1袋プレゼント・季節ごとに豆花チケット(年4枚)"], ["ruby", "RUBY", "6,000pt達成:持ち帰り用のお茶を1袋プレゼント・席・予約の優先案内"],
+  ["emerald", "EMERALD", "3,000pt達成:持ち帰り用のお茶を1袋プレゼント・季節ごとに豆花チケット(年4枚)"], ["ruby", "RUBY", "6,000pt達成:持ち帰り用のお茶を1袋プレゼント・季節ごとに、あなたの体質の五巡茶(持ち帰り用)チケット(年4枚)"],
   ["onyx", "ONYX", "10,000pt達成:持ち帰り用のお茶を1袋プレゼント・新メニュー試食会へご招待"]];
-const BENEFIT_NOTE = "上のランクでは、下のランクの特典も続けてご利用いただけます。ランクは累計ポイントで決まり、下がりません。到達のお祝いのチケットは発行から60日間、季節の豆花チケットはその季節の終わりまで有効です。";
+const BENEFIT_NOTE = "上のランクでは、下のランクの特典も続けてご利用いただけます。ランクは累計ポイントで決まり、下がりません。到達のお祝いのチケットは発行から60日間、季節のチケット(豆花・五巡茶)はその季節の終わりまで有効です。";
 // 今の時刻(日本時間 HH:MM:SS)。会員証の表面に出し、毎秒更新する(画面写真の使い回し対策)
 const clockFmt = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
 const clockText = () => clockFmt.format(new Date());

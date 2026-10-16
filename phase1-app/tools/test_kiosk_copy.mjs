@@ -23,12 +23,12 @@ for (const word of ["豆花", "お茶"]) { assert.ok(copy.includes(word), `QR �
 const benefits = card.slice(card.indexOf("const BENEFITS"), card.indexOf("]];", card.indexOf("const BENEFITS")));
 const ranks = [...copy.matchAll(/\["(\w+)", "([A-Z ]+)", "([^"]+)"\]/g)].map((m) => ({ code: m[1], label: m[2], text: m[3] }));
 assert.deepEqual(ranks.map((r) => r.code), ["white_opal", "amber", "emerald", "ruby", "onyx"]);
-const keys = { white_opal: ["10円"], amber: ["豆花", "五巡茶"], emerald: ["お茶", "豆花"], ruby: ["お茶", "優先案内"], onyx: ["お茶", "試食会"] };
+const keys = { white_opal: ["10円"], amber: ["豆花", "五巡茶"], emerald: ["お茶", "豆花"], ruby: ["お茶", "五巡茶"], onyx: ["お茶", "試食会"] };
 for (const r of ranks) { assert.ok(benefits.includes(`"${r.code}", "${r.label}"`), `会員証の特典に ${r.label} がない`); const line = benefits.slice(benefits.indexOf(`"${r.code}"`), benefits.indexOf("]", benefits.indexOf(`"${r.code}"`)));
   for (const k of keys[r.code]) assert.ok(r.text.includes(k) && line.includes(k), `${r.label} の特典が会員証と食い違う(${k}): ${r.text}`); }
 assert.ok(!/キャンペーン/.test(copy), "期間限定のキャンペーンは常設の画面に書かない");
 for (const [name, t] of [["QR 画面", copy], ["会員証", card]]) for (const gone of ["5%OFF", "薬膳スイーツ", "季節の薬膳茶"]) assert.ok(!t.includes(gone), `${name} に廃止した特典(${gone})が残っている`);
-ok("ランク特典の例(豆花・お茶)と、見本で順に見せる5ランクの特典の要点(10円・豆花・五巡茶・お茶・優先案内・試食会)が、会員証の特典と同じ。廃止した RUBY の5%OFF・旧特典は書いていない。期間限定のキャンペーンは書いていない");
+ok("ランク特典の例(豆花・お茶)と、見本で順に見せる5ランクの特典の要点(10円・豆花・五巡茶・お茶・あなたの五巡茶・試食会)が、会員証の特典と同じ。廃止した RUBY の5%OFF・旧特典は書いていない。期間限定のキャンペーンは書いていない");
 
 // 会員証の特典に書いた『○○pt達成』が、DB のランクの基準(db/102_rank_perks.sql)と同じ
 const sql102 = read("../db/102_rank_perks.sql");
