@@ -51,7 +51,8 @@ export function parseTableList(text) {
   });
   return { rows, skipped };
 }
-export const TABLE_POP = Object.freeze({ title: "1分体質チェック", scan: "スマホのカメラで読み取ってください(LINE が開きます)", after: "チェックのあと、このままご注文いただけます" });
+// カードの文言。direct はダイニーの注文 URL を直接開く小さな QR(LINE を使わない方・すぐ注文したい方。2026-10-16 牧野さん承認。店舗IDを設定したときだけ)
+export const TABLE_POP = Object.freeze({ title: "1分体質チェック", scan: "スマホのカメラで読み取ってください(LINE が開きます)", after: "チェックのあと、このままご注文いただけます", direct: "すぐにご注文の方はこちら" });
 
 // お席の QR から入ったことを、会員登録などで画面を移っても覚えておく(この端末の中だけ・4時間)
 export const TABLE_KEY = "10zen_dinii_table";
