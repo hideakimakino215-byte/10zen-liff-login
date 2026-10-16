@@ -105,6 +105,7 @@ details.benefits summary::-webkit-details-marker { display:none; }
 .cc .cc-line { margin-top:10px; font-size:14px; line-height:1.7; }
 .cc .cc-line b { font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; font-weight:600; font-size:16px; }
 .cc .cc-tea { margin-top:8px; font-size:13px; line-height:1.6; color:var(--sub); }
+.cc .cc-tea .cc-tea-name { font-weight:600; }
 /* ---- 友だち紹介(招待のリンクを LINE で送る・今月の人数) ---- */
 .invite .inv-text { font-size:13.5px; line-height:1.6; margin-top:8px; }
 .invite .inv-count { font-size:15px; font-weight:700; margin-top:8px; font-variant-numeric:tabular-nums; }
@@ -123,6 +124,7 @@ details.benefits summary::-webkit-details-marker { display:none; }
 import { createMemberClient, qrTokenFromLocation, inviteCodeFromLocation, isInviteCode, inviteUrl } from "../app-core/member-client.mjs";
 import { cardScreen, checkinScreen, redeemScreen, redeemWatch, ticketScreen, ticketWatch, messages, lineShareUrl, registerNotice, ccPromptVisible, CC_SKIP_KEY } from "../app-core/screens.mjs";
 import { TODAY_CHECK_TITLE, TODAY_CHECK_TEXT, TODAY_START, TODAY_SKIP, PROFILE_LABEL } from "../app-core/constitution-content.mjs";
+import { ELEMENT_TEXT_COLORS } from "../app-core/constitution.mjs";
 import { STORE, quizUrl, flowFromLocation } from "../app-core/store-info.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
@@ -191,7 +193,9 @@ function cardFace(view) {
 let ccSkipMem = null;
 const ccSkippedOn = () => { try { return localStorage.getItem(CC_SKIP_KEY) || ccSkipMem; } catch (_e) { return ccSkipMem; } };
 const ccSkip = (d) => { ccSkipMem = d; try { localStorage.setItem(CC_SKIP_KEY, d); } catch (_e) { /* 使えない端末: この画面の間だけ隠す */ } };
-const ccLine = (id, label, strong, extra) => kids(el("p", undefined, { id, class: "cc-line" }), document.createTextNode(`${label}: `), el("b", strong), extra ? el("span", extra, { class: "meta" }) : null);
+// タイプ名・五巡茶の名前は五行の色(文字用の濃いめの色。白地・和紙色の地で 4.5:1 以上)。バランス良好・五行が無いときは墨色のまま
+const inElementColor = (node, element) => { if (ELEMENT_TEXT_COLORS[element]) { node.style.color = ELEMENT_TEXT_COLORS[element]; node.dataset.element = element; } return node; };
+const ccLine = (id, label, strong, extra, element) => kids(el("p", undefined, { id, class: "cc-line" }), document.createTextNode(`${label}: `), inElementColor(el("b", strong), element), extra ? el("span", extra, { class: "meta" }) : null);
 function checkNodes(view) {
   const c = view.check; if (!c) return null;
   const box = el("section", undefined, { class: "panel cc", id: "ccCard" });
@@ -203,10 +207,11 @@ function checkNodes(view) {
     box.append(kids(el("div", undefined, { id: "ccTodayPrompt", class: "cc-prompt" }), el("h2", TODAY_CHECK_TITLE), el("p", TODAY_CHECK_TEXT),
       el("a", TODAY_START, { id: "ccTodayStart", href: c.startHref, class: "cc-entry first" }), skip));
   }
-  if (c.checkedToday && c.result) box.append(ccLine("ccToday", c.latestLabel, c.result.typeName));
-  if (c.profile) box.append(ccLine("ccProfile", PROFILE_LABEL, c.profile.typeName, `(${c.profile.basisText})`));
+  if (c.checkedToday && c.result) box.append(ccLine("ccToday", c.latestLabel, c.result.typeName, null, c.result.balanced ? null : c.result.primary));
+  if (c.profile) box.append(ccLine("ccProfile", PROFILE_LABEL, c.profile.typeName, `(${c.profile.basisText})`, c.profile.element));
   if (c.result?.dish) box.append(ccLine("ccTodayDish", "今日のおすすめ", c.result.dish.name));
-  if (c.todayTea) box.append(el("p", `今日の五巡茶: ${c.todayTea.name}・${c.todayTea.line}`, { id: "ccTodayTea", class: "cc-tea" }));
+  if (c.todayTea) box.append(kids(el("p", undefined, { id: "ccTodayTea", class: "cc-tea" }), document.createTextNode("今日の五巡茶: "),
+    inElementColor(el("b", c.todayTea.name, { class: "cc-tea-name" }), c.todayTea.element), document.createTextNode(`・${c.todayTea.line}`)));
   box.append(el("a", c.entryLabel, { id: "ccEntry", href: c.entryHref, class: "cc-entry" }));
   return box;
 }
