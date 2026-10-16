@@ -302,5 +302,24 @@ try {
     assert.equal(checkSubmitScreen(await cli.constitutionSubmit({ answers: A, mood: "soup" }), NOW()).screen, "maintenance");
     pg.exec(`update system_state set state='open';`); }
   ok("クライアント → member-api → DB: 未登録は登録へ。初回の同意なしは『同意をお願いします』で記録なし。形の違う回答・気分・同意の値は 400(設定にない気分も 400)。画面が点数・タイプ・あなたの体質を送っても使わず、DB が計算する(応答に profile)。LINE の ID・内部 ID なし。来店した日で今日まだなら『今日の1分体質チェック』、チェックすると消えて今日の傾向・あなたの体質(回数が増える)・履歴に入る。今日の体調の入口は互換のためだけ。案内のクリックを記録。凍結中はメンテナンス");
+  {
+    // 全部が同点で高め(2026-10-16 案A): 表示だけ「全体的にゆらぎやすいタイプ」。おすすめと五巡茶は DB の五行(季節)のまま。色なし・正式名称なし
+    const all6 = { wood: 6, fire: 6, earth: 6, metal: 6, water: 6 };
+    assert.equal(CC.isAllHigh(all6), true); assert.equal(CC.isAllHigh({ ...all6, metal: 5 }), false);
+    assert.equal(CC.isAllHigh({ wood: 3, fire: 3, earth: 3, metal: 3, water: 3 }), false);                    // 同点でも低めは五行(季節)のまま
+    assert.equal(CC.isAllHigh({ wood: 4, fire: 4, earth: 4, metal: 4, water: 4 }), true);
+    assert.equal(CC.isAllHigh({ wood: 4.33, fire: 4.33, earth: 4.33, metal: 4.33, water: 4.33 }), true); assert.equal(CC.isAllHigh(null), false);
+    const r = constitutionResultView({ scores: all6, primary: "metal", balanced: false, mood: "porridge" }, { todayTea: "metal", seasonElement: "metal", todayStr: "2026-10-16" });
+    assert.equal(r.typeName, CC.ALL_HIGH_NAME); assert.equal(r.typeLine, CT.TYPE_LINES.allHigh); assert.equal(r.allHigh, true); assert.equal(r.element, null);
+    assert.equal(r.formalText, null); assert.ok(r.details.every((d) => !d.isPrimary)); assert.equal(r.yourTea.element, "metal");
+    const pf = profileView({ count: 2, scores: all6, primary: "metal", balanced: false });
+    assert.equal(pf.typeName, CC.ALL_HIGH_NAME); assert.equal(pf.element, null); assert.equal(pf.kanji, "全体");
+    const h = historyView([{ checkedOn: "2026-10-16", primary: "metal", balanced: false, scores: all6 }])[0];
+    assert.equal(h.kanji, "全体"); assert.equal(h.element, null); assert.equal(h.typeName, CC.ALL_HIGH_NAME);
+    const one = constitutionResultView({ scores: { ...all6, wood: 5 }, primary: "fire", balanced: false, mood: "soup" }, {});
+    assert.equal(one.allHigh, false); assert.equal(one.element, "fire"); assert.equal(one.typeName, CC.ELEMENT_INFO.fire.typeName);
+    for (const w of ["治る", "効く", "改善"]) assert.ok(!CT.TYPE_LINES.allHigh.includes(w) && !CC.ALL_HIGH_NAME.includes(w));
+    ok("全部が同点で高め(5つとも同じ・4点以上)は『全体的にゆらぎやすいタイプ』と表示(今日の傾向・あなたの体質・履歴)。色と正式名称は出さず、おすすめと五巡茶は季節の五行のまま。同点でも低め・1つでも違えば今までどおり");
+  }
   console.log(`\n${n} constitution app tests passed`);
 } finally { pg.stop(); }

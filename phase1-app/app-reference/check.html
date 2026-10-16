@@ -175,7 +175,7 @@ function resultView(v) {
   const type = kids(el("section", undefined, { class: "panel type", id: "ccResult" }),
     herb("goji", { class: "corner", style: "left:-6px;top:-4px;width:58px" }), herb("chenpi", { class: "corner", style: "right:-4px;top:-2px;width:60px" }),
     el("p", v.latestLabel, { class: "label", id: "ccTodayLabel" }),
-    inElementColor(el("h2", r.typeName, { id: "ccTypeName", class: "serif" }), r.balanced ? null : r.primary), el("p", r.typeLine, { id: "ccTypeLine", class: "line" }));
+    inElementColor(el("h2", r.typeName, { id: "ccTypeName", class: "serif" }), r.element), el("p", r.typeLine, { id: "ccTypeLine", class: "line" }));
   const svg = radarSvg(document, r.scores, { labels: LABELS, max: 6, id: "ccRadar", title: "五行ごとの点数(0〜6)", valueText: (x) => String(x ?? "—"),
     dotColors: ELEMENT_COLORS, labelColors: ELEMENT_TEXT_COLORS });                  // 五行の五色(点と軸の名前)
   const detail = el("ul", undefined, { class: "detail", id: "ccDetail", hidden: "" });
