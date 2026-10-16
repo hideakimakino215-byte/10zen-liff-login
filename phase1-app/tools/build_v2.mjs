@@ -9,9 +9,12 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (k, d) => { const i = process.argv.indexOf("--" + k); return i > 0 ? process.argv[i + 1] : d; };
-export function build({ liffId, supabaseKey, out, supabaseUrl = "https://ynqnhjvrzqdrfmvmudir.supabase.co" }) {
+export function build({ liffId, supabaseKey, out, supabaseUrl = "https://ynqnhjvrzqdrfmvmudir.supabase.co", diniiShopId = "", diniiLiffId = "" }) {
   if (!/^[0-9]{10}-[A-Za-z0-9]{8}$/.test(liffId || "")) throw new Error("LIFF ID の形式が不正です(例 2011158053-N7nKgExB)");
   if (!/^sb_publishable_[A-Za-z0-9_-]{20,}$/.test(supabaseKey || "")) throw new Error("公開キー(sb_publishable_…)を指定してください。service_role / secret キーは使わない");
+  // ダイニーの注文ボタン(app-core/dinii.mjs)。導入時に発行される店舗ID・LIFF ID。空ならボタンを出さない
+  if (diniiShopId && !/^[0-9A-Za-z-]{8,64}$/.test(diniiShopId)) throw new Error("ダイニーの店舗IDの形式が不正です");
+  if (diniiLiffId && !/^[0-9]{10}-[A-Za-z0-9]{8}$/.test(diniiLiffId)) throw new Error("ダイニーの LIFF ID の形式が不正です");
   fs.rmSync(out, { recursive: true, force: true });
   const copy = (from, to) => { fs.mkdirSync(path.dirname(to), { recursive: true }); fs.copyFileSync(from, to); };
   for (const f of fs.readdirSync(path.join(ROOT, "app-core"))) if (/\.mjs$/.test(f) && !/^test/.test(f)) copy(path.join(ROOT, "app-core", f), path.join(out, "app-core", f));
@@ -20,7 +23,7 @@ export function build({ liffId, supabaseKey, out, supabaseUrl = "https://ynqnhjv
   for (const f of ["supabase.js", "qrcode.js", "README.md"]) copy(path.join(ROOT, "app-reference", "vendor", f), path.join(out, "app-reference", "vendor", f));
   const v = path.join(out, "app-reference");
   fs.copyFileSync(path.join(v, "card.html"), path.join(v, "index.html"));   // LIFF の入口 URL(…/app-reference/)用。/{LIFF ID}/whoami.html のように、入口の後ろにファイル名を付けて開けるようにする
-  fs.writeFileSync(path.join(v, "config.js"), `// 配信時の設定(公開してよい値のみ)\nwindow.APP_CONFIG = {\n  liffId: ${JSON.stringify(liffId)},\n  memberApi: ${JSON.stringify(supabaseUrl + "/functions/v1/member-api")},\n  staffQrApi: ${JSON.stringify(supabaseUrl + "/functions/v1/staff-qr")},\n  supabaseUrl: ${JSON.stringify(supabaseUrl)},\n  supabaseKey: ${JSON.stringify(supabaseKey)},\n};\n`);
+  fs.writeFileSync(path.join(v, "config.js"), `// 配信時の設定(公開してよい値のみ)\nwindow.APP_CONFIG = {\n  liffId: ${JSON.stringify(liffId)},\n  memberApi: ${JSON.stringify(supabaseUrl + "/functions/v1/member-api")},\n  staffQrApi: ${JSON.stringify(supabaseUrl + "/functions/v1/staff-qr")},\n  supabaseUrl: ${JSON.stringify(supabaseUrl)},\n  supabaseKey: ${JSON.stringify(supabaseKey)},\n  diniiShopId: ${JSON.stringify(diniiShopId)},\n  diniiLiffId: ${JSON.stringify(diniiLiffId)},\n};\n`);
   // LIFF SDK は LINE の配信元から読み込む(同梱不可)。card.html の <script src="vendor/liff.js"> がこのファイルを読む
   fs.writeFileSync(path.join(v, "vendor", "liff.js"), `// LINE 公式の LIFF SDK を読み込む(配信元は LINE が指定)\ndocument.write('<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"><\\/script>');\n`);
   fs.writeFileSync(path.join(out, "robots.txt"), "User-agent: *\nDisallow: /\n");
@@ -33,6 +36,6 @@ export function build({ liffId, supabaseKey, out, supabaseUrl = "https://ynqnhjv
 }
 function walk(d) { return fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)])).filter((f) => !f.endsWith("MANIFEST.txt")); }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const lines = build({ liffId: arg("liff-id"), supabaseKey: arg("supabase-key"), out: path.resolve(arg("out", path.join(ROOT, "..", "v2"))) });
+  const lines = build({ liffId: arg("liff-id"), supabaseKey: arg("supabase-key"), out: path.resolve(arg("out", path.join(ROOT, "..", "v2"))), diniiShopId: arg("dinii-shop-id", ""), diniiLiffId: arg("dinii-liff-id", "") });
   console.log(lines.join("\n"));
 }

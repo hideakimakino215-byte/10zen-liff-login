@@ -19,11 +19,13 @@ for (const f of fs.readdirSync(path.join(out, "app-core"))) for (const m of fs.r
 ok("画面が読み込むスクリプトとモジュールの参照先がすべて存在する");
 assert.equal(fs.readFileSync(path.join(out, "app-reference/index.html"), "utf8"), fs.readFileSync(path.join(out, "app-reference/card.html"), "utf8"));   // 入口は card.html と同じ内容
 const cfg = fs.readFileSync(path.join(out, "app-reference/config.js"), "utf8");
-assert.match(cfg, /liffId: "2011158053-ABCDEFGH"/); assert.match(cfg, /memberApi: "https:\/\/ynqnhjvrzqdrfmvmudir\.supabase\.co\/functions\/v1\/member-api"/); assert.ok(cfg.includes(KEY));
+assert.match(cfg, /liffId: "2011158053-ABCDEFGH"/); assert.match(cfg, /diniiShopId: ""/); assert.match(cfg, /diniiLiffId: ""/);   // ダイニーは空(注文ボタンは出ない)
+ assert.match(cfg, /memberApi: "https:\/\/ynqnhjvrzqdrfmvmudir\.supabase\.co\/functions\/v1\/member-api"/); assert.ok(cfg.includes(KEY));
 assert.ok(!/service_role|secret/i.test(cfg));
 assert.match(fs.readFileSync(path.join(out, "app-reference/vendor/liff.js"), "utf8"), /static\.line-scdn\.net\/liff\/edge\/2\/sdk\.js/);
 ok("設定は公開してよい値だけ(公開キー・LIFF ID・関数のURL)。LIFF SDK は LINE の公式の配信元から読み込む");
 assert.throws(() => build({ liffId: "bad", supabaseKey: KEY, out }), /LIFF ID/);
+assert.throws(() => build({ liffId: "2011158053-ABCDEFGH", supabaseKey: KEY, out, diniiShopId: "<x>" }), /店舗ID/); assert.throws(() => build({ liffId: "2011158053-ABCDEFGH", supabaseKey: KEY, out, diniiLiffId: "bad" }), /LIFF ID/);
 assert.throws(() => build({ liffId: "2011158053-ABCDEFGH", supabaseKey: "eyJhbGciOi" + "x".repeat(60), out }), /公開キー/);
 assert.throws(() => build({ liffId: "2011158053-ABCDEFGH", supabaseKey: "sb_secret_" + "x".repeat(40), out }), /公開キー/);
 ok("不正な LIFF ID・公開キー以外(JWT 形式・secret キー)は組み立てを拒否する");
