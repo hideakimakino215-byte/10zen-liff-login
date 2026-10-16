@@ -70,3 +70,5 @@ export const ORDER_BUTTON = "このまま注文する(お席のQRを読み取る
 export const ORDER_BUTTON_TABLE = "このまま注文する";
 export const ORDER_NOT_DINII = "10ZEN の注文用のQRではありません。お席のQRを読み取ってください。";
 export const ORDER_NO_SCAN = "お席のQRを、スマホのカメラで読み取ってご注文ください。";
+// ダイニーの注文画面は通常のメニューのまま(体質チェックの結果は反映されない)ことを、注文の前に伝える(ダイニーの助言 2026-10-16・アレルギーはスタッフへ)
+export const ORDER_NOTE = "ご注文画面は通常のメニューです(体質チェックの結果でメニューは変わりません)。食材やアレルギーが気になる方は、スタッフにお声がけください。";

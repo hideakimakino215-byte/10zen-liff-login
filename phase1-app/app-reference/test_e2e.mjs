@@ -353,7 +353,7 @@ try {
     await tp.goto(`${BASE}/app-reference/check.html?table=T07`); await tp.waitForSelector("#ccStart, #ccAgree");
     await tp.goto(`${BASE}/app-reference/check.html?view=result`); await tp.waitForSelector("#ccTypeName");          // 画面を移っても、お席の QR から入ったことを覚えている
     assert.equal(await tp.getAttribute("#ccOrderTable", "href"), `https://liff.line.me/${DLIFF}/shops/${SHOP}/items?shopId=${SHOP}&tableCode=T07`);
-    assert.equal(await text(tp, "#ccOrderTable"), "このまま注文する"); assert.equal(await tp.locator("#ccOrderScan").count(), 0);
+    assert.equal(await text(tp, "#ccOrderTable"), "このまま注文する"); assert.match(await text(tp, "#ccOrderNote"), /通常のメニュー.*スタッフにお声がけ/); assert.equal(await tp.locator("#ccOrderScan").count(), 0);
     const bad = await withDinii(await newPage(tokFor(sub("d"), "試験 体質")));
     await bad.goto(`${BASE}/app-reference/check.html?table=${encodeURIComponent("<x>")}&view=result`); await bad.waitForSelector("#ccTypeName");
     assert.equal(await bad.locator("#ccOrderTable").count(), 0);                                                       // 形の違うテーブルは使わない

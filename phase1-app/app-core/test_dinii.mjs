@@ -1,6 +1,6 @@
 // ダイニーの注文画面への入口(app-core/dinii.mjs)の判定。実行: node app-core/test_dinii.mjs
 import assert from "node:assert/strict";
-import { diniiEnabled, diniiOrderUrl, diniiTableUrl, tableFromParam, rememberTable, recallTable, tableQrUrl, parseTableList, TABLE_POP, TABLE_QR_MAX, TABLE_KEY, TABLE_TTL_MS, ORDER_BUTTON, ORDER_BUTTON_TABLE, ORDER_NOT_DINII, ORDER_NO_SCAN } from "./dinii.mjs";
+import { diniiEnabled, diniiOrderUrl, diniiTableUrl, tableFromParam, rememberTable, recallTable, tableQrUrl, parseTableList, TABLE_POP, TABLE_QR_MAX, TABLE_KEY, TABLE_TTL_MS, ORDER_BUTTON, ORDER_BUTTON_TABLE, ORDER_NOT_DINII, ORDER_NO_SCAN, ORDER_NOTE } from "./dinii.mjs";
 
 let n = 0; const ok = (m) => console.log(`ok - ${++n} ${m}`);
 const SHOP = "3fdf5fed-fee4-47df-b541-0cb32e93d14a", TABLE = "7288bb93-b215-4d4a-bd07-0ac76e85f7b0", LIFF = "1653687169-wzDlrXnN";
@@ -65,6 +65,7 @@ assert.equal(tableQrUrl("x", "T07"), null); assert.equal(tableQrUrl("2011158053-
   assert.equal(many.rows.length, TABLE_QR_MAX); assert.equal(many.skipped.length, 3); }
 ok("お席に置く QR: 中身は体質チェック(?table=)。一覧は「表示名,テーブルコード」で読み、形の違う行・重複・上限を超えた行は行番号つきで飛ばす");
 
-for (const s of [ORDER_BUTTON, ORDER_BUTTON_TABLE, ORDER_NOT_DINII, ORDER_NO_SCAN, ...Object.values(TABLE_POP)]) for (const w of ["治る", "効く", "改善"]) assert.ok(!s.includes(w));
+assert.match(ORDER_NOTE, /スタッフ/); assert.doesNotMatch(ORDER_NOTE, /大丈夫/);                                    // アレルギーは「大丈夫」と言わずスタッフへ
+for (const s of [ORDER_BUTTON, ORDER_BUTTON_TABLE, ORDER_NOT_DINII, ORDER_NO_SCAN, ORDER_NOTE, ...Object.values(TABLE_POP)]) for (const w of ["治る", "効く", "改善"]) assert.ok(!s.includes(w));
 ok("お客様に見せる文に「治る・効く・改善」がない");
 console.log(`\n${n} dinii tests passed`);
