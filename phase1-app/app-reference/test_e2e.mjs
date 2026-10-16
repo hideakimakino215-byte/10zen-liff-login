@@ -243,6 +243,11 @@ try {
   assert.match(await text(cc, "#ccTodayTea"), /今日の五巡茶: 五巡茶/); assert.equal(await cc.locator("#ccTodayPrompt").count(), 0);
   assert.equal(await text(cc, "#ccToday"), "今日の傾向: モヤモヤ渋滞タイプ"); assert.match(await text(cc, "#ccProfile"), /^あなたの体質: モヤモヤ渋滞タイプ/);
   assert.match(await text(cc, "#ccTodayDish"), /^今日のおすすめ: \(仮\)/);
+  // タイプ名・今日の五巡茶の名前は五行の文字色(木=#42744c)。バランス良好でなければ data-element が付く
+  assert.equal(await cc.locator("#ccToday b").getAttribute("data-element"), "wood");
+  assert.equal(await cc.locator("#ccToday b").evaluate((n) => getComputedStyle(n).color), "rgb(66, 116, 76)");
+  assert.equal(await cc.locator("#ccProfile b").getAttribute("data-element"), "wood");
+  assert.ok(["wood", "fire", "earth", "metal", "water"].includes(await cc.locator("#ccTodayTea .cc-tea-name").getAttribute("data-element")));
   assert.doesNotMatch(await cc.textContent("#ccCard"), /今日の体調|季節が変わりました/); assert.equal(await cc.locator("#ccCondition, #ccSeasonPrompt").count(), 0);
   pg.exec(`insert into visits(member_id, visit_on) select ${ccMember}, public._jst_date(now());`);
   await cc.reload(); await cc.waitForSelector("#ccToday"); assert.equal(await cc.locator("#ccTodayPrompt").count(), 0);                    // 今日はもうチェック済み
