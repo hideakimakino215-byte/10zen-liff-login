@@ -164,6 +164,11 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
 
 async function start() {
   const w = await staff.whoami();
+  // 通信の一時的な失敗(店の Wi-Fi の瞬断など)ではログイン画面に戻さず、5秒ごとに自動でやり直す(2026-10-17 牧野さん決定: タブレットは最初に1回だけログイン)
+  if (w.kind === "error") {
+    app.replaceChildren(put(el("div", undefined, { class: "login" }), logo(), el("p", "接続を確認しています…(自動でやり直します)", { id: "msg", role: "status" })));
+    setTimeout(start, 5000); return;
+  }
   if (w.kind !== "ok" || !w.data.active || (w.data.role !== "kiosk" && w.data.role !== "manager")) { if (w.kind === "ok" && w.data.active) await staff.signOut(); return loginView(w.kind === "ok" && w.data.active ? "このアカウントでは表示できません。店頭QR専用のアカウントでログインしてください" : null); }
   const url = el("pre", "", { id: "qrUrl", hidden: "" }), msg = el("p", "", { id: "qrMsg", role: "status" });
   const box = el("div", undefined, { id: "qrImage", role: "img" });
