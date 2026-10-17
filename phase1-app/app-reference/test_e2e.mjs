@@ -655,8 +655,15 @@ try {
     assert.equal(await rp.evaluate(() => window.__newPw), "abcdefgh1"); assert.equal(await rp.evaluate(() => window.__signedOut), true);
     assert.equal(await rp.evaluate(() => location.hash), ""); assert.equal(await rp.inputValue("#pw1"), "");   // 変更後はトークンを URL から消し、ログアウトする
     await rp.goto("about:blank"); await rp.goto(`${BASE}/app-reference/reset.html#error=access_denied&error_description=expired`); await rp.waitForSelector("#sendMsg.bad"); assert.match(await text(rp, "#sendMsg"), /有効期限/);
+    // 店頭タブレット: 1回ログインすれば、開き直してもログインなしで QR。起動時の通信の失敗ではログイン画面に戻さず自動でやり直す
+    await rq.fill("#email", "kiosk@t"); await rq.fill("#password", "pw"); await rq.click("#login"); await rq.waitForSelector("#qrImage svg");
+    let fails = 1; await rq.route("**/rpc/staff_whoami", (r) => (fails-- > 0 ? r.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "boom" }) }) : r.continue()));
+    await rq.reload(); await rq.waitForSelector("#msg:has-text('接続を確認しています')"); assert.equal(await rq.locator("#login, #password").count(), 0);
+    await rq.waitForSelector("#qrImage svg", { timeout: 9000 }); assert.equal(await rq.locator("#login").count(), 0);
+    await rq.unroute("**/rpc/staff_whoami"); await rq.reload(); await rq.waitForSelector("#qrImage svg"); assert.equal(await rq.locator("#login").count(), 0);
+    rq.errs = rq.errs.filter((e) => !/status of 500/.test(e));
     for (const p of [rp, rq]) { assert.deepEqual(p.errs, [], p.errs.join("|")); assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true); } }
-  ok("パスワードの再設定: スタッフ画面・店頭QRのログインに「パスワードを忘れた方」。メールを送る(登録の有無は出さない・戻り先はこのページ)→ メールのリンクで新しいパスワード(8文字以上・2回一致)→ 変更後はログアウトし URL のトークンを消す。期限切れのリンクは案内を出す");
+  ok("パスワードの再設定: スタッフ画面・店頭QRのログインに「パスワードを忘れた方」。メールを送る(登録の有無は出さない・戻り先はこのページ)→ メールのリンクで新しいパスワード(8文字以上・2回一致)→ 変更後はログアウトし URL のトークンを消す。期限切れのリンクは案内を出す。店頭タブレットは1回ログインすれば開き直してもログインなしで QR、起動時の通信の失敗ではログイン画面に戻さず自動でやり直す");
   const evil = await newPage(tokFor(sub("b"), "<img src=x onerror=window.__x=1><script>window.__x=2</script>"));
   await evil.goto(`${BASE}/app-reference/card.html`); await evil.waitForSelector("#register"); await evil.click("#register"); await evil.waitForSelector("#name");
   assert.match(await text(evil, "#name"), /^<img src=x onerror=window.__x=1><script>/); assert.equal(await evil.evaluate(() => window.__x), undefined);
