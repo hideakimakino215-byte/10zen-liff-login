@@ -20,6 +20,7 @@ button { font-family:inherit; color:inherit; }
 .top { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
 .top img { width:96px; height:auto; display:block; }
 .top h1 { font-size:18px; font-weight:600; letter-spacing:.08em; margin-left:auto; }
+html:lang(en) .top h1 { font-size:16px; letter-spacing:.01em; text-align:right; }
 .panel { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:18px; margin-top:14px; }
 .label { font-size:13px; letter-spacing:.1em; color:var(--sub); }
 .lead { font-size:15px; line-height:1.8; margin-top:8px; }
@@ -82,22 +83,33 @@ button { font-family:inherit; color:inherit; }
 .cta { text-align:center; border-color:var(--accent); }
 .cta a.primary { background:#06c755; }
 .note { font-size:13px; color:var(--sub); text-align:center; line-height:1.7; margin-top:8px; }
+/* 言語の切り替え(会員証と同じ) */
+.lang { display:flex; justify-content:flex-end; gap:6px; margin:0 0 10px; }
+.lang button { min-height:36px; padding:0 12px; border-radius:18px; border:1px solid var(--line); background:#fff; color:var(--sub); font:inherit; font-size:13px; cursor:pointer; }
+.lang button[aria-current="true"] { border-color:var(--ink); color:var(--ink); font-weight:600; }
 </style></head>
 <body>
 <main id="app" aria-live="polite"><p id="loading" class="msg">読み込み中…</p></main>
 <script src="config.js"></script>
 <script type="module">
 import { constitutionResultView } from "../app-core/screens.mjs";
-import { QUESTIONS, ANSWER_OPTIONS, ELEMENTS, ELEMENT_INFO, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, evaluate, teaOfDay, seasonElement, jstDate } from "../app-core/constitution.mjs";
-import { CHECK_NAME, DISCLAIMER, NIHONDO_LEAD, NIHONDO_BUTTON, WEB_INTRO_TEXT, WEB_PRIVACY_NOTE, WEB_CTA_LEAD, WEB_CTA_BUTTON, YOUR_TEA_LABEL, EVEN_PICK_NOTE } from "../app-core/constitution-content.mjs";
+import { QUESTIONS, ANSWER_OPTIONS, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, evaluate, teaOfDay, seasonElement, jstDate } from "../app-core/constitution.mjs";
+import { ccText, detectLang, normalizeLang, storedLang, saveLang, langSwitcher, HTML_LANG } from "../app-core/i18n.mjs";
 import { NIHONDO_CONSULT_URL } from "../app-core/store-info.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 const kids = (parent, ...nodes) => { for (const n of nodes) if (n) parent.append(n); return parent; };
+// 言語(2026-10-17): URL の ?lang=en / zh / ja(SNS・Google の英語・中国語の投稿から)→ 選んだ言語 → 端末の言語。画面の上で切り替え(この端末に覚える)
+const langStore = (() => { try { return window.localStorage; } catch (_e) { return null; } })();
+const langParam = new URLSearchParams(location.search).get("lang");
+let lang = normalizeLang(langParam) ?? detectLang({ stored: storedLang(langStore), nav: navigator.languages }), CT = ccText(lang), rerender = null;
+const setLang = (l) => { lang = l; CT = ccText(l); document.documentElement.lang = HTML_LANG[l]; };
+const switcher = () => langSwitcher(document, lang, (l) => { saveLang(langStore, l); setLang(l); if (rerender) rerender(); });
+setLang(lang);
 const inElementColor = (node, element) => { if (ELEMENT_TEXT_COLORS[element]) { node.style.color = ELEMENT_TEXT_COLORS[element]; node.dataset.element = element; } return node; };
-const header = () => kids(el("header", undefined, { class: "top" }), el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT", width: "1400", height: "518" }), el("h1", CHECK_NAME, { class: "serif" }));
-const show = (...nodes) => { app.replaceChildren(header(), ...nodes); window.scrollTo(0, 0); };
+const header = () => kids(el("header", undefined, { class: "top" }), el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT", width: "1400", height: "518" }), el("h1", CT.checkName, { class: "serif" }));
+const show = (...nodes) => { app.replaceChildren(switcher(), header(), ...nodes); window.scrollTo(0, 0); };
 const HERB_NAMES = ["goji", "chenpi", "jujube", "anise", "lotus", "chili"];
 const herb = (name, attrs = {}) => el("img", undefined, { src: `assets/herb-${name}.webp`, alt: "", "aria-hidden": "true", decoding: "async", ...attrs });
 const HERO = [["chili", "left:2%;top:6%;width:17%"], ["goji", "left:22%;top:38%;width:15%"], ["chenpi", "left:41%;top:2%;width:16%"],
@@ -108,24 +120,26 @@ const memberUrl = LIFF_RE.test(cfg?.liffId ?? "") ? `https://liff.line.me/${cfg.
 let answers = [], idx = 0, busy = false;
 
 function introView() {
+  rerender = introView;
   const box = el("section", undefined, { class: "panel", id: "wcIntro" });
   const hero = el("div", undefined, { class: "hero", "aria-hidden": "true" });
   for (const [name, pos] of HERO) hero.append(herb(name, { style: pos }));
-  const b = el("button", "はじめる", { id: "wcStart", class: "primary", type: "button" });
+  const b = el("button", CT.start, { id: "wcStart", class: "primary", type: "button" });
   b.onclick = () => { answers = []; idx = 0; questionView(); };
-  show(kids(box, hero, el("p", "はじめに", { class: "label" }), el("p", WEB_INTRO_TEXT, { class: "lead" }), el("p", WEB_PRIVACY_NOTE, { id: "wcPrivacy", class: "meta" }),
-    el("p", DISCLAIMER, { class: "meta" }), b));
+  show(kids(box, hero, el("p", CT.introLabel, { class: "label" }), el("p", CT.webIntro, { class: "lead" }), el("p", CT.webPrivacy, { id: "wcPrivacy", class: "meta" }),
+    el("p", CT.disclaimer, { class: "meta" }), b));
 }
 
 function questionView() {
+  rerender = questionView;
   const q = QUESTIONS[idx];
   const fill = el("i"); fill.style.width = `${Math.round((100 * idx) / TOTAL)}%`;
   const progress = kids(el("div", undefined, { class: "progress", id: "wcProgress" }), el("span", `${idx + 1} / ${TOTAL}`, { id: "wcStep" }),
     kids(el("div", undefined, { class: "bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": String(TOTAL), "aria-valuenow": String(idx) }), fill));
-  const text = el("h2", q.text, { id: "wcQuestion", class: "q serif" });
+  const text = el("h2", CT.questions[idx] ?? q.text, { id: "wcQuestion", class: "q serif" });
   const opts = el("div", undefined, { class: "opts", id: "wcOptions", role: "group", "aria-labelledby": "wcQuestion" });
   for (const c of ANSWER_OPTIONS) {
-    const b = el("button", c.label, { class: "opt", type: "button", "data-value": String(c.value), "aria-pressed": String(answers[idx] === c.value) });
+    const b = el("button", CT.answers[c.value] ?? c.label, { class: "opt", type: "button", "data-value": String(c.value), "aria-pressed": String(answers[idx] === c.value) });
     b.onclick = () => {
       if (busy) return;
       b.setAttribute("aria-pressed", "true"); answers[idx] = c.value; idx += 1; busy = true;
@@ -133,45 +147,45 @@ function questionView() {
     };
     opts.append(b);
   }
-  const back = el("button", "‹ 戻る", { id: "wcBack", class: "back", type: "button" });
+  const back = el("button", CT.back, { id: "wcBack", class: "back", type: "button" });
   back.onclick = () => { if (busy) return; if (idx === 0) introView(); else { idx -= 1; questionView(); } };
   show(progress, herb(HERB_NAMES[idx % HERB_NAMES.length], { class: "qherb" }), text, opts, back);
 }
 
-const LABELS = Object.fromEntries(ELEMENTS.map((e) => [e, ELEMENT_INFO[e].kanji]));
 function resultView() {
+  rerender = resultView; const LABELS = CT.kanji;
   const today = jstDate(Date.now());
   const ev = evaluate(answers.slice(0, TOTAL), today);
   if (!ev) return introView();
-  const r = constitutionResultView({ ...ev, mood: null }, { todayTea: teaOfDay(today), seasonElement: seasonElement(today), todayStr: today });
+  const r = constitutionResultView({ ...ev, mood: null }, { todayTea: teaOfDay(today), seasonElement: seasonElement(today), todayStr: today, lang });
   const type = kids(el("section", undefined, { class: "panel type", id: "wcResult" }),
     herb("goji", { class: "corner", style: "left:-6px;top:-4px;width:58px" }), herb("chenpi", { class: "corner", style: "right:-4px;top:-2px;width:60px" }),
-    el("p", "あなたの体質の傾向", { class: "label" }),
+    el("p", CT.resultLabel, { class: "label" }),
     inElementColor(el("h2", r.typeName, { id: "wcTypeName", class: "serif" }), r.element), el("p", r.typeLine, { id: "wcTypeLine", class: "line" }));
-  const svg = radarSvg(document, r.scores, { labels: LABELS, max: 6, id: "wcRadar", title: "五行ごとの点数(0〜6)", valueText: (x) => String(x ?? "—"),
+  const svg = radarSvg(document, r.scores, { labels: LABELS, max: 6, id: "wcRadar", title: CT.radarTitle, valueText: (x) => String(x ?? "—"),
     dotColors: ELEMENT_COLORS, labelColors: ELEMENT_TEXT_COLORS });
   const detail = el("ul", undefined, { class: "detail", id: "wcDetail", hidden: "" });
   const kanji = (d) => { const k = el("span", d.kanji, { class: "k serif" }); if (ELEMENT_TEXT_COLORS[d.element]) k.style.color = ELEMENT_TEXT_COLORS[d.element]; return k; };
   for (const d of r.details) detail.append(kids(el("li", undefined, d.isPrimary ? { class: "on" } : {}), kanji(d),
-    el("span", `五臓: ${d.organ} / ${d.state}`), el("span", `${d.score ?? "—"}点`, { class: "s" })));
+    el("span", CT.organLine(d.organ, d.state)), el("span", CT.points(d.score ?? "—"), { class: "s" })));
   if (r.formalText) detail.prepend(el("p", r.formalText, { id: "wcFormal", class: "meta" }));
-  if (r.balanced || r.allHigh) type.append(el("p", EVEN_PICK_NOTE, { id: "wcEvenNote", class: "meta" }));
-  const toggle = el("button", "五行・五臓・正式名称を見る", { id: "wcDetailToggle", class: "toggle", type: "button", "aria-expanded": "false", "aria-controls": "wcDetail" });
-  const flip = () => { const open = detail.hidden; detail.hidden = !open; toggle.setAttribute("aria-expanded", String(open)); toggle.textContent = open ? "閉じる" : "五行・五臓・正式名称を見る"; };
+  if (r.balanced || r.allHigh) type.append(el("p", CT.evenNote, { id: "wcEvenNote", class: "meta" }));
+  const toggle = el("button", CT.detailOpen, { id: "wcDetailToggle", class: "toggle", type: "button", "aria-expanded": "false", "aria-controls": "wcDetail" });
+  const flip = () => { const open = detail.hidden; detail.hidden = !open; toggle.setAttribute("aria-expanded", String(open)); toggle.textContent = open ? CT.detailClose : CT.detailOpen; };
   toggle.onclick = flip; svg.addEventListener("click", flip);
   kids(type, kids(el("div", undefined, { class: "radar-wrap" }), svg), toggle, detail);
   const nodes = [type];
-  nodes.push(kids(el("section", undefined, { class: "panel item", id: "wcYourTea" }), el("p", YOUR_TEA_LABEL, { class: "label" }), inElementColor(el("h3", r.yourTea.name, { class: "serif" }), r.yourTea.element),
+  nodes.push(kids(el("section", undefined, { class: "panel item", id: "wcYourTea" }), el("p", CT.yourTeaLabel, { class: "label" }), inElementColor(el("h3", r.yourTea.name, { class: "serif" }), r.yourTea.element),
     el("p", r.yourTea.line, { class: "body" }), el("span", r.yourTea.dayText, { id: "wcYourTeaDay", class: "tea-day" })));
-  if (r.todayTea) nodes.push(kids(el("section", undefined, { class: "panel item", id: "wcTodayTea" }), el("p", `今日の五巡茶(${r.todayTea.weekday})`, { class: "label" }),
+  if (r.todayTea) nodes.push(kids(el("section", undefined, { class: "panel item", id: "wcTodayTea" }), el("p", CT.todayTeaLabel(r.todayTea.weekday), { class: "label" }),
     inElementColor(el("h3", r.todayTea.name, { class: "serif" }), r.todayTea.element), el("p", r.todayTea.line, { class: "body" })));
-  if (r.season) nodes.push(kids(el("section", undefined, { class: "panel item", id: "wcSeason" }), el("p", `季節のひとこと(${r.season.name})`, { class: "label" }), el("p", r.season.line, { class: "body" })));
-  if (memberUrl) nodes.push(kids(el("section", undefined, { class: "panel cta", id: "wcCta" }), el("p", WEB_CTA_LEAD, { class: "lead" }),
-    el("a", WEB_CTA_BUTTON, { id: "wcLine", class: "primary", href: memberUrl })));
-  nodes.push(kids(el("section", undefined, { class: "panel nihondo" }), el("p", NIHONDO_LEAD, { class: "lead" }),
-    el("a", NIHONDO_BUTTON, { id: "wcNihondo", href: NIHONDO_CONSULT_URL, target: "_blank", rel: "noopener noreferrer" })));
-  nodes.push(el("p", DISCLAIMER, { id: "wcDisclaimer", class: "disclaimer" }), el("p", WEB_PRIVACY_NOTE, { class: "note" }));
-  const again = el("button", "もう一度チェックする", { id: "wcRetake", class: "ghost", type: "button" }); again.onclick = introView;
+  if (r.season) nodes.push(kids(el("section", undefined, { class: "panel item", id: "wcSeason" }), el("p", CT.seasonLabel(r.season.name), { class: "label" }), el("p", r.season.line, { class: "body" })));
+  if (memberUrl) nodes.push(kids(el("section", undefined, { class: "panel cta", id: "wcCta" }), el("p", CT.webCtaLead, { class: "lead" }),
+    el("a", CT.webCtaButton, { id: "wcLine", class: "primary", href: memberUrl })));
+  nodes.push(kids(el("section", undefined, { class: "panel nihondo" }), el("p", CT.nihondoLead, { class: "lead" }),
+    el("a", CT.nihondoButton, { id: "wcNihondo", href: NIHONDO_CONSULT_URL, target: "_blank", rel: "noopener noreferrer" })));
+  nodes.push(el("p", CT.disclaimer, { id: "wcDisclaimer", class: "disclaimer" }), el("p", CT.webPrivacy, { class: "note" }));
+  const again = el("button", CT.retake, { id: "wcRetake", class: "ghost", type: "button" }); again.onclick = introView;
   nodes.push(again);
   show(...nodes);
 }

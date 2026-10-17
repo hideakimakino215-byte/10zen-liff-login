@@ -23,6 +23,7 @@ button { font-family:inherit; color:inherit; }
 .top { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
 .top img { width:96px; height:auto; display:block; }
 .top h1 { font-size:18px; font-weight:600; letter-spacing:.08em; margin-left:auto; }
+html:lang(en) .top h1 { font-size:16px; letter-spacing:.01em; text-align:right; }
 .panel { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:18px; margin-top:14px; }
 .label { font-size:13px; letter-spacing:.1em; color:var(--sub); }
 .lead { font-size:15px; line-height:1.8; margin-top:8px; }
@@ -82,6 +83,10 @@ button { font-family:inherit; color:inherit; }
 .corner { opacity:.92; }
 @keyframes herbIn { from { opacity:0; transform:translateY(6px) rotate(-6deg); } to { opacity:1; transform:none; } }
 @media (prefers-reduced-motion: reduce) { .bar > i { transition:none; } .qherb { animation:none; } }
+/* 言語の切り替え(会員証と同じ) */
+.lang { display:flex; justify-content:flex-end; gap:6px; margin:0 0 10px; }
+.lang button { min-height:36px; padding:0 12px; border-radius:18px; border:1px solid var(--line); background:#fff; color:var(--sub); font:inherit; font-size:13px; cursor:pointer; }
+.lang button[aria-current="true"] { border-color:var(--ink); color:var(--ink); font-weight:600; }
 </style></head>
 <body>
 <main id="app" aria-live="polite"><p id="loading" class="msg">読み込み中…</p></main>
@@ -90,19 +95,25 @@ button { font-family:inherit; color:inherit; }
 <script type="module">
 import { createMemberClient } from "../app-core/member-client.mjs";
 import { cardScreen, checkSubmitScreen } from "../app-core/screens.mjs";
-import { QUESTIONS, ANSWER_OPTIONS, ELEMENTS, ELEMENT_INFO, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, ELEMENT_SOFT_COLORS } from "../app-core/constitution.mjs";
-import { MOODS, MOOD_QUESTION, CONSENT_TEXT, INTRO_TEXT, CHECK_NAME, DISCLAIMER, NIHONDO_LEAD, NIHONDO_BUTTON, PROFILE_LABEL, HISTORY_LABEL, YOUR_TEA_LABEL, EVEN_PICK_NOTE, CHECK_REGISTER_LEAD, CHECK_REGISTER_BUTTON, RESUME_BUTTON } from "../app-core/constitution-content.mjs";
+import { QUESTIONS, ANSWER_OPTIONS, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, ELEMENT_SOFT_COLORS } from "../app-core/constitution.mjs";
+import { MOODS } from "../app-core/constitution-content.mjs";
+import { ccText, orderText, detectLang, storedLang, saveLang, langSwitcher, HTML_LANG } from "../app-core/i18n.mjs";
 import { NIHONDO_CONSULT_URL } from "../app-core/store-info.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
-import { diniiEnabled, diniiOrderUrl, diniiTableUrl, rememberTable, recallTable, ORDER_LABEL, ORDER_BUTTON, ORDER_BUTTON_TABLE, ORDER_NOT_DINII, ORDER_NO_SCAN, ORDER_NOTE } from "../app-core/dinii.mjs";
+import { diniiEnabled, diniiOrderUrl, diniiTableUrl, rememberTable, recallTable } from "../app-core/dinii.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 const kids = (parent, ...nodes) => { for (const n of nodes) if (n) parent.append(n); return parent; };
 // タイプ名・五巡茶の名前は五行の文字色(会員証と同じ。白地・和紙色の地で 4.5:1 以上)。バランス良好は墨色のまま
+// 言語(2026-10-17): 選んだ言語 → LINE の言語 → 端末の言語。画面の上の「日本語 / English / 中文」で切り替え(この端末に覚える)。文は app-core/i18n.mjs
+const langStore = (() => { try { return window.localStorage; } catch (_e) { return null; } })();
+let lang = detectLang({ stored: storedLang(langStore), nav: navigator.languages }), CT = ccText(lang), OT = orderText(lang), rerender = null;
+const setLang = (l) => { lang = l; CT = ccText(l); OT = orderText(l); document.documentElement.lang = HTML_LANG[l]; };
+const switcher = () => langSwitcher(document, lang, (l) => { saveLang(langStore, l); setLang(l); if (rerender) rerender(); });
 const inElementColor = (node, element) => { if (ELEMENT_TEXT_COLORS[element]) { node.style.color = ELEMENT_TEXT_COLORS[element]; node.dataset.element = element; } return node; };
-const header = () => kids(el("header", undefined, { class: "top" }), el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT", width: "1400", height: "518" }), el("h1", CHECK_NAME, { class: "serif" }));
-const show = (...nodes) => { app.replaceChildren(header(), ...nodes); window.scrollTo(0, 0); };
-const toCard = (text = "会員証へ戻る", cls = "ghost") => el("a", text, { id: "ccToCard", href: "card.html", class: cls });
+const header = () => kids(el("header", undefined, { class: "top" }), el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT", width: "1400", height: "518" }), el("h1", CT.checkName, { class: "serif" }));
+const show = (...nodes) => { app.replaceChildren(switcher(), header(), ...nodes); window.scrollTo(0, 0); };
+const toCard = (text = CT.toCard, cls = "ghost") => el("a", text, { id: "ccToCard", href: "card.html", class: cls });
 // 生薬の絵(assets/herb-名前.webp。会員証と同じ6種)。飾りなので alt は空・aria-hidden
 const HERB_NAMES = ["goji", "chenpi", "jujube", "anise", "lotus", "chili"];
 const herb = (name, attrs = {}) => el("img", undefined, { src: `assets/herb-${name}.webp`, alt: "", "aria-hidden": "true", decoding: "async", ...attrs });
@@ -120,36 +131,39 @@ const loadProgress = () => { try { const v = JSON.parse(store?.getItem(PROGRESS_
   return v && Number.isInteger(v.idx) && v.idx > 0 && v.idx <= QUESTIONS.length && Array.isArray(v.answers) && v.answers.slice(0, v.idx).every((a) => [0, 1, 2].includes(a)) && Date.now() - v.at < PROGRESS_TTL_MS ? v : null; } catch (_e) { return null; } };   // お席の QR から(会員登録で会員証へ移っても4時間覚える)
 
 function errorView(message, retry) {
+  rerender = client ? start : null;
   const nodes = [el("p", message, { id: "msg", class: "msg" })];
-  if (retry) { const b = el("button", "もう一度試す", { id: "retry", class: "primary" }); b.onclick = start; nodes.push(b); }
+  if (retry) { const b = el("button", CT.retry, { id: "retry", class: "primary" }); b.onclick = start; nodes.push(b); }
   show(...nodes, toCard());
 }
 
 // はじめの画面(初回は同意を兼ねる)
 function introView(error) {
+  rerender = () => introView(error);
   const box = el("section", undefined, { class: "panel", id: check?.consented ? "ccIntro" : "ccConsent" });
   const hero = el("div", undefined, { class: "hero", "aria-hidden": "true" });
   for (const [name, pos] of HERO) hero.append(herb(name, { style: pos }));
-  kids(box, hero, el("p", "はじめに", { class: "label" }), el("p", INTRO_TEXT, { class: "lead" }));
-  if (!check?.consented) box.append(el("p", CONSENT_TEXT, { id: "ccConsentText", class: "lead" }));
-  box.append(el("p", DISCLAIMER, { class: "meta" }));
-  const b = el("button", check?.consented ? "はじめる" : "同意してはじめる", { id: check?.consented ? "ccStart" : "ccAgree", class: "primary" });
+  kids(box, hero, el("p", CT.introLabel, { class: "label" }), el("p", CT.intro, { class: "lead" }));
+  if (!check?.consented) box.append(el("p", CT.consent, { id: "ccConsentText", class: "lead" }));
+  box.append(el("p", CT.disclaimer, { class: "meta" }));
+  const b = el("button", check?.consented ? CT.start : CT.agreeStart, { id: check?.consented ? "ccStart" : "ccAgree", class: "primary" });
   b.onclick = () => { consentGiven = !check?.consented; answers = []; idx = 0; questionView(); };
   box.append(b);
   const saved = loadProgress();
-  if (saved) { const r = el("button", RESUME_BUTTON(saved.idx + 1), { id: "ccResume", class: "ghost" }); r.onclick = () => { answers = saved.answers.slice(0, saved.idx); idx = saved.idx; consentGiven = saved.consentGiven || !!check?.consented; questionView(); }; box.append(r); }
-  show(...(error ? [el("p", error, { id: "notice", class: "notice", role: "status" })] : []), box, toCard("会員証へ戻る"));
+  if (saved) { const r = el("button", CT.resume(saved.idx + 1), { id: "ccResume", class: "ghost" }); r.onclick = () => { answers = saved.answers.slice(0, saved.idx); idx = saved.idx; consentGiven = saved.consentGiven || !!check?.consented; questionView(); }; box.append(r); }
+  show(...(error ? [el("p", error, { id: "notice", class: "notice", role: "status" })] : []), box, toCard(CT.toCard));
 }
 
 // 1問1画面。タップで次へ(戻るで1つ前へ)
 function questionView() {
+  rerender = questionView;
   const isMood = idx >= QUESTIONS.length, q = QUESTIONS[idx];
   const fill = el("i"); fill.style.width = `${Math.round((100 * idx) / TOTAL)}%`;
   const progress = kids(el("div", undefined, { class: "progress", id: "ccProgress" }), el("span", `${idx + 1} / ${TOTAL}`, { id: "ccStep" }),
     kids(el("div", undefined, { class: "bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": String(TOTAL), "aria-valuenow": String(idx) }), fill));
-  const text = el("h2", isMood ? MOOD_QUESTION : q.text, { id: "ccQuestion", class: "q serif" });
+  const text = el("h2", isMood ? CT.moodQuestion : CT.questions[idx] ?? q.text, { id: "ccQuestion", class: "q serif" });
   const opts = el("div", undefined, { class: "opts", id: "ccOptions", role: "group", "aria-labelledby": "ccQuestion" });
-  const choices = isMood ? MOODS.map((m) => ({ value: m.code, label: m.label })) : ANSWER_OPTIONS;
+  const choices = isMood ? MOODS.map((m) => ({ value: m.code, label: CT.moods[m.code] ?? m.label })) : ANSWER_OPTIONS.map((a) => ({ value: a.value, label: CT.answers[a.value] ?? a.label }));
   const current = isMood ? null : answers[idx];
   for (const c of choices) {
     const b = el("button", c.label, { class: "opt", "data-value": String(c.value), "aria-pressed": String(current === c.value) });
@@ -162,16 +176,16 @@ function questionView() {
     };
     opts.append(b);
   }
-  const back = el("button", "‹ 戻る", { id: "ccBack", class: "back" });
+  const back = el("button", CT.back, { id: "ccBack", class: "back" });
   back.onclick = () => { if (busy) return; if (idx === 0) introView(); else { idx -= 1; questionView(); } };
   if (idx > 0) saveProgress();
   show(progress, herb(isMood ? "lotus" : HERB_NAMES[idx % HERB_NAMES.length], { class: "qherb" }), text, opts, back);
 }
 
 async function submit(mood) {
-  busy = true;
-  show(el("p", "結果を作っています…", { id: "ccBusy", class: "msg" }));
-  const s = checkSubmitScreen(await client.constitutionSubmit({ answers: answers.slice(0, QUESTIONS.length), mood, consent: consentGiven }), Date.now());
+  busy = true; rerender = null;
+  show(el("p", CT.making, { id: "ccBusy", class: "msg" }));
+  const s = checkSubmitScreen(await client.constitutionSubmit({ answers: answers.slice(0, QUESTIONS.length), mood, consent: consentGiven }), Date.now(), lang);
   busy = false;
   if (s.screen === "result" && s.view?.result) { clearProgress(); check = s.view; return resultView(s.view); }
   if (s.screen === "consent") { check = { ...(check || {}), consented: false }; return introView(s.error); }
@@ -181,60 +195,62 @@ async function submit(mood) {
 
 // 結果: 今日の傾向(今回の結果。タイプ・五角形・タップで正式名称)・あなたの体質(最新3回の平均)・これまでのチェック(最新6回)・
 //       今日のおすすめの一品(今回の結果から)・あなたにおすすめの五巡茶(あなたの体質から)・今日の五巡茶・季節・薬日本堂・診断ではない旨
-const LABELS = Object.fromEntries(ELEMENTS.map((e) => [e, ELEMENT_INFO[e].kanji]));
 const chipOf = (h) => { const c = el("span", h.kanji, { class: "chip serif", "data-element": h.element ?? "balanced" });
   if (h.element) { c.style.borderColor = ELEMENT_COLORS[h.element]; c.style.background = ELEMENT_SOFT_COLORS[h.element]; c.style.color = ELEMENT_TEXT_COLORS[h.element]; } return c; };
+// 結果を見ている間に言語を変えたら、会員証の API から同じ結果をその言語で作り直す
+const rerenderResult = async () => { const s = cardScreen(await client.me(), Date.now(), lang); if (s.screen === "card" && s.view.check?.result) { check = s.view.check; resultView(check); } };
 function resultView(v) {
-  const r = v.result;
+  rerender = rerenderResult;
+  const r = v.result, LABELS = CT.kanji;
   const type = kids(el("section", undefined, { class: "panel type", id: "ccResult" }),
     herb("goji", { class: "corner", style: "left:-6px;top:-4px;width:58px" }), herb("chenpi", { class: "corner", style: "right:-4px;top:-2px;width:60px" }),
     el("p", v.latestLabel, { class: "label", id: "ccTodayLabel" }),
     inElementColor(el("h2", r.typeName, { id: "ccTypeName", class: "serif" }), r.element), el("p", r.typeLine, { id: "ccTypeLine", class: "line" }));
-  const svg = radarSvg(document, r.scores, { labels: LABELS, max: 6, id: "ccRadar", title: "五行ごとの点数(0〜6)", valueText: (x) => String(x ?? "—"),
+  const svg = radarSvg(document, r.scores, { labels: LABELS, max: 6, id: "ccRadar", title: CT.radarTitle, valueText: (x) => String(x ?? "—"),
     dotColors: ELEMENT_COLORS, labelColors: ELEMENT_TEXT_COLORS });                  // 五行の五色(点と軸の名前)
   const detail = el("ul", undefined, { class: "detail", id: "ccDetail", hidden: "" });
   const kanji = (d) => { const k = el("span", d.kanji, { class: "k serif" }); if (ELEMENT_TEXT_COLORS[d.element]) k.style.color = ELEMENT_TEXT_COLORS[d.element]; return k; };
   for (const d of r.details) detail.append(kids(el("li", undefined, d.isPrimary ? { class: "on" } : {}), kanji(d),
-    el("span", `五臓: ${d.organ} / ${d.state}`), el("span", `${d.score ?? "—"}点`, { class: "s" })));
-  const toggle = el("button", "五行・五臓・正式名称を見る", { id: "ccDetailToggle", class: "toggle", "aria-expanded": "false", "aria-controls": "ccDetail" });
-  const flip = () => { const open = detail.hidden; detail.hidden = !open; toggle.setAttribute("aria-expanded", String(open)); toggle.textContent = open ? "閉じる" : "五行・五臓・正式名称を見る"; };
+    el("span", CT.organLine(d.organ, d.state)), el("span", CT.points(d.score ?? "—"), { class: "s" })));
+  const toggle = el("button", CT.detailOpen, { id: "ccDetailToggle", class: "toggle", "aria-expanded": "false", "aria-controls": "ccDetail" });
+  const flip = () => { const open = detail.hidden; detail.hidden = !open; toggle.setAttribute("aria-expanded", String(open)); toggle.textContent = open ? CT.detailClose : CT.detailOpen; };
   toggle.onclick = flip; svg.addEventListener("click", flip);
   kids(type, kids(el("div", undefined, { class: "radar-wrap" }), svg), toggle, detail);
   if (r.formalText) detail.prepend(el("p", r.formalText, { id: "ccFormal", class: "meta" }));
-  if (r.balanced || r.allHigh) type.append(el("p", EVEN_PICK_NOTE, { id: "ccEvenNote", class: "meta" }));   // おすすめの選び方の説明(ペルソナ実験 2026-10-17)
+  if (r.balanced || r.allHigh) type.append(el("p", CT.evenNote, { id: "ccEvenNote", class: "meta" }));   // おすすめの選び方の説明(ペルソナ実験 2026-10-17)
   const nodes = [type];
   // あなたの体質(最新3回の平均)とこれまでのチェック。1回目は今日の傾向と同じなので出さない(ペルソナ実験 2026-10-17: 同じ内容が2回出ていた)
   const p = v.profile, later = [];
-  if (p && p.count > 1) later.push(kids(el("section", undefined, { class: "panel profile", id: "ccProfile" }), el("p", PROFILE_LABEL, { class: "label" }),
+  if (p && p.count > 1) later.push(kids(el("section", undefined, { class: "panel profile", id: "ccProfile" }), el("p", CT.profileLabel, { class: "label" }),
     inElementColor(el("h2", p.typeName, { id: "ccProfileName", class: "serif" }), p.element), el("p", p.basisText, { id: "ccProfileBasis", class: "meta basis" }),
     el("p", p.typeLine, { class: "lead", id: "ccProfileLine" }),
-    radarSvg(document, p.scores, { labels: LABELS, max: 6, id: "ccProfileRadar", title: "あなたの体質: 五行ごとの点数の平均(0〜6)",
+    radarSvg(document, p.scores, { labels: LABELS, max: 6, id: "ccProfileRadar", title: CT.profileRadarTitle,
       valueText: (x) => (typeof x === "number" ? (Math.round(x * 10) / 10).toFixed(1) : "—"), dotColors: ELEMENT_COLORS, labelColors: ELEMENT_TEXT_COLORS })));
   // これまでのチェック(新しい順・最大6回): 日付と五行の印・タイプ名。2回目から
   if (v.history.length > 1) {
     const ul = el("ul", undefined, { class: "history", id: "ccHistory" });
     v.history.forEach((h, i) => ul.append(kids(el("li", undefined, { "data-element": h.element ?? "balanced", ...(i === 0 ? { class: "latest" } : {}) }),
       el("span", h.dateText, { class: "d" }), chipOf(h), el("span", h.typeName, { class: "t" }))));
-    later.push(kids(el("section", undefined, { class: "panel", id: "ccHistoryBox" }), el("p", `${HISTORY_LABEL}(新しい順・最大6回)`, { class: "label" }), ul));
+    later.push(kids(el("section", undefined, { class: "panel", id: "ccHistoryBox" }), el("p", CT.historyTitle(CT.historyLabel), { class: "label" }), ul));
   }
-  const dish = r.dish ? kids(el("section", undefined, { class: "panel item", id: "ccDish" }), el("p", v.checkedToday ? "今日のおすすめの一品(今日の傾向から)" : "おすすめの一品(前回の傾向から)", { class: "label" }),
-    el("h3", r.dish.name, { class: "serif" }), el("p", r.dish.reason, { class: "body" })) : null;
+  const dish = r.dish ? kids(el("section", undefined, { class: "panel item", id: "ccDish" }), el("p", v.checkedToday ? CT.dishToday : CT.dishLatest, { class: "label" }),
+    el("h3", r.dish.name, { class: "serif" }), el("p", r.dish.reason, { class: "body" }), CT.dishPending ? el("p", CT.dishPending, { class: "meta" }) : null) : null;
   let order = null;
   const table = recallTable(store);
   if (diniiEnabled(cfg)) order = table ? orderTableNodes(table) : visitedToday ? orderNodes() : null;   // ダイニー導入後(店舗IDを設定したら)だけ出す
   // お席の QR から来た人は、おすすめの一品と注文を結果のすぐ下に(ペルソナ実験 2026-10-17: 注文ボタンが遠かった)
   if (table) nodes.push(...[dish, order, ...later].filter(Boolean)); else nodes.push(...[...later, dish, order].filter(Boolean));
-  nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccYourTea" }), el("p", YOUR_TEA_LABEL, { class: "label" }), inElementColor(el("h3", r.yourTea.name, { class: "serif" }), r.yourTea.element),
+  nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccYourTea" }), el("p", CT.yourTeaLabel, { class: "label" }), inElementColor(el("h3", r.yourTea.name, { class: "serif" }), r.yourTea.element),
     el("p", r.yourTea.line, { class: "body" }), el("span", r.yourTea.dayText, { id: "ccYourTeaDay", class: "tea-day" })));
-  if (r.todayTea) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccTodayTea" }), el("p", `今日の五巡茶(${r.todayTea.weekday})`, { class: "label" }),
+  if (r.todayTea) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccTodayTea" }), el("p", CT.todayTeaLabel(r.todayTea.weekday), { class: "label" }),
     inElementColor(el("h3", r.todayTea.name, { class: "serif" }), r.todayTea.element), el("p", r.todayTea.line, { class: "body" })));
-  if (r.season) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccSeason" }), el("p", `季節のひとこと(${r.season.name})`, { class: "label" }), el("p", r.season.line, { class: "body" })));
-  const link = el("a", NIHONDO_BUTTON, { id: "ccNihondo", href: NIHONDO_CONSULT_URL, target: "_blank", rel: "noopener noreferrer" });
+  if (r.season) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccSeason" }), el("p", CT.seasonLabel(r.season.name), { class: "label" }), el("p", r.season.line, { class: "body" })));
+  const link = el("a", CT.nihondoButton, { id: "ccNihondo", href: NIHONDO_CONSULT_URL, target: "_blank", rel: "noopener noreferrer" });
   link.addEventListener("click", () => { client.referralClick().catch(() => {}); });         // 押された数だけを記録(結果は待たずに開く)
-  nodes.push(kids(el("section", undefined, { class: "panel nihondo" }), el("p", NIHONDO_LEAD, { class: "lead" }), link));
-  nodes.push(el("p", DISCLAIMER, { id: "ccDisclaimer", class: "disclaimer" }));
-  const again = el("button", "もう一度チェックする", { id: "ccRetake", class: "ghost" }); again.onclick = () => { answers = []; idx = 0; consentGiven = false; introView(); };
-  nodes.push(toCard("会員証へ戻る", "primary"), again);
+  nodes.push(kids(el("section", undefined, { class: "panel nihondo" }), el("p", CT.nihondoLead, { class: "lead" }), link));
+  nodes.push(el("p", CT.disclaimer, { id: "ccDisclaimer", class: "disclaimer" }));
+  const again = el("button", CT.retake, { id: "ccRetake", class: "ghost" }); again.onclick = () => { answers = []; idx = 0; consentGiven = false; introView(); };
+  nodes.push(toCard(CT.toCard, "primary"), again);
   show(...nodes);
 }
 
@@ -242,46 +258,48 @@ function resultView(v) {
 function orderTableNodes(table) {
   const url = diniiTableUrl(table, { shopId: cfg.diniiShopId, liffId: cfg.diniiLiffId });
   if (!url) return null;
-  return kids(el("section", undefined, { class: "panel item", id: "ccOrder" }), el("p", ORDER_LABEL, { class: "label" }),
-    el("p", ORDER_NOTE, { id: "ccOrderNote", class: "meta" }), el("a", ORDER_BUTTON_TABLE, { id: "ccOrderTable", class: "primary", href: url }));
+  return kids(el("section", undefined, { class: "panel item", id: "ccOrder" }), el("p", OT.label, { class: "label" }),
+    el("p", OT.note, { id: "ccOrderNote", class: "meta" }), el("a", OT.table, { id: "ccOrderTable", class: "primary", href: url }));
 }
 
 // このまま注文する(来店した日・お席の QR から入っていないとき): LIFF のカメラでお席のQRを読み、10ZEN のダイニーの注文用のQRのときだけ開く(app-core/dinii.mjs)。カメラが使えない端末では案内の文だけ
 function orderNodes() {
   const box = el("section", undefined, { class: "panel item", id: "ccOrder" }), msg = el("p", "", { id: "ccOrderMsg", class: "body", role: "status" });
   const canScan = typeof window.liff?.scanCodeV2 === "function" && window.liff.isApiAvailable?.("scanCodeV2") !== false;
-  const note = el("p", ORDER_NOTE, { id: "ccOrderNote", class: "meta" });
-  if (!canScan) return kids(box, el("p", ORDER_LABEL, { class: "label" }), note, el("p", ORDER_NO_SCAN, { class: "body" }));
-  const b = el("button", ORDER_BUTTON, { id: "ccOrderScan", class: "primary", type: "button" });
+  const note = el("p", OT.note, { id: "ccOrderNote", class: "meta" });
+  if (!canScan) return kids(box, el("p", OT.label, { class: "label" }), note, el("p", OT.noScan, { class: "body" }));
+  const b = el("button", OT.scan, { id: "ccOrderScan", class: "primary", type: "button" });
   b.onclick = async () => {
     msg.textContent = "";
-    let r; try { r = await window.liff.scanCodeV2(); } catch (_e) { msg.textContent = ORDER_NO_SCAN; return; }
+    let r; try { r = await window.liff.scanCodeV2(); } catch (_e) { msg.textContent = OT.noScan; return; }
     const url = diniiOrderUrl(r?.value, { shopId: cfg.diniiShopId, liffId: cfg.diniiLiffId });
-    if (!url) { msg.textContent = ORDER_NOT_DINII; return; }
+    if (!url) { msg.textContent = OT.notDinii; return; }
     window.location.assign(url);
   };
-  return kids(box, el("p", ORDER_LABEL, { class: "label" }), note, b, msg);
+  return kids(box, el("p", OT.label, { class: "label" }), note, b, msg);
 }
 
 async function start() {
-  const s = cardScreen(await client.me(), Date.now());
+  rerender = start;
+  const s = cardScreen(await client.me(), Date.now(), lang);
   if (s.screen === "register") {                                              // その場で登録して体質チェックへ(ペルソナ実験 2026-10-17: 会員証を経由すると遠回り)
-    const b = el("button", CHECK_REGISTER_BUTTON, { id: "ccRegister", class: "primary" });
+    const b = el("button", CT.registerButton, { id: "ccRegister", class: "primary" });
     b.onclick = async () => { b.disabled = true; const prof = await window.liff.getProfile?.().catch?.(() => null); const r = await client.register({ displayName: prof?.displayName });
-      if (r.kind === "ok" || r.kind === "conflict") return start(); b.disabled = false; errorView("登録できませんでした。もう一度お試しください", true); };
-    return show(el("p", CHECK_REGISTER_LEAD, { id: "msg", class: "msg" }), b, toCard("会員証を見る"));
+      if (r.kind === "ok" || r.kind === "conflict") return start(); b.disabled = false; errorView(CT.registerFailed, true); };
+    return show(el("p", CT.registerLead, { id: "msg", class: "msg" }), b, toCard(CT.toCardShort));
   }
   if (s.screen === "needs_login") { window.liff.login?.(); return errorView(s.message, false); }
   if (s.screen !== "card") return errorView(s.message, s.retry);
   check = s.view.check; visitedToday = !!s.view.visitedToday;
-  if (!check) return errorView("ただいま体質チェックは準備中です", false);           // DB が未対応(103 未適用)
+  if (!check) return errorView(CT.preparing, false);           // DB が未対応(103 未適用)
   const qs = new URLSearchParams(location.search);
   if (qs.get("view") === "result" && check.result) return resultView(check);
   if (qs.get("start") === "1" && check.consented) { answers = []; idx = 0; consentGiven = false; return questionView(); }   // 会員証の「今日のチェックをはじめる」から(同意済み)
   introView();
 }
 (async () => {
-  try { await window.liff.init({ liffId: cfg.liffId }); } catch (_e) { return show(el("p", "LINE アプリで開いてください", { id: "msg", class: "msg" })); }
+  try { await window.liff.init({ liffId: cfg.liffId }); } catch (_e) { return show(el("p", CT.openInLine, { id: "msg", class: "msg" })); }
+  setLang(storedLang(langStore) ? lang : detectLang({ liff: window.liff.getLanguage?.(), nav: navigator.languages }));   // LINE の言語(選んだことがなければ)
   if (!window.liff.isLoggedIn()) { window.liff.login(); return; }
   client = createMemberClient({ endpoint: cfg.memberApi, getIdToken: async () => window.liff.getIDToken() });
   start();

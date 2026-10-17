@@ -63,7 +63,7 @@ try {
   pg.exec(`update system_state set state='open'; update app_settings set value='false' where key='register_counts_as_visit';
     insert into auth.users(id) values ('${U.staff}'), ('${U.kiosk}');
     insert into staff_users(user_id, display_name, role) values ('${U.staff}','スタッフ','staff'),('${U.kiosk}','店頭タブレット','kiosk');`);
-  const newPage = async (tok) => { const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } }); const p = await ctx.newPage(); p.errs = []; p.on("pageerror", (e) => p.errs.push(e.message));
+  const newPage = async (tok, locale = "ja-JP") => { const ctx = await browser.newContext({ viewport: { width: 390, height: 800 }, locale }); const p = await ctx.newPage(); p.errs = []; p.on("pageerror", (e) => p.errs.push(e.message));
     p.on("console", (m) => { if (m.type() === "error" && !/status of 4/.test(m.text())) p.errs.push(m.text()); }); if (tok) await p.addInitScript((t) => localStorage.setItem("tok", t), tok); return p; };
   const text = (p, sel) => p.textContent(sel);
 

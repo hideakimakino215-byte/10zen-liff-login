@@ -83,7 +83,7 @@ try {
   pg.exec(`insert into auth.users(id) values ${Object.values(U).map((u) => `('${u}')`).join(",")};
     insert into staff_users(user_id, display_name, role) values ('${U.staff}','スタッフ','staff'),('${U.viewer}','閲覧','viewer'),('${U.mgr}','店長','manager'),('${U.kiosk}','店頭タブレット','kiosk');`);
   const tokFor = (sub, name) => makeJwt({ sub, name });
-  const newPage = async (tok) => { const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } }); const p = await ctx.newPage(); p.errs = []; p.on("pageerror", (e) => p.errs.push(e.message));
+  const newPage = async (tok, locale = "ja-JP") => { const ctx = await browser.newContext({ viewport: { width: 390, height: 800 }, locale }); const p = await ctx.newPage(); p.errs = []; p.on("pageerror", (e) => p.errs.push(e.message));
     p.on("console", (m) => { if (m.type() === "error" && !/status of 4/.test(m.text())) p.errs.push(m.text()); });
     if (tok) await p.addInitScript((t) => localStorage.setItem("tok", t), tok); return p; };
   const text = (p, sel) => p.textContent(sel);
@@ -587,6 +587,55 @@ try {
     assert.equal(Number(pg.exec(`select count(*) from audit_log where action = 'redeem_lookup_miss';`)), misses);                 // 桁違いはサーバーに送らない(間違いの回数にも数えない)
     for (const p of [np, sc]) { assert.deepEqual(p.errs, []); assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true); } }
   ok("ペルソナ実験の直し: 会員でない人は体質チェックの画面でその場で登録して進める。途中でやめても続きから(送信後は消える)。期限60日前の有効期限・金額のボタン・コードの案内・ランクアップのお知らせ(1回)。スタッフの桁違いはサーバーに送らない");
+  // ---- 英語・中国語(2026-10-17 牧野さん決定): LINE・端末の言語で自動、画面の上の「日本語 / English / 中文」で切り替え(この端末に覚える)。店頭の QR は 日本語10秒 → 英語5秒 → 中国語5秒 ----
+  { const kana = /[ぁ-んァ-ヶ]/;
+    const lp = await newPage(tokFor(sub("6"), "Lang Test"), "en-US");
+    await lp.goto(`${BASE}/app-reference/card.html`); await lp.waitForSelector("#register");
+    assert.equal(await lp.getAttribute("html", "lang"), "en"); assert.equal(await text(lp, "#register"), "Register");             // 端末が英語 → 英語
+    assert.equal(await lp.getAttribute('#langSwitch button[aria-current="true"]', "data-lang"), "en");
+    await lp.click('#langSwitch button[data-lang="zh"]'); await lp.waitForSelector("#register:has-text('注册会员')"); assert.equal(await lp.getAttribute("html", "lang"), "zh-Hans");
+    await lp.click("#register"); await lp.waitForSelector("#points"); assert.match(await text(lp, "#memberNo"), /^会员编号 \S+/);
+    await lp.reload(); await lp.waitForSelector("#points"); assert.equal(await lp.getAttribute('#langSwitch button[aria-current="true"]', "data-lang"), "zh");   // 選んだ言語を覚えている
+    await lp.click('#langSwitch button[data-lang="en"]'); await lp.waitForSelector("#memberNo:has-text('Member No.')");
+    assert.match(await text(lp, "#ccCard"), /1-Minute/);
+    await lp.goto(`${BASE}/app-reference/check.html`); await lp.waitForSelector("#ccAgree"); assert.equal(await text(lp, "#ccAgree"), "Agree and start");
+    await lp.click("#ccAgree"); await lp.waitForSelector("#ccStep:has-text('1 / 16')");
+    assert.equal(await text(lp, "#ccQuestion"), "I get irritated easily, or my mood goes up and down a lot");
+    assert.deepEqual(await lp.locator("#ccOptions button").allTextContents(), ["Often", "Sometimes", "Rarely"]);
+    await lp.click('#langSwitch button[data-lang="zh"]'); await lp.waitForSelector("#ccQuestion:has-text('容易烦躁')"); assert.equal(await text(lp, "#ccStep"), "1 / 16");   // 途中で変えても同じ問題のまま
+    await lp.click('#langSwitch button[data-lang="en"]'); await lp.waitForSelector("#ccQuestion:has-text('irritated')");
+    for (let i = 1; i <= 15; i++) { await lp.waitForSelector(`#ccStep:has-text('${i} / 16')`); await lp.click(`#ccOptions button[data-value="${i <= 3 ? 2 : 0}"]`); }
+    await lp.waitForSelector("#ccStep:has-text('16 / 16')"); assert.equal(await text(lp, "#ccQuestion"), "What do you feel like eating today?");
+    await lp.click('#ccOptions button[data-value="soup"]'); await lp.waitForSelector("#ccTypeName");
+    assert.equal(await text(lp, "#ccTypeName"), "The Tense & Stuck Type"); assert.match(await text(lp, "#ccDisclaimer"), /not a medical diagnosis/);
+    assert.doesNotMatch(await text(lp, "#ccResult"), kana); assert.doesNotMatch(await text(lp, "#ccYourTea"), kana);
+    await lp.click('#langSwitch button[data-lang="zh"]'); await lp.waitForSelector("#ccTypeName:has-text('郁闷堵塞型')");              // 結果も言語を変えて作り直す
+    assert.doesNotMatch(await text(lp, "#ccResult"), kana); assert.match(await text(lp, "#ccDisclaimer"), /并非医学诊断/);
+    await lp.click('#langSwitch button[data-lang="ja"]'); await lp.waitForSelector("#ccTypeName:has-text('タイプ')"); assert.equal(await lp.getAttribute("html", "lang"), "ja");
+    // Web 版: ?lang=zh(SNS の中国語の投稿から)。回答は送らない
+    const wl = await newPage(null); await wl.goto(`${BASE}/app-reference/web-check.html?lang=zh`); await wl.waitForSelector("#wcStart");
+    assert.equal(await text(wl, "#wcStart"), "开始"); assert.equal(await wl.getAttribute("html", "lang"), "zh-Hans");
+    await wl.click('#langSwitch button[data-lang="en"]'); await wl.waitForSelector("#wcStart:has-text('Start')"); await wl.click("#wcStart");
+    for (let i = 1; i <= 15; i++) { await wl.waitForSelector(`#wcStep:has-text('${i} / 15')`); await wl.click('#wcOptions button[data-value="0"]'); }
+    await wl.waitForSelector("#wcTypeName"); assert.equal(await text(wl, "#wcTypeName"), "Well Balanced"); assert.doesNotMatch(await text(wl, "#wcResult"), kana);
+    // 店頭の QR 画面: 日本語10秒 → 英語5秒 → 中国語5秒 → 日本語。QR はそのまま(言語の切り替えで作り直さない)
+    const kq = await newPage(); await kq.goto(`${BASE}/app-reference/qr.html`); await kq.waitForSelector("#login");
+    await kq.fill("#email", "kiosk@t"); await kq.fill("#password", "pw"); await kq.click("#login"); await kq.waitForSelector('#kiosk[data-lang="ja"]');
+    // 言語が変わった同じ瞬間に QR の絵が作り直されていないか(30秒ごとの QR の更新は別の時に起きる)
+    await kq.evaluate(() => { window.__langSwitches = 0; window.__qrRebuiltOnSwitch = 0; const k = document.getElementById("kiosk");
+      new MutationObserver((recs) => { const sw = recs.some((r) => r.type === "attributes" && r.attributeName === "data-lang"); if (!sw) return; window.__langSwitches++;
+        if (recs.some((r) => r.type === "childList" && r.target.id === "qrImage")) window.__qrRebuiltOnSwitch++; }).observe(k, { attributes: true, childList: true, subtree: true }); });
+    const t0 = Date.now();
+    await kq.waitForSelector('#kiosk[data-lang="en"]', { timeout: 15000 }); const t1 = Date.now() - t0;
+    assert.ok(t1 > 8000 && t1 < 12500, `英語まで ${t1}ms`); assert.equal(await kq.getAttribute("#kiosk", "lang"), "en");
+    assert.match(await kq.textContent("#kiosk h1"), /membership card/); assert.doesNotMatch(await kq.textContent("#kiosk"), kana);
+    await kq.waitForSelector('#kiosk[data-lang="zh"]', { timeout: 8000 }); const t2 = Date.now() - t0 - t1; assert.ok(t2 > 3500 && t2 < 7000, `中国語まで ${t2}ms`);
+    assert.match(await kq.textContent("#kiosk h1"), /会员卡/);
+    await kq.waitForSelector('#kiosk[data-lang="ja"]', { timeout: 8000 });
+    assert.deepEqual(await kq.evaluate(() => [window.__langSwitches, window.__qrRebuiltOnSwitch]), [3, 0]);           // 3回切り替わり、QR は作り直していない
+    assert.equal(await kq.locator("button, input, a, select, textarea, nav").count(), 0);                       // 店頭の画面に操作できる部品は増えない
+    for (const p of [lp, wl, kq]) { assert.deepEqual(p.errs, [], p.errs.join("|")); assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true); } }
+  ok("英語・中国語: 端末・LINE の言語で自動(英語の端末なら英語)、画面の上で切り替え・この端末に覚える。会員証・体質チェック(途中で変えても同じ問題・結果も作り直す)・Web 版(?lang=zh)。英語・中国語の結果にかなが混ざらない。店頭の QR は 日本語10秒 → 英語5秒 → 中国語5秒で自動で切り替わり、QR はそのまま");
   const evil = await newPage(tokFor(sub("b"), "<img src=x onerror=window.__x=1><script>window.__x=2</script>"));
   await evil.goto(`${BASE}/app-reference/card.html`); await evil.waitForSelector("#register"); await evil.click("#register"); await evil.waitForSelector("#name");
   assert.match(await text(evil, "#name"), /^<img src=x onerror=window.__x=1><script>/); assert.equal(await evil.evaluate(() => window.__x), undefined);
