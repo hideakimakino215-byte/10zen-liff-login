@@ -91,6 +91,7 @@ try {
   // ---- ポイント使用: お客様の申請 → スタッフ確認 → お客様に完了表示 ----
   let r1 = redeemScreen(await member.redeemRequest(150), NOW); assert.equal(r1.screen, "redeem_form"); assert.match(r1.error, /100pt 単位/);
   assert.equal(redeemScreen(await member.redeemRequest(100000), NOW).error, "ポイントが足りません");
+  assert.equal(redeemScreen({ kind: "bad_request" }, NOW).error, "使うポイントを入力してください"); assert.doesNotMatch(redeemScreen({ kind: "conflict", code: "invalid_amount", data: {} }, NOW).error, /null|undefined/);   // 空のまま押した(ペルソナ実験)
   const req = redeemScreen(await member.redeemRequest(100), NOW); assert.equal(req.screen, "redeem_pending"); assert.match(req.view.pending.codeText, /^\d{3} \d{3}$/); assert.equal(req.view.pending.yen, 10); assert.equal(req.view.pending.secondsLeft, 180);
   assert.equal(redeemScreen(await member.redeemRequest(200), NOW).screen, "redeem_pending");
   const before = req.view;

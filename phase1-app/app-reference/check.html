@@ -91,7 +91,7 @@ button { font-family:inherit; color:inherit; }
 import { createMemberClient } from "../app-core/member-client.mjs";
 import { cardScreen, checkSubmitScreen } from "../app-core/screens.mjs";
 import { QUESTIONS, ANSWER_OPTIONS, ELEMENTS, ELEMENT_INFO, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, ELEMENT_SOFT_COLORS } from "../app-core/constitution.mjs";
-import { MOODS, MOOD_QUESTION, CONSENT_TEXT, INTRO_TEXT, CHECK_NAME, DISCLAIMER, NIHONDO_LEAD, NIHONDO_BUTTON, PROFILE_LABEL, HISTORY_LABEL } from "../app-core/constitution-content.mjs";
+import { MOODS, MOOD_QUESTION, CONSENT_TEXT, INTRO_TEXT, CHECK_NAME, DISCLAIMER, NIHONDO_LEAD, NIHONDO_BUTTON, PROFILE_LABEL, HISTORY_LABEL, YOUR_TEA_LABEL } from "../app-core/constitution-content.mjs";
 import { NIHONDO_CONSULT_URL } from "../app-core/store-info.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
 import { diniiEnabled, diniiOrderUrl, diniiTableUrl, rememberTable, recallTable, ORDER_LABEL, ORDER_BUTTON, ORDER_BUTTON_TABLE, ORDER_NOT_DINII, ORDER_NO_SCAN, ORDER_NOTE } from "../app-core/dinii.mjs";
@@ -171,7 +171,7 @@ async function submit(mood) {
 }
 
 // 結果: 今日の傾向(今回の結果。タイプ・五角形・タップで正式名称)・あなたの体質(最新3回の平均)・これまでのチェック(最新6回)・
-//       今日のおすすめの一品(今回の結果から)・あなたの五巡茶(あなたの体質から)・今日の五巡茶・季節・薬日本堂・診断ではない旨
+//       今日のおすすめの一品(今回の結果から)・あなたにおすすめの五巡茶(あなたの体質から)・今日の五巡茶・季節・薬日本堂・診断ではない旨
 const LABELS = Object.fromEntries(ELEMENTS.map((e) => [e, ELEMENT_INFO[e].kanji]));
 const chipOf = (h) => { const c = el("span", h.kanji, { class: "chip serif", "data-element": h.element ?? "balanced" });
   if (h.element) { c.style.borderColor = ELEMENT_COLORS[h.element]; c.style.background = ELEMENT_SOFT_COLORS[h.element]; c.style.color = ELEMENT_TEXT_COLORS[h.element]; } return c; };
@@ -214,7 +214,7 @@ function resultView(v) {
     const order = table ? orderTableNodes(table) : visitedToday ? orderNodes() : null;
     if (order) nodes.push(order);
   }
-  nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccYourTea" }), el("p", "あなたの五巡茶(あなたの体質から)", { class: "label" }), inElementColor(el("h3", r.yourTea.name, { class: "serif" }), r.yourTea.element),
+  nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccYourTea" }), el("p", YOUR_TEA_LABEL, { class: "label" }), inElementColor(el("h3", r.yourTea.name, { class: "serif" }), r.yourTea.element),
     el("p", r.yourTea.line, { class: "body" }), el("span", r.yourTea.dayText, { id: "ccYourTeaDay", class: "tea-day" })));
   if (r.todayTea) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccTodayTea" }), el("p", `今日の五巡茶(${r.todayTea.weekday})`, { class: "label" }),
     inElementColor(el("h3", r.todayTea.name, { class: "serif" }), r.todayTea.element), el("p", r.todayTea.line, { class: "body" })));

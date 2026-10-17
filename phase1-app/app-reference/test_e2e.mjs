@@ -231,7 +231,7 @@ try {
   // タイプ名・五巡茶の名前は五行の文字色(会員証と同じ)
   const colorOf = (p, sel) => p.evaluate((s) => getComputedStyle(document.querySelector(s)).color, sel);
   for (const s of ["#ccTypeName", "#ccProfileName", "#ccYourTea h3"]) assert.equal(await colorOf(cc, s), rgb(ELEMENT_TEXT_COLORS.wood), s);
-  assert.equal(await text(cc, "#ccYourTeaDay"), "木曜日はあなたのお茶の日"); assert.match(await text(cc, "#ccYourTea"), /あなたの体質から.*五巡茶\(木\)/);
+  assert.equal(await text(cc, "#ccYourTeaDay"), "木曜日はあなたのお茶の日"); assert.match(await text(cc, "#ccYourTea"), /あなたにおすすめの五巡茶.*五巡茶\(木\)/);
   assert.match(await text(cc, "#ccTodayTea"), /今日の五巡茶\(.曜日\)五巡茶\(.\)/); assert.match(await text(cc, "#ccSeason"), /季節のひとこと/);
   assert.equal(await cc.locator("#ccOrder").count(), 0);                                             // ダイニーの店舗IDが未設定の間は注文ボタンを出さない
   assert.equal(await text(cc, "#ccDisclaimer"), DISCLAIMER); assert.match(await cc.textContent("body"), /もっと詳しく知りたい方は、薬日本堂の漢方相談へ/);

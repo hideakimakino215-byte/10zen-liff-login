@@ -94,6 +94,8 @@ export const TODAY_CHECK_TITLE = "今日の1分体質チェック";
 export const TODAY_SKIP = "今日はスキップ";
 export const TODAY_LABEL = "今日の傾向";
 export const PROFILE_LABEL = "あなたの体質";
+// 体質に合う五巡茶の見出し(2026-10-17 牧野さん「あなたの五巡茶(あなたの体質から)」→「あなたにおすすめの五巡茶」)。会員証の体質チェックと Web 版で同じ
+export const YOUR_TEA_LABEL = "あなたにおすすめの五巡茶";
 // 文案(確認前): 会員証の案内・ボタン・結果の説明
 export const TODAY_CHECK_TEXT = "来店のたびにチェックすると、最近3回の平均で「あなたの体質」がわかります(任意・約1分)。";
 export const TODAY_START = "今日のチェックをはじめる";
