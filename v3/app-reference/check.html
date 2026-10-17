@@ -24,9 +24,9 @@ button { font-family:inherit; color:inherit; }
 .top img { width:96px; height:auto; display:block; }
 .top h1 { font-size:18px; font-weight:600; letter-spacing:.08em; margin-left:auto; }
 .panel { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:18px; margin-top:14px; }
-.label { font-size:11px; letter-spacing:.14em; color:var(--sub); }
+.label { font-size:13px; letter-spacing:.1em; color:var(--sub); }
 .lead { font-size:15px; line-height:1.8; margin-top:8px; }
-.meta { font-size:12px; color:var(--sub); line-height:1.7; margin-top:6px; }
+.meta { font-size:13px; color:var(--sub); line-height:1.7; margin-top:6px; }
 .msg { text-align:center; font-size:15px; line-height:1.7; margin:24px 0 8px; }
 .notice { background:#fff; border:1px solid var(--line); border-left:4px solid var(--warn); border-radius:8px; padding:12px 14px; margin:0 0 14px; font-size:14px; line-height:1.6; }
 .primary, .ghost { display:flex; align-items:center; justify-content:center; width:100%; min-height:52px; border-radius:12px; font-size:16px; font-weight:600; cursor:pointer; text-decoration:none; margin-top:14px; }
@@ -72,7 +72,7 @@ button { font-family:inherit; color:inherit; }
 .history .d { color:var(--sub); font-variant-numeric:tabular-nums; }
 .history .chip { display:inline-block; min-width:2.2em; text-align:center; padding:2px 8px; border-radius:999px; border:1.5px solid #b8bfc8; background:#f1f3f6; font-weight:700; font-size:13px; white-space:nowrap; }
 .history .t { overflow-wrap:anywhere; }
-.disclaimer { font-size:12px; color:var(--sub); text-align:center; line-height:1.7; margin-top:16px; }
+.disclaimer { font-size:13px; color:var(--sub); text-align:center; line-height:1.7; margin-top:16px; }
 /* ---- 生薬の絵(会員証と同じ水彩の6種。飾りなので読み上げない) ---- */
 .hero { position:relative; height:118px; margin:2px 0 4px; }
 .hero img, .corner { position:absolute; height:auto; pointer-events:none; }
@@ -91,7 +91,7 @@ button { font-family:inherit; color:inherit; }
 import { createMemberClient } from "../app-core/member-client.mjs";
 import { cardScreen, checkSubmitScreen } from "../app-core/screens.mjs";
 import { QUESTIONS, ANSWER_OPTIONS, ELEMENTS, ELEMENT_INFO, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, ELEMENT_SOFT_COLORS } from "../app-core/constitution.mjs";
-import { MOODS, MOOD_QUESTION, CONSENT_TEXT, INTRO_TEXT, CHECK_NAME, DISCLAIMER, NIHONDO_LEAD, NIHONDO_BUTTON, PROFILE_LABEL, HISTORY_LABEL, YOUR_TEA_LABEL } from "../app-core/constitution-content.mjs";
+import { MOODS, MOOD_QUESTION, CONSENT_TEXT, INTRO_TEXT, CHECK_NAME, DISCLAIMER, NIHONDO_LEAD, NIHONDO_BUTTON, PROFILE_LABEL, HISTORY_LABEL, YOUR_TEA_LABEL, EVEN_PICK_NOTE, CHECK_REGISTER_LEAD, CHECK_REGISTER_BUTTON, RESUME_BUTTON } from "../app-core/constitution-content.mjs";
 import { NIHONDO_CONSULT_URL } from "../app-core/store-info.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
 import { diniiEnabled, diniiOrderUrl, diniiTableUrl, rememberTable, recallTable, ORDER_LABEL, ORDER_BUTTON, ORDER_BUTTON_TABLE, ORDER_NOT_DINII, ORDER_NO_SCAN, ORDER_NOTE } from "../app-core/dinii.mjs";
@@ -111,7 +111,13 @@ const HERO = [["chili", "left:2%;top:6%;width:17%"], ["goji", "left:22%;top:38%;
 const TOTAL = QUESTIONS.length + 1;                            // 15問+食事の気分
 let client, check = null, answers = [], idx = 0, consentGiven = false, busy = false, visitedToday = false;
 const store = (() => { try { return window.sessionStorage; } catch (_e) { return null; } })();
-rememberTable(store, new URLSearchParams(location.search).get("table"));   // お席の QR から(会員登録で会員証へ移っても4時間覚える)
+rememberTable(store, new URLSearchParams(location.search).get("table"));
+// 途中でやめた回答(この端末の中だけ・1時間)。送信できたら消す(ペルソナ実験 2026-10-17: 途中でやめると最初からだった)
+const PROGRESS_KEY = "10zen_cc_progress", PROGRESS_TTL_MS = 3600e3;
+const saveProgress = () => { try { store?.setItem(PROGRESS_KEY, JSON.stringify({ answers: answers.slice(0, QUESTIONS.length), idx, consentGiven, at: Date.now() })); } catch (_e) { /* 使えない端末 */ } };
+const clearProgress = () => { try { store?.removeItem(PROGRESS_KEY); } catch (_e) { /* 使えない端末 */ } };
+const loadProgress = () => { try { const v = JSON.parse(store?.getItem(PROGRESS_KEY) ?? "null");
+  return v && Number.isInteger(v.idx) && v.idx > 0 && v.idx <= QUESTIONS.length && Array.isArray(v.answers) && v.answers.slice(0, v.idx).every((a) => [0, 1, 2].includes(a)) && Date.now() - v.at < PROGRESS_TTL_MS ? v : null; } catch (_e) { return null; } };   // お席の QR から(会員登録で会員証へ移っても4時間覚える)
 
 function errorView(message, retry) {
   const nodes = [el("p", message, { id: "msg", class: "msg" })];
@@ -130,6 +136,8 @@ function introView(error) {
   const b = el("button", check?.consented ? "はじめる" : "同意してはじめる", { id: check?.consented ? "ccStart" : "ccAgree", class: "primary" });
   b.onclick = () => { consentGiven = !check?.consented; answers = []; idx = 0; questionView(); };
   box.append(b);
+  const saved = loadProgress();
+  if (saved) { const r = el("button", RESUME_BUTTON(saved.idx + 1), { id: "ccResume", class: "ghost" }); r.onclick = () => { answers = saved.answers.slice(0, saved.idx); idx = saved.idx; consentGiven = saved.consentGiven || !!check?.consented; questionView(); }; box.append(r); }
   show(...(error ? [el("p", error, { id: "notice", class: "notice", role: "status" })] : []), box, toCard("会員証へ戻る"));
 }
 
@@ -156,6 +164,7 @@ function questionView() {
   }
   const back = el("button", "‹ 戻る", { id: "ccBack", class: "back" });
   back.onclick = () => { if (busy) return; if (idx === 0) introView(); else { idx -= 1; questionView(); } };
+  if (idx > 0) saveProgress();
   show(progress, herb(isMood ? "lotus" : HERB_NAMES[idx % HERB_NAMES.length], { class: "qherb" }), text, opts, back);
 }
 
@@ -164,7 +173,7 @@ async function submit(mood) {
   show(el("p", "結果を作っています…", { id: "ccBusy", class: "msg" }));
   const s = checkSubmitScreen(await client.constitutionSubmit({ answers: answers.slice(0, QUESTIONS.length), mood, consent: consentGiven }), Date.now());
   busy = false;
-  if (s.screen === "result" && s.view?.result) { check = s.view; return resultView(s.view); }
+  if (s.screen === "result" && s.view?.result) { clearProgress(); check = s.view; return resultView(s.view); }
   if (s.screen === "consent") { check = { ...(check || {}), consented: false }; return introView(s.error); }
   if (s.screen === "needs_login") { window.liff.login?.(); return errorView(s.message, false); }
   errorView(s.message, s.retry);
@@ -192,28 +201,29 @@ function resultView(v) {
   toggle.onclick = flip; svg.addEventListener("click", flip);
   kids(type, kids(el("div", undefined, { class: "radar-wrap" }), svg), toggle, detail);
   if (r.formalText) detail.prepend(el("p", r.formalText, { id: "ccFormal", class: "meta" }));
+  if (r.balanced || r.allHigh) type.append(el("p", EVEN_PICK_NOTE, { id: "ccEvenNote", class: "meta" }));   // おすすめの選び方の説明(ペルソナ実験 2026-10-17)
   const nodes = [type];
-  // あなたの体質(最新3回の平均)。平均は小数1桁で見せる
-  const p = v.profile;
-  if (p) nodes.push(kids(el("section", undefined, { class: "panel profile", id: "ccProfile" }), el("p", PROFILE_LABEL, { class: "label" }),
+  // あなたの体質(最新3回の平均)とこれまでのチェック。1回目は今日の傾向と同じなので出さない(ペルソナ実験 2026-10-17: 同じ内容が2回出ていた)
+  const p = v.profile, later = [];
+  if (p && p.count > 1) later.push(kids(el("section", undefined, { class: "panel profile", id: "ccProfile" }), el("p", PROFILE_LABEL, { class: "label" }),
     inElementColor(el("h2", p.typeName, { id: "ccProfileName", class: "serif" }), p.element), el("p", p.basisText, { id: "ccProfileBasis", class: "meta basis" }),
     el("p", p.typeLine, { class: "lead", id: "ccProfileLine" }),
     radarSvg(document, p.scores, { labels: LABELS, max: 6, id: "ccProfileRadar", title: "あなたの体質: 五行ごとの点数の平均(0〜6)",
       valueText: (x) => (typeof x === "number" ? (Math.round(x * 10) / 10).toFixed(1) : "—"), dotColors: ELEMENT_COLORS, labelColors: ELEMENT_TEXT_COLORS })));
-  // これまでのチェック(新しい順・最大6回): 日付と五行の印・タイプ名
-  if (v.history.length) {
+  // これまでのチェック(新しい順・最大6回): 日付と五行の印・タイプ名。2回目から
+  if (v.history.length > 1) {
     const ul = el("ul", undefined, { class: "history", id: "ccHistory" });
     v.history.forEach((h, i) => ul.append(kids(el("li", undefined, { "data-element": h.element ?? "balanced", ...(i === 0 ? { class: "latest" } : {}) }),
       el("span", h.dateText, { class: "d" }), chipOf(h), el("span", h.typeName, { class: "t" }))));
-    nodes.push(kids(el("section", undefined, { class: "panel", id: "ccHistoryBox" }), el("p", `${HISTORY_LABEL}(新しい順・最大6回)`, { class: "label" }), ul));
+    later.push(kids(el("section", undefined, { class: "panel", id: "ccHistoryBox" }), el("p", `${HISTORY_LABEL}(新しい順・最大6回)`, { class: "label" }), ul));
   }
-  if (r.dish) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccDish" }), el("p", v.checkedToday ? "今日のおすすめの一品(今日の傾向から)" : "おすすめの一品(前回の傾向から)", { class: "label" }),
-    el("h3", r.dish.name, { class: "serif" }), el("p", r.dish.reason, { class: "body" })));
-  if (diniiEnabled(cfg)) {                                                                 // ダイニー導入後(店舗IDを設定したら)だけ出す
-    const table = recallTable(store);
-    const order = table ? orderTableNodes(table) : visitedToday ? orderNodes() : null;
-    if (order) nodes.push(order);
-  }
+  const dish = r.dish ? kids(el("section", undefined, { class: "panel item", id: "ccDish" }), el("p", v.checkedToday ? "今日のおすすめの一品(今日の傾向から)" : "おすすめの一品(前回の傾向から)", { class: "label" }),
+    el("h3", r.dish.name, { class: "serif" }), el("p", r.dish.reason, { class: "body" })) : null;
+  let order = null;
+  const table = recallTable(store);
+  if (diniiEnabled(cfg)) order = table ? orderTableNodes(table) : visitedToday ? orderNodes() : null;   // ダイニー導入後(店舗IDを設定したら)だけ出す
+  // お席の QR から来た人は、おすすめの一品と注文を結果のすぐ下に(ペルソナ実験 2026-10-17: 注文ボタンが遠かった)
+  if (table) nodes.push(...[dish, order, ...later].filter(Boolean)); else nodes.push(...[...later, dish, order].filter(Boolean));
   nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccYourTea" }), el("p", YOUR_TEA_LABEL, { class: "label" }), inElementColor(el("h3", r.yourTea.name, { class: "serif" }), r.yourTea.element),
     el("p", r.yourTea.line, { class: "body" }), el("span", r.yourTea.dayText, { id: "ccYourTeaDay", class: "tea-day" })));
   if (r.todayTea) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccTodayTea" }), el("p", `今日の五巡茶(${r.todayTea.weekday})`, { class: "label" }),
@@ -255,7 +265,12 @@ function orderNodes() {
 
 async function start() {
   const s = cardScreen(await client.me(), Date.now());
-  if (s.screen === "register") return show(el("p", "会員証で会員登録をしてから、体質チェックをお試しください", { id: "msg", class: "msg" }), toCard("会員証へ", "primary"));
+  if (s.screen === "register") {                                              // その場で登録して体質チェックへ(ペルソナ実験 2026-10-17: 会員証を経由すると遠回り)
+    const b = el("button", CHECK_REGISTER_BUTTON, { id: "ccRegister", class: "primary" });
+    b.onclick = async () => { b.disabled = true; const prof = await window.liff.getProfile?.().catch?.(() => null); const r = await client.register({ displayName: prof?.displayName });
+      if (r.kind === "ok" || r.kind === "conflict") return start(); b.disabled = false; errorView("登録できませんでした。もう一度お試しください", true); };
+    return show(el("p", CHECK_REGISTER_LEAD, { id: "msg", class: "msg" }), b, toCard("会員証を見る"));
+  }
   if (s.screen === "needs_login") { window.liff.login?.(); return errorView(s.message, false); }
   if (s.screen !== "card") return errorView(s.message, s.retry);
   check = s.view.check; visitedToday = !!s.view.visitedToday;

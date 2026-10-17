@@ -37,7 +37,7 @@ export function createStaffClient({ supabase, qrEndpoint, fetchFn = (...a) => fe
     confirmRedeem: (requestId) => rpc("staff_confirm_redeem", { p_request_id: requestId }),
     cancelRedeem: (requestId) => rpc("staff_cancel_redeem", { p_request_id: requestId }),
     // 入力欄は1つ: ポイント使用のコードか特典チケットのコードかは DB が見分ける(結果の data.kind が "points" / "ticket")
-    lookupCode: (code) => rpc("staff_lookup_code", { p_code: String(code || "").replace(/\s/g, "") }),
+    lookupCode: (code) => rpc("staff_lookup_code", { p_code: normalizeCode(code) }),
     confirmTicket: (requestId) => rpc("staff_confirm_ticket", { p_request_id: requestId }),
     cancelTicket: (requestId) => rpc("staff_cancel_ticket", { p_request_id: requestId }),
     ticketStats: () => rpc("staff_ticket_stats"),
@@ -94,6 +94,10 @@ export function createStaffClient({ supabase, qrEndpoint, fetchFn = (...a) => fe
 //   確定の結果は done(title)/ expired(コードの期限)/ ticket_used(使用済み)/ ticket_expired(チケットの期限)/ cancelled / not_found
 //   ポイント・チケットとも、コードを出した後に会員が停止されたときは member_inactive(DB が申請を取り消す。db/109)
 export const redeemInitial = { step: "idle" };
+// お客様のコード: 全角の数字(iPad の日本語キーボード)や空白を半角の数字だけにする(ペルソナ実験 2026-10-17)
+export const normalizeCode = (code) => String(code ?? "").normalize("NFKC").replace(/[\s-]/g, "");
+export const isCodeShape = (code) => /^\d{6}$/.test(normalizeCode(code));
+
 export function redeemReduce(state, ev) {
   switch (ev.type) {
     case "lookup_start": return { step: "looking_up" };

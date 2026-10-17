@@ -12,7 +12,7 @@ main { max-width:440px; margin:0 auto; padding:20px 16px 40px; }
 h1, h2, p { margin:0; }
 a { color:inherit; }
 .serif { font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; }
-.notice { background:#fff; border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:8px; padding:12px 14px; margin:0 0 16px; font-size:14px; line-height:1.6; }
+.notice { background:#fff; border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:8px; padding:12px 14px; margin:0 0 16px; font-size:14px; line-height:1.6; white-space:pre-line; }
 /* ---- カード(タップで裏返る)。ランクごとに枠・帯・バッジの色が変わる ---- */
 .scene { perspective:1200px; }
 .card { position:relative; width:100%; aspect-ratio:1.3 / 1; cursor:pointer; transform-style:preserve-3d; transition:transform .6s cubic-bezier(.2,.7,.2,1); outline-offset:4px; border-radius:16px;
@@ -36,7 +36,7 @@ a { color:inherit; }
 .rank-white_opal.chip { color:#4a4843; text-shadow:none; background:linear-gradient(135deg,#f6f5f1,#d8d5cc); }
 .rank-onyx.chip { color:#d4af37; text-shadow:none; background:linear-gradient(135deg,#2a3142,#0b1220); border-color:#d4af37; }
 .front .chip { position:absolute; left:7%; top:44%; }
-.hint { text-align:center; font-size:11px; color:var(--sub); margin:12px 0 0; letter-spacing:.08em; }
+.hint { text-align:center; font-size:12.5px; color:var(--sub); margin:12px 0 0; letter-spacing:.08em; }
 /* ---- 裏面(店舗情報。中央揃え) ---- */
 .back .in { display:flex; flex-direction:column; align-items:center; text-align:center; padding:16px 14px 12px; }
 .back .logo { width:40%; }
@@ -45,17 +45,20 @@ a { color:inherit; }
 .back .tel a, .back .addr a { text-decoration:none; border-bottom:1px solid var(--line); }
 .back .actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; width:100%; margin-top:auto; padding-top:10px; }
 .back .btn { display:flex; align-items:center; justify-content:center; text-align:center; min-height:44px; padding:6px 8px; border:1px solid var(--ink); border-radius:10px; font-size:13.5px; font-weight:600; text-decoration:none; background:#fff; color:var(--ink); }
-.back .back-note { font-size:10.5px; color:var(--sub); margin-top:7px; letter-spacing:.08em; }
+.back .back-note { font-size:12px; color:var(--sub); margin-top:7px; letter-spacing:.08em; }
 /* ---- ポイント ---- */
 .panel { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:18px 18px 16px; margin-top:20px; }
-.label { font-size:11px; letter-spacing:.14em; color:var(--sub); }
+.label { font-size:13px; letter-spacing:.1em; color:var(--sub); }
 .points { font-size:42px; font-weight:600; letter-spacing:.01em; line-height:1.15; margin-top:4px; font-variant-numeric:tabular-nums; }
 .yen { font-size:13px; color:var(--sub); margin-top:2px; }
 .bar { height:8px; background:#ece6dc; border-radius:999px; overflow:hidden; margin-top:16px; }
 .bar > i { display:block; height:100%; background:linear-gradient(90deg,#b99256,#8a6a3b); border-radius:999px; }
 .nextrow { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-top:9px; font-size:13px; }
-.nextrow .life { color:var(--sub); font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; }
-.meta { font-size:12px; color:var(--sub); margin-top:8px; line-height:1.6; }
+.nextrow .life { color:var(--sub); font-size:13px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.meta { font-size:13px; color:var(--sub); margin-top:8px; line-height:1.6; }
+.expiry { font-size:14px; margin-top:10px; padding:8px 10px; border-radius:10px; background:#fff7ea; color:#7a4b12; line-height:1.6; }
+.quick { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+.quick .chip-btn { min-height:44px; padding:0 14px; border-radius:999px; border:1px solid var(--line); background:#fff; font:inherit; font-size:15px; font-weight:600; color:var(--ink); cursor:pointer; }
 .pending { text-align:center; }
 .code { font-size:44px; letter-spacing:.14em; font-weight:700; margin:10px 0 4px; font-variant-numeric:tabular-nums; }
 .row { display:flex; gap:8px; margin-top:14px; }
@@ -72,7 +75,7 @@ details.benefits summary::-webkit-details-marker { display:none; }
 .benefit .chip { min-width:112px; text-align:center; white-space:nowrap; font-size:10.5px; padding:5px 8px; }
 .ticket { margin-top:16px; text-align:center; background:#0f172a; color:#d4af37; border-radius:12px; padding:14px; font-size:14px; font-weight:600; line-height:1.6; }
 .ticket small { display:block; font-weight:400; font-size:12px; color:#e2e8f0; }
-.benefit-note { font-size:11.5px; color:var(--sub); line-height:1.6; padding:10px 0 12px; border-top:1px solid var(--line); }
+.benefit-note { font-size:12.5px; color:var(--sub); line-height:1.6; padding:10px 0 12px; border-top:1px solid var(--line); }
 /* ---- 画面写真の使い回し対策: 表面に今の時刻(毎秒更新)と、ゆっくり動く模様 ---- */
 .who .clock { display:inline-flex; align-items:center; gap:6px; margin-top:5px; font-size:12px; font-weight:600; letter-spacing:.08em; color:var(--on); font-variant-numeric:tabular-nums; }
 .who .clock::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor; animation:blink 2s ease-in-out infinite; }
@@ -86,12 +89,12 @@ details.benefits summary::-webkit-details-marker { display:none; }
 .perks { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:6px; }
 .perks li { font-size:13.5px; line-height:1.5; padding-left:16px; position:relative; }
 .perks li::before { content:""; position:absolute; left:2px; top:.55em; width:7px; height:7px; border-radius:50%; background:linear-gradient(135deg,var(--r1),var(--r2)); }
-.perks li.small { font-size:11.5px; color:var(--sub); }
+.perks li.small { font-size:12.5px; color:var(--sub); }
 .tickets { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:8px; }
 .tickets li { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px dashed var(--accent); border-radius:10px; background:#fff; }
 .tickets .tt { flex:1; min-width:0; }
 .tickets .tt b { display:block; font-size:14px; font-weight:600; line-height:1.45; overflow-wrap:anywhere; }
-.tickets .tt small { font-size:11.5px; color:var(--sub); }
+.tickets .tt small { font-size:12.5px; color:var(--sub); }
 .tickets .use { height:40px; min-width:72px; border-radius:10px; border:0; background:var(--ink); color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
 .tickets .use:disabled { opacity:.4; cursor:default; }
 /* ---- 1分体質チェック(入口・来店した日の「今日の1分体質チェック」・今日の傾向・あなたの体質・今日のおすすめ) ---- */
@@ -122,10 +125,10 @@ details.benefits summary::-webkit-details-marker { display:none; }
 <script src="vendor/liff.js"></script>
 <script type="module">
 import { createMemberClient, qrTokenFromLocation, inviteCodeFromLocation, isInviteCode, inviteUrl } from "../app-core/member-client.mjs";
-import { cardScreen, checkinScreen, redeemScreen, redeemWatch, ticketScreen, ticketWatch, messages, lineShareUrl, registerNotice, ccPromptVisible, CC_SKIP_KEY } from "../app-core/screens.mjs";
+import { cardScreen, checkinScreen, redeemScreen, redeemWatch, ticketScreen, ticketWatch, messages, lineShareUrl, registerNotice, ccPromptVisible, CC_SKIP_KEY, rankUpNotice } from "../app-core/screens.mjs";
 import { TODAY_CHECK_TITLE, TODAY_CHECK_TEXT, TODAY_START, TODAY_SKIP, PROFILE_LABEL } from "../app-core/constitution-content.mjs";
 import { ELEMENT_TEXT_COLORS } from "../app-core/constitution.mjs";
-import { STORE, quizUrl, flowFromLocation } from "../app-core/store-info.mjs";
+import { STORE, flowFromLocation } from "../app-core/store-info.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 const kids = (parent, ...nodes) => { for (const n of nodes) if (n) parent.append(n); return parent; };
@@ -133,7 +136,7 @@ const show = (...nodes) => { app.replaceChildren(...nodes); };
 let client, prevView = null, poll = null, notice = null, lineUserId = null, flipped = false;
 // 友だち紹介(db/106): 招待のリンク(?ref=コード。LIFF の liff.state の形も)で開いたら、登録のときにコードを送る(友だちは何も入力しない)。
 // LINE のログインで画面が移っても失われないよう、このタブの sessionStorage にも置く(使えない端末では置かない)。会員証のお知らせは1回だけ出す
-const M = messages.ja, REF_KEY = "10zen_invite_ref";
+const M = messages.ja, REF_KEY = "10zen_invite_ref", RANK_KEY = "10zen_rank_seen:";
 const keepRef = (c) => { try { if (c) sessionStorage.setItem(REF_KEY, c); else sessionStorage.removeItem(REF_KEY); } catch (_e) { /* 使えない端末 */ } };
 const savedRef = () => { try { const c = sessionStorage.getItem(REF_KEY); return isInviteCode(c) ? c : null; } catch (_e) { return null; } };
 let inviteRef = inviteCodeFromLocation(location.search) || savedRef(), inviteNote = null, inviteAcked = null;
@@ -174,7 +177,7 @@ function cardFace(view) {
   kids(bin, el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT", class: "logo", width: "1400", height: "518", decoding: "async" }), el("h2", "青山店", { id: "storeName", class: "branch" }), el("p", STORE.hoursText, { id: "storeHours", class: "hours" }),
     kids(el("p", undefined, { class: "tel" }), link(`TEL ${STORE.telText}`, STORE.telHref, "storeTel")),
     kids(el("p", undefined, { class: "addr" }), link(`📍 ${STORE.addressText}`, STORE.mapUrl, "storeMap", "", true)),
-    kids(el("div", undefined, { class: "actions" }), link("WEBご予約", STORE.bookingUrl, "storeBooking", "btn", true), link("30秒体質チェック", quizUrl(lineUserId), "storeQuiz", "btn", true)),
+    kids(el("div", undefined, { class: "actions" }), link("WEBご予約", STORE.bookingUrl, "storeBooking", "btn", true), link("1分体質チェック", "check.html", "storeCheck", "btn")),   // 旧「30秒体質チェック」(Tally)は新しい体質チェックに置き換え(ペルソナ実験 2026-10-17: 2つあって迷う)
     el("p", "タップで表面へ", { class: "back-note" }));
   back.append(bin);
   const card = el("div", undefined, { class: `card rank-${rank}` + (flipped ? " flipped" : ""), role: "button", tabindex: "0", "aria-label": "会員証。タップで表裏を切り替え", "aria-pressed": String(flipped) });
@@ -260,18 +263,26 @@ function cardNodes(view) {
   kids(pts, bar, row);
   if (view.lifetimeNote) pts.append(el("p", view.lifetimeNote, { id: "lifetimeNote", class: "meta" }));
   if (view.lastRedeem) pts.append(el("p", view.lastRedeem.message, { id: "lastRedeem", class: "meta" }));
+  if (view.expirySoonText) pts.append(el("p", view.expirySoonText, { id: "expirySoon", class: "expiry" }));
   n.push(pts);
   const cc = checkNodes(view); if (cc) n.push(cc);
   if (view.pending) {
     const p = view.pending, box = el("section", undefined, { class: "panel pending" });
-    kids(box, el("p", `使用の申請中: ${p.points}pt(${p.yen}円分)`, { id: "pendingInfo", class: "label" }), el("p", p.codeText, { id: "pendingCode", class: "code" }), el("p", `あと ${p.secondsLeft} 秒`, { id: "pendingLeft", class: "meta" }));
+    kids(box, el("p", `使用の申請中: ${p.points}pt(${p.yen}円分)`, { id: "pendingInfo", class: "label" }), el("p", p.codeText, { id: "pendingCode", class: "code" }), el("p", `あと ${p.secondsLeft} 秒・スタッフにこのコードをお見せください`, { id: "pendingLeft", class: "meta" }));
     const c = el("button", "申請を取り消す", { id: "cancel", class: "ghost full" }); c.onclick = async () => { await client.redeemCancel(); load(); }; box.append(c); n.push(box);
   } else if (view.canRedeem) {
     const box = el("section", undefined, { class: "panel" }), row = el("div", undefined, { class: "row" });
     const i = el("input", undefined, { id: "amount", type: "number", inputmode: "numeric", min: String(view.redeemUnit), step: String(view.redeemUnit), placeholder: String(view.redeemUnit), "aria-label": "使うポイント" });
     const b = el("button", "ポイントを使う", { id: "redeem", class: "primary" });
     b.onclick = async () => { const s = redeemScreen(await client.redeemRequest(Number(i.value)), Date.now()); if (s.error) { notice = s.error; } else { notice = s.notice || null; } load(); };
-    kids(row, i, b); kids(box, el("p", `ポイントを使う(${view.redeemUnit}pt単位)`, { class: "label" }), row); n.push(box);
+    kids(row, i, b); kids(box, el("p", `ポイントを使う(${view.redeemUnit}pt単位)`, { class: "label" }), row);
+    const all = Math.floor(view.points / view.redeemUnit) * view.redeemUnit, quick = el("div", undefined, { class: "quick", id: "amountQuick" });
+    for (const [label, v] of [["500pt", 500], ["1,000pt", 1000], [`全部(${all.toLocaleString("ja-JP")}pt)`, all]]) {
+      if (v < view.redeemUnit || v > view.points || (v === all && (all === 500 || all === 1000))) continue;
+      const q = el("button", label, { type: "button", class: "chip-btn", "data-amount": String(v) }); q.onclick = () => { i.value = String(v); i.focus(); }; quick.append(q);
+    }
+    if (quick.childNodes.length) box.append(quick);
+    n.push(box);
   }
   // 特典チケット(1回で終わる特典)。「使う」→6桁コード→スタッフが確定(ポイント使用と同じ流れ)
   if (view.pendingTicket) {
@@ -316,6 +327,8 @@ async function load() {
     if (inviteRef) { inviteRef = null; keepRef(null); }                          // すでに会員: 招待のリンクから開いても紹介にはならない
     const nt = s.view.invite?.notice, ack = nt && inviteAcked !== nt.until;
     if (ack) { inviteNote = nt.text; inviteAcked = nt.until; }                     // 紹介者へのお知らせ(1回だけ): 表示してから既読にする
+    let seen = null; try { seen = localStorage.getItem(RANK_KEY + s.view.memberNo); localStorage.setItem(RANK_KEY + s.view.memberNo, s.view.rank); } catch (_e) { /* 使えない端末: お知らせなし */ }
+    const up = rankUpNotice(seen, s.view); if (up) notice = notice ? `${notice}\n${up}` : up;   // ランクが上がったら1回だけ(ペルソナ実験 2026-10-17)
     prevView = s.view; show(...cardNodes(s.view));
     if (ack) client.inviteSeen(nt.until);
     if (s.view.pending || s.view.pendingTicket) poll = setTimeout(load, 3000);
@@ -337,9 +350,9 @@ async function load() {
     else { const s = checkinScreen(r); notice = s.message; }
     history.replaceState(null, "", location.pathname);     // 再読み込みで同じQRを再送しない(送っても付与は1回)
   } else if (inviteCodeFromLocation(location.search)) history.replaceState(null, "", location.pathname);   // 招待のコードは覚えたので、URL からは消す
-  if (flow === "quiz") {                                                         // 旧仕様: 来店・登録の処理のあと、そのまま体質チェックへ
+  if (flow === "quiz") {                                                         // 旧仕様(リッチメニューなど): 来店・登録の処理のあと、そのまま新しい体質チェックへ
     if (!qr && cardScreen(await client.me(), Date.now()).screen === "register") await registerNow();
-    location.href = quizUrl(lineUserId); return;
+    location.href = "check.html"; return;
   }
   load();
 })();

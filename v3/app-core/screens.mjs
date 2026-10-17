@@ -17,6 +17,8 @@ export const messages = {
     checkin_registered_today: "本日はご登録ボーナスを付与済みです(来店ポイントは明日から)",
     qr_expired: "QRコードの有効期限が切れました。店頭のQRコードをもう一度読み取ってください",
     qr_invalid: "このQRコードは使えません。店頭のQRコードを読み取ってください",
+    expiry_soon: (date) => `ポイントの有効期限は ${date} です。ご来店・ご利用で延長されます`,   // 期限まで60日を切ったら(ペルソナ実験 2026-10-17)
+    rank_up: (label) => `${label} に上がりました。会員ランク特典をご確認ください`,
     redeem_invalid_amount: (unit) => (Number.isFinite(unit) && unit > 0 ? `ポイントは ${unit}pt 単位で使えます` : "使うポイントを入力してください"),   // 空のまま押したときは単位が返らない(ペルソナ実験 2026-10-17 で「nullpt」と出ていた)
     redeem_insufficient: "ポイントが足りません",
     redeem_already_pending: "すでに使用の申請中です。スタッフにコードをお見せください",
@@ -61,6 +63,13 @@ const codeText = (c) => `${c.slice(0, 3)} ${c.slice(3)}`;
 // ランクごとの『来るたびに使える特典』(チケットではない。会員証に文字で出す)。上のランクは下のランクの特典も続けて使える。
 //   small: true は小さく添える行(薬日本堂のご優待は暫定。中身は未定なので表示だけ)
 const RANK_ORDER = ["white_opal", "amber", "emerald", "ruby", "onyx"];
+export const EXPIRY_NOTICE_DAYS = 60;
+// ランクが上がったときのお知らせ(1回だけ)。前に見たランク(端末に覚えたもの)より上なら文を返す。初めて開いたとき(前のランクなし)は出さない
+export function rankUpNotice(prevRank, view, lang = "ja") {
+  if (!view || !prevRank) return null;
+  const a = RANK_ORDER.indexOf(prevRank), b = RANK_ORDER.indexOf(view.rank);
+  return a >= 0 && b > a ? messages[lang].rank_up(view.rankLabel) : null;
+}
 export const RANK_PERKS = [
   ["amber", "ディナーの五巡茶 無料"],
   ["emerald", "季節の豆花チケット(季節ごとに1枚)"],
@@ -90,6 +99,8 @@ export function memberView(member, nowMs = Date.now(), lang = "ja") {
     lifetimeText: `${fmt(member.lifetimePoints)} pt`, lifetimeNote: member.lifetimeConfirmed ? null : m.lifetime_unconfirmed,
     next: member.nextRank ? { label: member.nextRank.label, remainingText: `あと ${fmt(member.nextRank.remainingPoints)} pt`, percent: member.nextRank.percent, target: member.nextRank.targetPoints ?? null } : { label: null, remainingText: m.top_rank, percent: 100, target: null },
     expiresText: exp,
+    // ポイントの有効期限(最後の来店・利用から。DB の expiresOn)。期限まで60日を切ったら会員証に出す
+    expirySoonText: (() => { if (!exp) return null; const d = Math.floor((Date.parse(`${member.expiresOn}T00:00:00+09:00`) - nowMs) / 86400000); return d <= EXPIRY_NOTICE_DAYS ? m.expiry_soon(exp) : null; })(),
     visitedToday: !!member.visitedToday,
     canRedeem: !pend && member.points >= member.redeemUnit,
     redeemUnit: member.redeemUnit,

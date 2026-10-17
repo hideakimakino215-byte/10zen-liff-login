@@ -21,9 +21,9 @@ button { font-family:inherit; color:inherit; }
 .top img { width:96px; height:auto; display:block; }
 .top h1 { font-size:18px; font-weight:600; letter-spacing:.08em; margin-left:auto; }
 .panel { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:18px; margin-top:14px; }
-.label { font-size:11px; letter-spacing:.14em; color:var(--sub); }
+.label { font-size:13px; letter-spacing:.1em; color:var(--sub); }
 .lead { font-size:15px; line-height:1.8; margin-top:8px; }
-.meta { font-size:12px; color:var(--sub); line-height:1.7; margin-top:6px; }
+.meta { font-size:13px; color:var(--sub); line-height:1.7; margin-top:6px; }
 .msg { text-align:center; font-size:15px; line-height:1.7; margin:24px 0 8px; }
 .notice { background:#fff; border:1px solid var(--line); border-left:4px solid var(--warn); border-radius:8px; padding:12px 14px; margin:0 0 14px; font-size:14px; line-height:1.6; }
 .primary, .ghost { display:flex; align-items:center; justify-content:center; width:100%; min-height:52px; border-radius:12px; font-size:16px; font-weight:600; cursor:pointer; text-decoration:none; margin-top:14px; }
@@ -69,7 +69,7 @@ button { font-family:inherit; color:inherit; }
 .history .d { color:var(--sub); font-variant-numeric:tabular-nums; }
 .history .chip { display:inline-block; min-width:2.2em; text-align:center; padding:2px 8px; border-radius:999px; border:1.5px solid #b8bfc8; background:#f1f3f6; font-weight:700; font-size:13px; white-space:nowrap; }
 .history .t { overflow-wrap:anywhere; }
-.disclaimer { font-size:12px; color:var(--sub); text-align:center; line-height:1.7; margin-top:16px; }
+.disclaimer { font-size:13px; color:var(--sub); text-align:center; line-height:1.7; margin-top:16px; }
 /* ---- 生薬の絵(会員証と同じ水彩の6種。飾りなので読み上げない) ---- */
 .hero { position:relative; height:118px; margin:2px 0 4px; }
 .hero img, .corner { position:absolute; height:auto; pointer-events:none; }
@@ -81,7 +81,7 @@ button { font-family:inherit; color:inherit; }
 @media (prefers-reduced-motion: reduce) { .bar > i { transition:none; } .qherb { animation:none; } }
 .cta { text-align:center; border-color:var(--accent); }
 .cta a.primary { background:#06c755; }
-.note { font-size:12px; color:var(--sub); text-align:center; line-height:1.7; margin-top:8px; }
+.note { font-size:13px; color:var(--sub); text-align:center; line-height:1.7; margin-top:8px; }
 </style></head>
 <body>
 <main id="app" aria-live="polite"><p id="loading" class="msg">読み込み中…</p></main>
@@ -89,7 +89,7 @@ button { font-family:inherit; color:inherit; }
 <script type="module">
 import { constitutionResultView } from "../app-core/screens.mjs";
 import { QUESTIONS, ANSWER_OPTIONS, ELEMENTS, ELEMENT_INFO, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, evaluate, teaOfDay, seasonElement, jstDate } from "../app-core/constitution.mjs";
-import { CHECK_NAME, DISCLAIMER, NIHONDO_LEAD, NIHONDO_BUTTON, WEB_INTRO_TEXT, WEB_PRIVACY_NOTE, WEB_CTA_LEAD, WEB_CTA_BUTTON, YOUR_TEA_LABEL } from "../app-core/constitution-content.mjs";
+import { CHECK_NAME, DISCLAIMER, NIHONDO_LEAD, NIHONDO_BUTTON, WEB_INTRO_TEXT, WEB_PRIVACY_NOTE, WEB_CTA_LEAD, WEB_CTA_BUTTON, YOUR_TEA_LABEL, EVEN_PICK_NOTE } from "../app-core/constitution-content.mjs";
 import { NIHONDO_CONSULT_URL } from "../app-core/store-info.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
@@ -155,6 +155,7 @@ function resultView() {
   for (const d of r.details) detail.append(kids(el("li", undefined, d.isPrimary ? { class: "on" } : {}), kanji(d),
     el("span", `五臓: ${d.organ} / ${d.state}`), el("span", `${d.score ?? "—"}点`, { class: "s" })));
   if (r.formalText) detail.prepend(el("p", r.formalText, { id: "wcFormal", class: "meta" }));
+  if (r.balanced || r.allHigh) type.append(el("p", EVEN_PICK_NOTE, { id: "wcEvenNote", class: "meta" }));
   const toggle = el("button", "五行・五臓・正式名称を見る", { id: "wcDetailToggle", class: "toggle", type: "button", "aria-expanded": "false", "aria-controls": "wcDetail" });
   const flip = () => { const open = detail.hidden; detail.hidden = !open; toggle.setAttribute("aria-expanded", String(open)); toggle.textContent = open ? "閉じる" : "五行・五臓・正式名称を見る"; };
   toggle.onclick = flip; svg.addEventListener("click", flip);

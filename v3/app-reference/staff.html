@@ -284,7 +284,7 @@ h1,h2,h3{margin:0}
 <script src="config.js"></script>
 <script src="vendor/supabase.js"></script>
 <script type="module">
-import { createStaffClient, redeemReduce, redeemInitial } from "../app-core/staff-client.mjs";
+import { createStaffClient, redeemReduce, redeemInitial, isCodeShape } from "../app-core/staff-client.mjs";
 import { ELEMENTS, ELEMENT_INFO, BALANCED_NAME, ALL_HIGH_NAME, isAllHigh, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, ELEMENT_SOFT_COLORS, NEUTRAL_COLOR } from "../app-core/constitution.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
 import { KPI_DEFS, KPI_BY_CODE, MILESTONES, statusOf, STATUS_LABELS, parseTargetInput, fmtValue, milestoneLabel } from "../app-core/kpi.mjs";
@@ -416,6 +416,7 @@ function redeemView() {
     else if (st.step === "ticket_expired") say("bad", "このチケットは有効期限が切れています");
     else if (st.step === "member_inactive") say("bad", "この会員は停止中のため確定できません(申請は取り消しました)");
     else if (st.step === "not_found") say("bad", "コードが見つかりません(期限切れの可能性があります)");
+    else if (st.step === "bad_code") say("bad", "コードは6桁の数字です。お客様の画面のコードをもう一度ご確認ください");
     else if (st.step === "expired") say("bad", "有効時間が過ぎました。お客様に再申請してもらってください");
     else if (st.step === "insufficient") say("bad", `残高が足りません(残高 ${n(st.balance)}pt)`);
     else if (st.step === "cancelled") say("warn", "お客様が取り消しました");
@@ -423,7 +424,9 @@ function redeemView() {
     else if (st.step === "forbidden") say("bad", "この操作の権限がありません");
     else if (st.step === "error") say("bad", "通信できませんでした。もう一度「確認」を押してください");
   };
-  const lookup = async () => { if (go.disabled) return; st = redeemReduce(st, { type: "lookup_start" }); render(); st = redeemReduce(st, { type: "lookup_result", result: await staff.lookupCode(code.value) }); render(); };   // ポイントか特典チケットかは DB が判定
+  const lookup = async () => { if (go.disabled) return;
+    if (!isCodeShape(code.value)) { st = { step: "bad_code" }; return render(); }   // 桁違いはサーバーに送らない(ペルソナ実験 2026-10-17)
+    st = redeemReduce(st, { type: "lookup_start" }); render(); st = redeemReduce(st, { type: "lookup_result", result: await staff.lookupCode(code.value) }); render(); };   // ポイントか特典チケットかは DB が判定
   go.onclick = lookup; code.onkeydown = (ev) => { if (ev.key === "Enter") lookup(); };
   render();
   const hero = put(el("section", undefined, { class: "hero", "aria-labelledby": "redeemTitle" }), title("redeem", "ポイント使用"),
