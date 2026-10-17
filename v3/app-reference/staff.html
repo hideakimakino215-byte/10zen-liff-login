@@ -65,6 +65,7 @@ h1,h2,h3{margin:0}
 /* ログイン */
 .login{max-width:420px;width:100%;margin:24px auto 0}
 .login label{display:grid;gap:6px;font-weight:700;font-size:14px}
+.login .forgot{display:inline-block;margin-top:12px;font-size:14px;color:var(--accent,#8a6a3b)}
 #msg{margin:0;color:var(--bad);font-weight:700;min-height:1.5em}
 
 /* ポイント使用(ティール) */
@@ -371,7 +372,7 @@ function loginView(msg) {
   const go = async () => { b.disabled = true; m.textContent = ""; const r = await staff.signIn(e.value, p.value); b.disabled = false; if (r.kind !== "ok") { m.textContent = "ログインできませんでした"; return; } start(); };
   b.onclick = go; p.onkeydown = (ev) => { if (ev.key === "Enter") go(); };
   const box = put(el("div", undefined, { class: "panel login" }), el("h2", "スタッフログイン"),
-    put(el("label", "メールアドレス"), e), put(el("label", "パスワード"), p), b, m);
+    put(el("label", "メールアドレス"), e), put(el("label", "パスワード"), p), b, m, el("a", "パスワードを忘れた方", { id: "forgot", href: "reset.html", class: "forgot" }));
   show(box);
 }
 document.getElementById("logout").onclick = async () => { await staff.signOut(); loginView(); };
