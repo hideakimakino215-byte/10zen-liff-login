@@ -17,7 +17,7 @@ export const messages = {
     checkin_registered_today: "本日はご登録ボーナスを付与済みです(来店ポイントは明日から)",
     qr_expired: "QRコードの有効期限が切れました。店頭のQRコードをもう一度読み取ってください",
     qr_invalid: "このQRコードは使えません。店頭のQRコードを読み取ってください",
-    redeem_invalid_amount: (unit) => `ポイントは ${unit}pt 単位で使えます`,
+    redeem_invalid_amount: (unit) => (Number.isFinite(unit) && unit > 0 ? `ポイントは ${unit}pt 単位で使えます` : "使うポイントを入力してください"),   // 空のまま押したときは単位が返らない(ペルソナ実験 2026-10-17 で「nullpt」と出ていた)
     redeem_insufficient: "ポイントが足りません",
     redeem_already_pending: "すでに使用の申請中です。スタッフにコードをお見せください",
     redeem_confirmed: (pts, yen) => `${pts}pt(${yen}円分)を使用しました`,

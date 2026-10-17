@@ -89,7 +89,7 @@ button { font-family:inherit; color:inherit; }
 <script type="module">
 import { constitutionResultView } from "../app-core/screens.mjs";
 import { QUESTIONS, ANSWER_OPTIONS, ELEMENTS, ELEMENT_INFO, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, evaluate, teaOfDay, seasonElement, jstDate } from "../app-core/constitution.mjs";
-import { CHECK_NAME, DISCLAIMER, NIHONDO_LEAD, NIHONDO_BUTTON, WEB_INTRO_TEXT, WEB_PRIVACY_NOTE, WEB_CTA_LEAD, WEB_CTA_BUTTON } from "../app-core/constitution-content.mjs";
+import { CHECK_NAME, DISCLAIMER, NIHONDO_LEAD, NIHONDO_BUTTON, WEB_INTRO_TEXT, WEB_PRIVACY_NOTE, WEB_CTA_LEAD, WEB_CTA_BUTTON, YOUR_TEA_LABEL } from "../app-core/constitution-content.mjs";
 import { NIHONDO_CONSULT_URL } from "../app-core/store-info.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
@@ -160,7 +160,7 @@ function resultView() {
   toggle.onclick = flip; svg.addEventListener("click", flip);
   kids(type, kids(el("div", undefined, { class: "radar-wrap" }), svg), toggle, detail);
   const nodes = [type];
-  nodes.push(kids(el("section", undefined, { class: "panel item", id: "wcYourTea" }), el("p", "あなたの五巡茶", { class: "label" }), inElementColor(el("h3", r.yourTea.name, { class: "serif" }), r.yourTea.element),
+  nodes.push(kids(el("section", undefined, { class: "panel item", id: "wcYourTea" }), el("p", YOUR_TEA_LABEL, { class: "label" }), inElementColor(el("h3", r.yourTea.name, { class: "serif" }), r.yourTea.element),
     el("p", r.yourTea.line, { class: "body" }), el("span", r.yourTea.dayText, { id: "wcYourTeaDay", class: "tea-day" })));
   if (r.todayTea) nodes.push(kids(el("section", undefined, { class: "panel item", id: "wcTodayTea" }), el("p", `今日の五巡茶(${r.todayTea.weekday})`, { class: "label" }),
     inElementColor(el("h3", r.todayTea.name, { class: "serif" }), r.todayTea.element), el("p", r.todayTea.line, { class: "body" })));
