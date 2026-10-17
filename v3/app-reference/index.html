@@ -208,8 +208,9 @@ const ccLine = (id, label, strong, extra, element) => kids(el("p", undefined, { 
 function checkNodes(view) {
   const c = view.check; if (!c) return null;
   const box = el("section", undefined, { class: "panel cc", id: "ccCard" });
-  box.append(el("p", U.ccLabel, { class: "label" }));
+  // 初めての方はボタンだけ(見出しとボタンが同じ「1分体質チェック」で重なっていた。2026-10-17 牧野さん OK)
   if (!c.done) { box.append(el("a", c.entryLabel, { id: "ccEntry", href: c.entryHref, class: "cc-entry first" })); return box; }
+  box.append(el("p", U.ccLabel, { class: "label" }));
   if (ccPromptVisible(c, ccSkippedOn())) {
     const skip = el("button", CT.todaySkip, { id: "ccSkip", class: "cc-skip", type: "button" });
     skip.onclick = () => { ccSkip(c.todayStr); if (prevView) show(...cardNodes(prevView)); };
