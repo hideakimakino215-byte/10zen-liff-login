@@ -1,0 +1,103 @@
+<!doctype html>
+<!-- スタッフ・店頭QRのアカウントのパスワード再設定(2026-10-17 牧野さん「パスワードを忘れた」)。
+     1) メールアドレスを入れると、Supabase から再設定のメールが届く(登録の有無は画面に出さない)。
+     2) メールのリンクでこのページに戻ると(URL に type=recovery)、新しいパスワードを2回入れて決める。決めたらログアウトして、スタッフ画面・店頭QRの画面へ。
+     前提: Supabase の Authentication → URL Configuration の Redirect URLs にこのページの URL があること(なければ Site URL へ戻ってしまう)。
+     パスワードはこの端末からSupabaseへ送るだけで、ほかに保存・送信しない。表示は textContent のみ。 -->
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
+<title>10ZEN パスワードの再設定</title>
+<style>
+:root { --ink:#2b2926; --sub:#7a746b; --line:#e7e1d8; --bg:#f7f4ee; --paper:#fffefb; --accent:#8a6a3b; --ok:#2f6b4f; --warn:#a4452c; }
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+html, body { margin:0; background:var(--bg); color:var(--ink); font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Noto Sans JP",system-ui,sans-serif; -webkit-text-size-adjust:100%; }
+main { max-width:420px; margin:0 auto; padding:24px 16px 40px; }
+h1, p { margin:0; }
+.logo { display:block; width:150px; height:auto; margin:0 auto 18px; }
+.panel { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:20px 18px; display:flex; flex-direction:column; gap:14px; }
+h1 { font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; font-size:20px; letter-spacing:.06em; }
+.lead { font-size:14px; line-height:1.7; color:var(--sub); }
+label { display:flex; flex-direction:column; gap:6px; font-size:14px; font-weight:600; }
+input { min-height:48px; padding:0 12px; border:1px solid var(--line); border-radius:10px; font:inherit; font-size:16px; background:#fff; color:var(--ink); }
+button { min-height:50px; border:0; border-radius:12px; background:var(--ink); color:#fff; font:inherit; font-weight:600; font-size:16px; cursor:pointer; }
+button:disabled { opacity:.5; }
+.msg { font-size:14px; line-height:1.7; }
+.msg.ok { color:var(--ok); } .msg.bad { color:var(--warn); }
+.links { display:flex; flex-direction:column; gap:10px; font-size:15px; }
+.links a { color:var(--accent); }
+</style></head>
+<body>
+<main>
+  <img class="logo" src="assets/logo.png" alt="10ZEN YAKUZEN RESTAURANT">
+  <section class="panel" id="request">
+    <h1>パスワードの再設定</h1>
+    <p class="lead">スタッフ画面・店頭QRの画面のアカウントのメールアドレスを入れてください。再設定のメールをお送りします。</p>
+    <label>メールアドレス<input id="email" type="email" autocomplete="username"></label>
+    <button id="send" type="button">再設定のメールを送る</button>
+    <p id="sendMsg" class="msg" role="status"></p>
+  </section>
+  <section class="panel" id="setNew" hidden>
+    <h1>新しいパスワード</h1>
+    <p class="lead">8文字以上で決めてください。決めたら、スタッフ画面・店頭QRの画面で新しいパスワードを使ってログインします。</p>
+    <label>新しいパスワード<input id="pw1" type="password" autocomplete="new-password"></label>
+    <label>もう一度<input id="pw2" type="password" autocomplete="new-password"></label>
+    <button id="save" type="button">パスワードを変更する</button>
+    <p id="saveMsg" class="msg" role="alert"></p>
+  </section>
+  <section class="panel" id="done" hidden>
+    <h1>パスワードを変更しました</h1>
+    <p class="lead">新しいパスワードでログインしてください。</p>
+    <div class="links"><a href="staff.html">スタッフ画面へ</a><a href="qr.html">店頭QRの画面へ</a></div>
+  </section>
+</main>
+<script src="config.js"></script>
+<script src="vendor/supabase.js"></script>
+<script>
+(function () {
+  var cfg = window.APP_CONFIG, sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
+  var $ = function (id) { return document.getElementById(id); };
+  var here = location.origin + location.pathname;
+  var hash = new URLSearchParams(location.hash.replace(/^#/, ""));
+  var fromMail = hash.get("type") === "recovery" || new URLSearchParams(location.search).has("code");
+  var showNew = function () { $("request").hidden = true; $("setNew").hidden = false; $("done").hidden = true; };
+  // メールのリンクの期限切れなど
+  if (hash.get("error_description") || hash.get("error")) {
+    $("sendMsg").className = "msg bad";
+    $("sendMsg").textContent = "メールのリンクが使えませんでした(有効期限が切れたか、すでに使われています)。もう一度メールを送ってください。";
+    history.replaceState(null, "", here);
+  }
+  sb.auth.onAuthStateChange(function (ev) { if (ev === "PASSWORD_RECOVERY") showNew(); });
+  if (fromMail) sb.auth.getSession().then(function (r) { if (r && r.data && r.data.session) showNew(); });
+
+  $("send").onclick = async function () {
+    var email = $("email").value.trim(), m = $("sendMsg");
+    m.className = "msg"; m.textContent = "";
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { m.className = "msg bad"; m.textContent = "メールアドレスの形を確かめてください。"; return; }
+    $("send").disabled = true;
+    var r = await sb.auth.resetPasswordForEmail(email, { redirectTo: here });
+    $("send").disabled = false;
+    if (r && r.error && /rate|limit|seconds/i.test(r.error.message || "")) { m.className = "msg bad"; m.textContent = "続けて送ることはできません。しばらく時間をおいてからお試しください。"; return; }
+    m.className = "msg ok";
+    m.textContent = "登録されたメールアドレスであれば、再設定のメールをお送りしました。メールのリンクを開いて、新しいパスワードを決めてください(届くまで数分かかることがあります。迷惑メールのフォルダもご確認ください)。";
+  };
+  $("save").onclick = async function () {
+    var a = $("pw1").value, b = $("pw2").value, m = $("saveMsg");
+    m.className = "msg bad"; m.textContent = "";
+    if (a.length < 8) { m.textContent = "8文字以上にしてください。"; return; }
+    if (a !== b) { m.textContent = "2回入れたパスワードが違います。"; return; }
+    $("save").disabled = true;
+    var r = await sb.auth.updateUser({ password: a });
+    $("save").disabled = false;
+    if (r && r.error) {
+      m.textContent = /session|expired|jwt|token/i.test(r.error.message || "") ? "メールのリンクの有効期限が切れました。もう一度メールを送ってください。"
+        : /different|same/i.test(r.error.message || "") ? "今までと違うパスワードにしてください。" : "変更できませんでした。もう一度お試しください。";
+      return;
+    }
+    $("pw1").value = ""; $("pw2").value = "";
+    await sb.auth.signOut();
+    history.replaceState(null, "", here);
+    $("request").hidden = true; $("setNew").hidden = true; $("done").hidden = false;
+  };
+})();
+</script>
+</body></html>

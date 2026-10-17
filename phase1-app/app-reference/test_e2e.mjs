@@ -31,7 +31,9 @@ const staffDeps = () => ({ supabase: { auth: { getUser: async (t) => ({ data: { 
 const LIFF = `window.liff={init:async()=>{},isLoggedIn:()=>!!localStorage.getItem('tok'),getIDToken:()=>localStorage.getItem('tok'),getProfile:async()=>({userId:'Uline0000000000000000000000000001',displayName:'x'}),login:()=>{window.__loginCalled=true}};`;
 const SB = `window.supabase={createClient(){const S=()=>JSON.parse(localStorage.getItem('sess')||'null');return{
  auth:{signInWithPassword:async({email,password})=>{const r=await fetch('/auth',{method:'POST',body:JSON.stringify({email,password})});if(!r.ok)return{error:{message:'bad'}};const j=await r.json();localStorage.setItem('sess',JSON.stringify(j));return{data:j,error:null}},
- getSession:async()=>({data:{session:S()}}),signOut:async()=>{localStorage.removeItem('sess');return{}}},
+ getSession:async()=>({data:{session:S()}}),signOut:async()=>{localStorage.removeItem('sess');window.__signedOut=true;return{}},
+ resetPasswordForEmail:async(email,o)=>{window.__reset={email,redirectTo:o&&o.redirectTo};return{data:{},error:null}},updateUser:async(u)=>{window.__newPw=u.password;return{data:{},error:null}},
+ onAuthStateChange:(cb)=>{if(/type=recovery/.test(location.hash))setTimeout(()=>cb('PASSWORD_RECOVERY',{}),0);return{data:{subscription:{unsubscribe(){}}}}}},
  rpc:async(name,args)=>{const s=S();const r=await fetch('/rpc/'+name,{method:'POST',headers:{'x-test-uid':s?s.user.id:'','content-type':'application/json'},body:JSON.stringify(args)});const j=await r.json();return r.ok?{data:j,error:null}:{data:null,error:{message:j.message}}}}}};`;
 const CONFIG = `window.APP_CONFIG={liffId:"x",memberApi:"/member-api",staffQrApi:"/staff-qr",supabaseUrl:"x",supabaseKey:"x"};`;
 const MIME = { ".html": "text/html; charset=utf-8", ".mjs": "text/javascript", ".js": "text/javascript", ".jpg": "image/jpeg", ".webp": "image/webp", ".png": "image/png" };
@@ -636,6 +638,25 @@ try {
     assert.equal(await kq.locator("button, input, a, select, textarea, nav").count(), 0);                       // 店頭の画面に操作できる部品は増えない
     for (const p of [lp, wl, kq]) { assert.deepEqual(p.errs, [], p.errs.join("|")); assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true); } }
   ok("英語・中国語: 端末・LINE の言語で自動(英語の端末なら英語)、画面の上で切り替え・この端末に覚える。会員証・体質チェック(途中で変えても同じ問題・結果も作り直す)・Web 版(?lang=zh)。英語・中国語の結果にかなが混ざらない。店頭の QR は 日本語10秒 → 英語5秒 → 中国語5秒で自動で切り替わり、QR はそのまま");
+  // ---- パスワードの再設定(2026-10-17): スタッフ画面・店頭QRのログインから「パスワードを忘れた方」→ メールを送る → メールのリンクで新しいパスワード ----
+  { const rp = await newPage();
+    await rp.goto(`${BASE}/app-reference/staff.html`); await rp.waitForSelector("#forgot"); assert.equal(await rp.getAttribute("#forgot", "href"), "reset.html");
+    const rq = await newPage(); await rq.goto(`${BASE}/app-reference/qr.html`); await rq.waitForSelector("#forgot"); assert.equal(await rq.getAttribute("#forgot", "href"), "reset.html");
+    await rp.click("#forgot"); await rp.waitForSelector("#send");
+    await rp.fill("#email", "nope"); await rp.click("#send"); await rp.waitForSelector("#sendMsg.bad"); assert.equal(await rp.evaluate(() => window.__reset), undefined);   // 形の違うアドレスは送らない
+    await rp.fill("#email", "staff@t.jp"); await rp.click("#send"); await rp.waitForSelector("#sendMsg.ok");
+    assert.deepEqual(await rp.evaluate(() => window.__reset), { email: "staff@t.jp", redirectTo: `${BASE}/app-reference/reset.html` });
+    assert.match(await text(rp, "#sendMsg"), /登録されたメールアドレスであれば/);                     // 登録の有無は出さない
+    await rp.goto("about:blank"); await rp.goto(`${BASE}/app-reference/reset.html#access_token=x&type=recovery`); await rp.waitForSelector("#setNew:not([hidden])");
+    await rp.fill("#pw1", "short"); await rp.fill("#pw2", "short"); await rp.click("#save"); await rp.waitForSelector("#saveMsg:has-text('8文字以上')");
+    await rp.fill("#pw1", "abcdefgh1"); await rp.fill("#pw2", "abcdefgh2"); await rp.click("#save"); await rp.waitForSelector("#saveMsg:has-text('違います')");
+    assert.equal(await rp.evaluate(() => window.__newPw), undefined);
+    await rp.fill("#pw2", "abcdefgh1"); await rp.click("#save"); await rp.waitForSelector("#done:not([hidden])");
+    assert.equal(await rp.evaluate(() => window.__newPw), "abcdefgh1"); assert.equal(await rp.evaluate(() => window.__signedOut), true);
+    assert.equal(await rp.evaluate(() => location.hash), ""); assert.equal(await rp.inputValue("#pw1"), "");   // 変更後はトークンを URL から消し、ログアウトする
+    await rp.goto("about:blank"); await rp.goto(`${BASE}/app-reference/reset.html#error=access_denied&error_description=expired`); await rp.waitForSelector("#sendMsg.bad"); assert.match(await text(rp, "#sendMsg"), /有効期限/);
+    for (const p of [rp, rq]) { assert.deepEqual(p.errs, [], p.errs.join("|")); assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true); } }
+  ok("パスワードの再設定: スタッフ画面・店頭QRのログインに「パスワードを忘れた方」。メールを送る(登録の有無は出さない・戻り先はこのページ)→ メールのリンクで新しいパスワード(8文字以上・2回一致)→ 変更後はログアウトし URL のトークンを消す。期限切れのリンクは案内を出す");
   const evil = await newPage(tokFor(sub("b"), "<img src=x onerror=window.__x=1><script>window.__x=2</script>"));
   await evil.goto(`${BASE}/app-reference/card.html`); await evil.waitForSelector("#register"); await evil.click("#register"); await evil.waitForSelector("#name");
   assert.match(await text(evil, "#name"), /^<img src=x onerror=window.__x=1><script>/); assert.equal(await evil.evaluate(() => window.__x), undefined);

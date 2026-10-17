@@ -21,6 +21,7 @@ button,input{font:inherit;color:inherit}
 .login .logo{height:40px;width:auto;justify-self:start}
 .login h1{margin:0;font-size:22px}
 .login label{display:grid;gap:6px;font-weight:700;font-size:14px}
+.login .forgot{font-size:14px;color:var(--accent);justify-self:start}
 .login input{min-height:56px;border:2px solid var(--line);border-radius:14px;padding:0 16px;font-size:18px;width:100%;min-width:0}
 .login input:focus{border-color:var(--accent);outline:none}
 #login{min-height:60px;border:0;border-radius:14px;background:var(--ink);color:#fff;font-size:20px;font-weight:800;cursor:pointer}
@@ -223,7 +224,7 @@ function loginView(msg) {
   b.onclick = go; p.onkeydown = (ev) => { if (ev.key === "Enter") go(); };
   app.replaceChildren(put(el("div", undefined, { class: "login" }), logo(), el("h1", "店頭QRの表示"),
     el("p", "店頭QR専用のアカウントでログインすると、お客様向けの来店QRを表示します。", { class: "hint" }),
-    put(el("label", "メールアドレス"), e), put(el("label", "パスワード"), p), b, m));
+    put(el("label", "メールアドレス"), e), put(el("label", "パスワード"), p), b, m, el("a", "パスワードを忘れた方", { id: "forgot", href: "reset.html", class: "forgot" })));
 }
 start();
 </script>

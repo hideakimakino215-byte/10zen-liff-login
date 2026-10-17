@@ -51,7 +51,7 @@ run app-core test_pos_import.mjs 7
 run app-core test_referral.mjs 5
 run app-core test_dinii.mjs 7
 run app-core test_i18n.mjs 7
-run app-reference test_e2e.mjs 24
+run app-reference test_e2e.mjs 25
 run tools test_build_v2.mjs 5
 run tools test_built_e2e.mjs 4
 run tools test_kiosk_copy.mjs 4
@@ -63,8 +63,8 @@ run gas_freeze test_codegs_edits.mjs 6
 run gas_freeze test_admin_stop.mjs 5
 run gas_freeze test_freeze.mjs 7 skip-ok
 echo "合格 ${TOTAL} 件 / 失敗したスイート ${FAILED} 件 / SKIP ${SKIPPED} 件"
-# 合格が想定より少ない(全体が SKIP・0件など)場合も失敗。freeze の7件を除く最小は 309(ランク特典で +20、1分体質チェックで +19、体質と会員の紐づけ・五行の色で +8、目標とKPI で +18、友だち紹介と月次レポートで +28、体質チェックを来店のたびに(任意)で +8、102 より前のバックアップの復元(監査 M-1)で +6、停止中の会員のコード(監査 L-1)で +3、五巡茶の出し方の区分と凍結(監査 L-2)で +2、レジの取り込みの上限(監査 L-5)で +1、テスト用 DB の後片付け(監査 L-6)で +3、WHERE のない UPDATE の修正(111)で +4、全部同点の表示で +1、RUBY の季節の五巡茶(112)で +5、ダイニーの注文ボタンで +4、一覧の体質の印の記録(監査 L-3)で +5、お席の QR から注文・Web 版の体質チェック・お席の QR の印刷で +5、ペルソナ実験の直しで +1、英語・中国語で +8、要確認の人数(114)で +4)
-if [ "$TOTAL" -lt 309 ]; then echo "!! 合格件数が足りません(${TOTAL} < 309)"; FAILED=$((FAILED + 1)); fi
+# 合格が想定より少ない(全体が SKIP・0件など)場合も失敗。freeze の7件を除く最小は 310(ランク特典で +20、1分体質チェックで +19、体質と会員の紐づけ・五行の色で +8、目標とKPI で +18、友だち紹介と月次レポートで +28、体質チェックを来店のたびに(任意)で +8、102 より前のバックアップの復元(監査 M-1)で +6、停止中の会員のコード(監査 L-1)で +3、五巡茶の出し方の区分と凍結(監査 L-2)で +2、レジの取り込みの上限(監査 L-5)で +1、テスト用 DB の後片付け(監査 L-6)で +3、WHERE のない UPDATE の修正(111)で +4、全部同点の表示で +1、RUBY の季節の五巡茶(112)で +5、ダイニーの注文ボタンで +4、一覧の体質の印の記録(監査 L-3)で +5、お席の QR から注文・Web 版の体質チェック・お席の QR の印刷で +5、ペルソナ実験の直しで +1、英語・中国語で +8、要確認の人数(114)で +4、パスワードの再設定で +1)
+if [ "$TOTAL" -lt 310 ]; then echo "!! 合格件数が足りません(${TOTAL} < 310)"; FAILED=$((FAILED + 1)); fi
 # 後片付けの確認(監査 L-6): この実行で作った使い捨て DB のディレクトリが残っていたら、止めて消したうえで失敗にする
 LEFT=$(ls -d "$PGT_GLOB"* 2>/dev/null | wc -l)
 if [ "$LEFT" -ne 0 ]; then
