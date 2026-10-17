@@ -108,12 +108,13 @@ button,input{font:inherit;color:inherit}
 <script src="vendor/qrcode.js"></script>
 <script type="module">
 import { createStaffClient, createQrKiosk } from "../app-core/staff-client.mjs";
+import { KIOSK_I18N, KIOSK_ROTATION, HTML_LANG } from "../app-core/i18n.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 const put = (parent, ...kids) => { parent.append(...kids); return parent; };
 const sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
 const staff = createStaffClient({ supabase: sb, qrEndpoint: cfg.staffQrApi });
-let kiosk = null, ticker = null, wake = null, rankTimer = null;
+let kiosk = null, ticker = null, wake = null, rankTimer = null, langTimer = null;
 const logo = () => el("img", undefined, { class: "logo", src: "assets/logo.png", alt: "10ZEN" });
 // お客様に見せる文言。数字は DB の設定(point_rules の visit・welcome、app_settings の yen_per_100pt)と、
 // 会員証(card.html)のランク特典に合わせる。変えるときは両方を直す(tools/test_kiosk_copy.mjs が食い違いを検出する)。
@@ -139,7 +140,11 @@ const KIOSK_COPY = {
     ["来店ポイントがたまる", "会員証で残高・ランク・特典をいつでも確認"],
   ],
   notes: ["ポイントの使い方は会員証の画面でご確認いただけます"],
+  scanHead: "読み取って、はじめる", refresh: "QRコードは30秒ごとに変わります", sampleName: "あなたのお名前", sampleNo: "会員番号 ・・・・",
+  sampleAria: "10ZEN の会員証の見本", qrAria: "来店用のQRコード", perksAria: "会員の特典", stepsAria: "使い方", hidden: "ただいま表示できません。スタッフにお声がけください",
 };
+// 言語ごとの文(日本語は上の KIOSK_COPY、英語・中国語は app-core/i18n.mjs)。2026-10-17 牧野さん決定: 自動で切り替える(日本語10秒・英語5秒・中国語5秒)
+const copyFor = (lang) => (lang === "ja" ? KIOSK_COPY : KIOSK_I18N[lang]);
 // 会員証の見本に置く水彩の生薬(会員証 card.html と同じ配置)
 const HERBS = [["chili", "right:21%;top:5%;width:18%"], ["chenpi", "right:4%;top:6%;width:16%"], ["goji", "right:23%;top:34%;width:16%"], ["anise", "right:4%;top:43%;width:16%"],
   ["lotus", "right:5%;bottom:5%;width:20%"], ["jujube", "right:30%;bottom:15%;width:14%"]];
@@ -160,32 +165,48 @@ async function start() {
   const w = await staff.whoami();
   if (w.kind !== "ok" || !w.data.active || (w.data.role !== "kiosk" && w.data.role !== "manager")) { if (w.kind === "ok" && w.data.active) await staff.signOut(); return loginView(w.kind === "ok" && w.data.active ? "このアカウントでは表示できません。店頭QR専用のアカウントでログインしてください" : null); }
   const url = el("pre", "", { id: "qrUrl", hidden: "" }), msg = el("p", "", { id: "qrMsg", role: "status" });
-  const box = el("div", undefined, { id: "qrImage", role: "img", "aria-label": "来店用のQRコード" });
-  const fill = el("i"), left = el("span", "QRコードは30秒ごとに変わります");
+  const box = el("div", undefined, { id: "qrImage", role: "img" });
+  const fill = el("i"), left = el("span", "");
   const refresh = put(el("div", undefined, { class: "refresh", "aria-hidden": "true" }), put(el("div", undefined, { class: "bar" }), fill), left);
-  const C = KIOSK_COPY;
   // 会員証の見本: ランクの色が数秒ごとに変わり、そのランクの特典を下に出す(動きを減らす設定の端末では変えない)
-  const chip = el("span", "", { class: "chip" }), inner = put(el("div", undefined, { class: "in" }), el("img", undefined, { class: "mlogo", src: "assets/logo.png", alt: "" }),
-    ...HERBS.map(([n, pos]) => el("img", undefined, { class: "herb", src: `assets/herb-${n}.webp`, alt: "", style: pos, decoding: "async" })), chip,
-    put(el("div", undefined, { class: "who" }), el("b", "あなたのお名前"), el("span", "会員番号 ・・・・")));
-  const mcard = put(el("div", undefined, { class: "mcard", role: "img", "aria-label": "10ZEN の会員証の見本" }), inner);
+  const chip = el("span", "", { class: "chip" }), sName = el("b", ""), sNo = el("span", "");
+  const inner = put(el("div", undefined, { class: "in" }), el("img", undefined, { class: "mlogo", src: "assets/logo.png", alt: "" }),
+    ...HERBS.map(([n, pos]) => el("img", undefined, { class: "herb", src: `assets/herb-${n}.webp`, alt: "", style: pos, decoding: "async" })), chip, put(el("div", undefined, { class: "who" }), sName, sNo));
+  const mcard = put(el("div", undefined, { class: "mcard", role: "img" }), inner);
   const cap = el("p", "", { class: "rankcap", "aria-live": "off" });
-  let ri = 0; const showRank = () => { const [code, label, text] = C.ranks[ri]; mcard.className = `mcard r-${code}`; chip.textContent = label; cap.replaceChildren(el("b", label), document.createTextNode(text)); };
-  showRank();
-  if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) rankTimer = setInterval(() => { ri = (ri + 1) % C.ranks.length; showRank(); }, 3500);
-  const perks = put(el("ul", undefined, { class: "perks", "aria-label": "会員の特典" }), ...C.perks.map((x) => put(el("li", undefined, { class: "perk" }), el("span", x.k, { class: "k" }), el("span", x.v, { class: "v serif" }), el("span", x.d, { class: "d" }))));
-  const steps = put(el("ol", undefined, { class: "steps", "aria-label": "使い方" }), ...C.steps.map(([t, sub], i) => put(el("li"), el("span", String(i + 1), { class: "n", "aria-hidden": "true" }), put(el("span", t), el("small", sub)))));
-  const head = put(el("header", undefined, { class: "head" }), logo(), el("h1", C.title, { class: "serif" }), el("p", C.lead, { class: "lead" }));
+  const perks = el("ul", undefined, { class: "perks" }), steps = el("ol", undefined, { class: "steps" });
+  const title = el("h1", "", { class: "serif" }), lead = el("p", "", { class: "lead" }), scanHead = el("p", "", { class: "cap serif" }), notes = el("p", undefined, { class: "note" });
+  const head = put(el("header", undefined, { class: "head" }), logo(), title, lead);
   const show = put(el("section", undefined, { class: "show" }), mcard, cap, perks);
-  const qr = put(el("section", undefined, { class: "qrside" }), el("p", "読み取って、はじめる", { class: "cap serif" }), box, refresh, msg, steps);
-  app.replaceChildren(put(el("div", undefined, { class: "kiosk" }), head, show, qr, put(el("p", undefined, { class: "note" }), ...C.notes.map((t) => el("span", "・" + t)))), url);   // URL は画面に出さない(テスト用に非表示で保持)
+  const qr = put(el("section", undefined, { class: "qrside" }), scanHead, box, refresh, msg, steps);
+  const root = put(el("div", undefined, { class: "kiosk", id: "kiosk" }), head, show, qr, notes);
+  let lang = "ja", C = copyFor(lang), ri = 0, hiddenNow = false;
+  const showRank = () => { const [code, label, text] = C.ranks[ri]; mcard.className = `mcard r-${code}`; chip.textContent = label; cap.replaceChildren(el("b", label), document.createTextNode(text)); };
+  // 文だけを差し替える(QR と読み取りの時間の表示はそのまま)
+  const applyLang = (l) => {
+    lang = l; C = copyFor(l); root.lang = HTML_LANG[l]; root.dataset.lang = l;
+    title.textContent = C.title; lead.textContent = C.lead; scanHead.textContent = C.scanHead; left.textContent = C.refresh; sName.textContent = C.sampleName; sNo.textContent = C.sampleNo;
+    mcard.setAttribute("aria-label", C.sampleAria); box.setAttribute("aria-label", C.qrAria); perks.setAttribute("aria-label", C.perksAria); steps.setAttribute("aria-label", C.stepsAria);
+    perks.replaceChildren(...C.perks.map((x) => put(el("li", undefined, { class: "perk" }), el("span", x.k, { class: "k" }), el("span", x.v, { class: "v serif" }), el("span", x.d, { class: "d" }))));
+    steps.replaceChildren(...C.steps.map(([t, sub], i) => put(el("li"), el("span", String(i + 1), { class: "n", "aria-hidden": "true" }), put(el("span", t), el("small", sub)))));
+    notes.replaceChildren(...C.notes.map((t) => el("span", "・" + t)));
+    if (hiddenNow) msg.textContent = C.hidden;
+    showRank();
+  };
+  applyLang("ja");
+  const reduced = !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (!reduced) rankTimer = setInterval(() => { ri = (ri + 1) % KIOSK_COPY.ranks.length; showRank(); }, 3500);
+  // 言語の自動切り替え(日本語10秒 → 英語5秒 → 中国語5秒 → …)。動きを減らす設定の端末でも、文の切り替えは行う(読む人が変わるため)
+  let li = 0; const nextLang = () => { li = (li + 1) % KIOSK_ROTATION.length; applyLang(KIOSK_ROTATION[li][0]); langTimer = setTimeout(nextLang, KIOSK_ROTATION[li][1]); };
+  langTimer = setTimeout(nextLang, KIOSK_ROTATION[0][1]);
+  app.replaceChildren(root, url);   // URL は画面に出さない(テスト用に非表示で保持)
   let nextAt = 0;
   const tick = () => { const ms = nextAt - Date.now(); const ratio = nextAt ? Math.max(0, Math.min(1, ms / 30000)) : 0; fill.style.transform = `scaleX(${ratio})`; };
   ticker = setInterval(tick, 250);
   kiosk = createQrKiosk({
     getToken: () => staff.qrToken(),
-    onUpdate: (d) => { url.textContent = d.url; msg.textContent = ""; refresh.hidden = false; box.replaceChildren(qrSvg(d.url)); nextAt = Number(d.nextChangeAt) || 0; tick(); },
-    onHidden: () => { url.textContent = ""; box.replaceChildren(); refresh.hidden = true; nextAt = 0; msg.textContent = "ただいま表示できません。スタッフにお声がけください"; },
+    onUpdate: (d) => { hiddenNow = false; url.textContent = d.url; msg.textContent = ""; refresh.hidden = false; box.replaceChildren(qrSvg(d.url)); nextAt = Number(d.nextChangeAt) || 0; tick(); },
+    onHidden: () => { hiddenNow = true; url.textContent = ""; box.replaceChildren(); refresh.hidden = true; nextAt = 0; msg.textContent = C.hidden; },
   });
   kiosk.start();
   keepAwake();
@@ -194,6 +215,7 @@ function loginView(msg) {
   if (kiosk) { kiosk.stop(); kiosk = null; }
   if (ticker) { clearInterval(ticker); ticker = null; }
   if (rankTimer) { clearInterval(rankTimer); rankTimer = null; }
+  if (langTimer) { clearTimeout(langTimer); langTimer = null; }
   const e = el("input", undefined, { id: "email", type: "email", autocomplete: "username" }), p = el("input", undefined, { id: "password", type: "password", autocomplete: "current-password" });
   const b = el("button", "表示を開始", { id: "login" });
   const m = el("p", msg || "", { id: "msg", role: "alert" });
