@@ -132,7 +132,7 @@ import { createMemberClient, qrTokenFromLocation, inviteCodeFromLocation, isInvi
 import { cardScreen, checkinScreen, redeemScreen, redeemWatch, ticketScreen, ticketWatch, messages, lineShareUrl, registerNotice, ccPromptVisible, CC_SKIP_KEY, rankUpNotice } from "../app-core/screens.mjs";
 import { ELEMENT_TEXT_COLORS } from "../app-core/constitution.mjs";
 import { STORE, flowFromLocation } from "../app-core/store-info.mjs";
-import { cardText, ccText, detectLang, storedLang, saveLang, langSwitcher, HTML_LANG } from "../app-core/i18n.mjs";
+import { cardText, ccText, detectLang, storedLang, saveLang, langSwitcher, HTML_LANG, paren } from "../app-core/i18n.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 const kids = (parent, ...nodes) => { for (const n of nodes) if (n) parent.append(n); return parent; };
@@ -218,7 +218,7 @@ function checkNodes(view) {
       el("a", CT.todayStart, { id: "ccTodayStart", href: c.startHref, class: "cc-entry first" }), skip));
   }
   if (c.checkedToday && c.result) box.append(ccLine("ccToday", c.latestLabel, c.result.typeName, null, c.result.element));
-  if (c.profile) box.append(ccLine("ccProfile", CT.profileLabel, c.profile.typeName, `(${c.profile.basisText})`, c.profile.element));
+  if (c.profile) box.append(ccLine("ccProfile", CT.profileLabel, c.profile.typeName, paren(c.profile.basisText, lang), c.profile.element));
   if (c.result?.dish) box.append(ccLine("ccTodayDish", U.todayDish, c.result.dish.name));
   if (c.todayTea) box.append(kids(el("p", undefined, { id: "ccTodayTea", class: "cc-tea" }), document.createTextNode(`${U.todayTea}: `),
     inElementColor(el("b", c.todayTea.name, { class: "cc-tea-name" }), c.todayTea.element), document.createTextNode(`・${c.todayTea.line}`)));

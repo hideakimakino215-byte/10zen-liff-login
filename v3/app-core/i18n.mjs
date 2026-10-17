@@ -49,6 +49,8 @@ export function zhPunct(text) {
   return text.split(URL_RE).map((part, i) => (i % 2 ? part : part.replace(/[,:]\s?/g, (m, off, str) => (/\d/.test(str[off - 1] ?? "") && /\d/.test(str[off + 1] ?? "") ? m : m[0] === "," ? "，" : "："))
     .replace(/\(/g, "（").replace(/\)/g, "）").replace(/\?/g, "？").replace(/・/g, "·").replace(/「/g, "“").replace(/」/g, "”").replace(/〜/g, "～"))).join("");
 }
+// 本文の中のかっこ書き: 日本語は今までどおり半角、英語は前に空白、中国語は全角
+export const paren = (s, lang = "ja") => (lang === "zh" ? `（${s}）` : lang === "en" ? ` (${s})` : `(${s})`);
 export function punctDeep(v) {
   if (typeof v === "string") return zhPunct(v);
   if (typeof v === "function") return (...a) => punctDeep(v(...a));
