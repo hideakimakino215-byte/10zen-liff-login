@@ -8,7 +8,7 @@ import { handle as staffQrApi } from "../functions/staff-qr/handler.ts";
 import { createMemberClient, qrTokenFromLocation } from "./member-client.mjs";
 import { createStaffClient, mapError, redeemReduce, redeemInitial, createQrKiosk } from "./staff-client.mjs";
 import { makeJwt, lineVerify } from "../patches/jwtstub.mjs";
-import { cardScreen, checkinScreen, redeemScreen, redeemWatch, memberView } from "./screens.mjs";
+import { cardScreen, checkinScreen, redeemScreen, redeemWatch, memberView, rankUpNotice } from "./screens.mjs";
 
 const pg = startPg();
 let n = 0; const ok = (m) => console.log(`ok - ${++n} ${m}`);
@@ -92,6 +92,11 @@ try {
   let r1 = redeemScreen(await member.redeemRequest(150), NOW); assert.equal(r1.screen, "redeem_form"); assert.match(r1.error, /100pt 単位/);
   assert.equal(redeemScreen(await member.redeemRequest(100000), NOW).error, "ポイントが足りません");
   assert.equal(redeemScreen({ kind: "bad_request" }, NOW).error, "使うポイントを入力してください"); assert.doesNotMatch(redeemScreen({ kind: "conflict", code: "invalid_amount", data: {} }, NOW).error, /null|undefined/);   // 空のまま押した(ペルソナ実験)
+  { const base = { memberNo: "x", rank: "amber", rankLabel: "AMBER", points: 100, yenPer100pt: 10, lifetimePoints: 1000, lifetimeConfirmed: true, redeemUnit: 100, tickets: [] }, t = Date.parse("2026-10-17T00:00:00Z");
+    assert.equal(memberView({ ...base, expiresOn: "2026-11-30" }, t).expirySoonText, "ポイントの有効期限は 2026年11月30日 です。ご来店・ご利用で延長されます");   // 60日以内
+    assert.equal(memberView({ ...base, expiresOn: "2027-10-17" }, t).expirySoonText, null); assert.equal(memberView({ ...base, expiresOn: null }, t).expirySoonText, null);
+    const v = memberView(base, t); assert.equal(rankUpNotice("white_opal", v), "AMBER に上がりました。会員ランク特典をご確認ください");
+    assert.equal(rankUpNotice(null, v), null); assert.equal(rankUpNotice("amber", v), null); assert.equal(rankUpNotice("ruby", v), null); }   // 初回・同じ・下がった(下がらない仕様)はお知らせなし
   const req = redeemScreen(await member.redeemRequest(100), NOW); assert.equal(req.screen, "redeem_pending"); assert.match(req.view.pending.codeText, /^\d{3} \d{3}$/); assert.equal(req.view.pending.yen, 10); assert.equal(req.view.pending.secondsLeft, 180);
   assert.equal(redeemScreen(await member.redeemRequest(200), NOW).screen, "redeem_pending");
   const before = req.view;

@@ -97,14 +97,14 @@ try {
   ok("お客様: 未登録→登録ボタン→会員証(氏名・会員番号・ポイント・ランク)");
   await cust.reload(); await cust.waitForSelector("#points"); assert.equal(await text(cust, "#points"), `${welcomeExpected} pt`);
   ok("再読み込み・再ログインしてもポイントは変わらない(登録の重複付与なし)");
-  // 店舗情報(旧 会員証の裏面から引き継ぎ): 営業時間・電話(発信)・住所(地図)・予約・30秒体質チェック(LINE IDつき)
+  // 店舗情報(旧 会員証の裏面から引き継ぎ): 営業時間・電話(発信)・住所(地図)・予約・1分体質チェック
   assert.match(await text(cust, "#storeHours"), /11:00〜21:00/);
   assert.equal(await cust.getAttribute("#storeTel", "href"), "tel:0364505834");
   assert.match(await cust.getAttribute("#storeMap", "href"), /^https:\/\/maps\.google\.com\/\?q=/);
   assert.equal(await cust.getAttribute("#storeBooking", "href"), "https://booking.ebica.jp/webrsv/search/e014032801/23809");
-  assert.equal(await cust.getAttribute("#storeQuiz", "href"), "https://tally.so/r/440keB?line_user_id=Uline0000000000000000000000000001");
-  for (const id of ["#storeMap", "#storeBooking", "#storeQuiz"]) assert.equal(await cust.getAttribute(id, "rel"), "noopener noreferrer");
-  ok("店舗情報(裏面の引き継ぎ): 営業時間・電話(tel:)・地図・WEB予約・30秒体質チェック(line_user_id つき)が会員証に出る");
+  assert.equal(await cust.getAttribute("#storeCheck", "href"), "check.html"); assert.equal(await cust.locator("#storeQuiz").count(), 0);   // 旧「30秒体質チェック」(Tally)は新しい体質チェックに置き換え(ペルソナ実験 2026-10-17)
+  for (const id of ["#storeMap", "#storeBooking"]) assert.equal(await cust.getAttribute(id, "rel"), "noopener noreferrer");
+  ok("店舗情報(裏面の引き継ぎ): 営業時間・電話(tel:)・地図・WEB予約・1分体質チェック(旧30秒体質チェックの置き換え)が会員証に出る");
 
   // ---- スタッフ: ログイン・権限 ----
   let stf = await newPage(); await stf.goto(`${BASE}/app-reference/staff.html`); await stf.waitForSelector("#login");
@@ -223,14 +223,12 @@ try {
   assert.ok(!Object.values(ELEMENT_COLORS).map(rgb).includes(await fillOf(cc, "#ccRadar polygon.radar-area")));
   assert.equal(await cc.locator("#ccDetail").isVisible(), false); await cc.click("#ccDetailToggle"); assert.equal(await cc.locator("#ccDetail").isVisible(), true);
   assert.match(await text(cc, "#ccDetail"), /五行: 木 \/ 五臓: 肝 \/ 状態: 気滞/);
-  // あなたの体質(1回目は今日の傾向と同じ)・これまでのチェック(1回)
-  assert.equal(await text(cc, "#ccProfileName"), "モヤモヤ渋滞タイプ"); assert.match(await text(cc, "#ccProfileBasis"), /1回分のチェックの結果/);
-  assert.equal(await cc.locator("#ccProfileRadar circle.radar-dot").count(), 5); assert.equal(await cc.locator("#ccHistory li").count(), 1);
-  assert.equal(await cc.getAttribute("#ccHistory li", "data-element"), "wood");
+  // 1回目は「あなたの体質」と「これまでのチェック」を出さない(今日の傾向と同じ内容のため。ペルソナ実験 2026-10-17)
+  assert.equal(await cc.locator("#ccProfile").count(), 0); assert.equal(await cc.locator("#ccHistoryBox").count(), 0);
   assert.match(await text(cc, "#ccDish"), new RegExp(RECOMMENDATIONS.wood.noodle.replace(/[()]/g, "\\$&"))); assert.match(await text(cc, "#ccDish"), /今日のおすすめの一品\(今日の傾向から\)/);
   // タイプ名・五巡茶の名前は五行の文字色(会員証と同じ)
   const colorOf = (p, sel) => p.evaluate((s) => getComputedStyle(document.querySelector(s)).color, sel);
-  for (const s of ["#ccTypeName", "#ccProfileName", "#ccYourTea h3"]) assert.equal(await colorOf(cc, s), rgb(ELEMENT_TEXT_COLORS.wood), s);
+  for (const s of ["#ccTypeName", "#ccYourTea h3"]) assert.equal(await colorOf(cc, s), rgb(ELEMENT_TEXT_COLORS.wood), s);
   assert.equal(await text(cc, "#ccYourTeaDay"), "木曜日はあなたのお茶の日"); assert.match(await text(cc, "#ccYourTea"), /あなたにおすすめの五巡茶.*五巡茶\(木\)/);
   assert.match(await text(cc, "#ccTodayTea"), /今日の五巡茶\(.曜日\)五巡茶\(.\)/); assert.match(await text(cc, "#ccSeason"), /季節のひとこと/);
   assert.equal(await cc.locator("#ccOrder").count(), 0);                                             // ダイニーの店舗IDが未設定の間は注文ボタンを出さない
@@ -562,6 +560,33 @@ try {
   ok("友だち紹介(スタッフ画面): 集計に今月の紹介からの登録・新規来店・初来店待ち。目標とKPI の会員来店率のカードに『紹介からの新規来店』『紹介からの登録』(店長・閲覧)。五巡茶の出し方(1杯/飲み放題)は店長だけが切り替えられ、友だちのチケットの名前も変わる。スタッフ・閲覧には部品がなく、関数を直接呼んでも変えられない");
 
   // ---- 表示の安全性 ----
+  // ---- ペルソナ実験(2026-10-17)を受けた直し: その場で登録・途中から再開・金額のボタン・有効期限・ランクアップ・スタッフの桁違い ----
+  { const np = await newPage(tokFor(sub("5"), "直し 確認"));
+    await np.goto(`${BASE}/app-reference/check.html`); await np.waitForSelector("#ccRegister"); assert.match(await text(np, "#msg"), /LINE 会員証\(無料\)/);
+    await np.click("#ccRegister"); await np.waitForSelector("#ccAgree");                                                                   // 会員証を経由せずに体質チェックへ
+    await np.click("#ccAgree"); for (let i = 1; i <= 5; i++) { await np.waitForSelector(`#ccStep:has-text('${i} / 16')`); await np.click('#ccOptions button[data-value="1"]'); }
+    await np.waitForSelector("#ccStep:has-text('6 / 16')"); await np.goto(`${BASE}/app-reference/check.html`); await np.waitForSelector("#ccResume");
+    assert.equal(await text(np, "#ccResume"), "続きから(6問目)"); await np.click("#ccResume"); await np.waitForSelector("#ccStep:has-text('6 / 16')");   // 途中から再開(同意は覚えている)
+    for (let i = 6; i <= 15; i++) { await np.waitForSelector(`#ccStep:has-text('${i} / 16')`); await np.click('#ccOptions button[data-value="0"]'); }
+    await np.waitForSelector("#ccStep:has-text('16 / 16')"); await np.click('#ccOptions button[data-value="soup"]'); await np.waitForSelector("#ccTypeName");
+    await np.goto(`${BASE}/app-reference/check.html`); await np.waitForSelector("#ccStart"); assert.equal(await np.locator("#ccResume").count(), 0);   // 送信できたら続きは消える
+    pg.exec(`select public._grant(m.id, 'earn', 'visit', 900, 'e2e:fix', 'test', null, now()) from members m where display_name = '直し 確認';
+      update members set last_activity_on = current_date - 340 where display_name = '直し 確認';`);
+    await np.goto(`${BASE}/app-reference/card.html`); await np.waitForSelector("#points");
+    assert.match(await text(np, "#expirySoon"), /^ポイントの有効期限は \d{4}年\d{2}月\d{2}日 です/);
+    assert.deepEqual(await np.locator("#amountQuick button").allTextContents(), ["500pt", "1,000pt", `全部(${(await np.textContent("#points")).replace(/[^0-9]/g, "").replace(/\B(?=(\d{3})+$)/g, ",").replace(/\d{2}$/, "00")}pt)`]);
+    await np.click('#amountQuick button[data-amount="500"]'); assert.equal(await np.inputValue("#amount"), "500");
+    await np.click("#redeem"); await np.waitForSelector("#pendingLeft"); assert.match(await text(np, "#pendingLeft"), /スタッフにこのコードをお見せください/);
+    await np.click("#cancel"); await np.waitForSelector("#amount");
+    const memNo = (await text(np, "#memberNo")).replace("会員番号 ", ""); await np.evaluate((k) => localStorage.setItem(k, "white_opal"), "10zen_rank_seen:" + memNo);
+    await np.reload(); await np.waitForSelector("#notice"); assert.match(await text(np, "#notice"), /AMBER に上がりました/);
+    await np.reload(); await np.waitForSelector("#points"); assert.doesNotMatch(await np.textContent("body"), /に上がりました/);      // 1回だけ
+    const sc = await newPage(); await sc.goto(`${BASE}/app-reference/staff.html`); await sc.fill("#email", "staff@t"); await sc.fill("#password", "pw"); await sc.click("#login"); await sc.waitForSelector("#who");
+    const misses = Number(pg.exec(`select count(*) from audit_log where action = 'redeem_lookup_miss';`));
+    await sc.fill("#code", "12345"); await sc.click("#lookup"); await sc.waitForSelector("#redeemMsg:has-text('6桁の数字')");
+    assert.equal(Number(pg.exec(`select count(*) from audit_log where action = 'redeem_lookup_miss';`)), misses);                 // 桁違いはサーバーに送らない(間違いの回数にも数えない)
+    for (const p of [np, sc]) { assert.deepEqual(p.errs, []); assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true); } }
+  ok("ペルソナ実験の直し: 会員でない人は体質チェックの画面でその場で登録して進める。途中でやめても続きから(送信後は消える)。期限60日前の有効期限・金額のボタン・コードの案内・ランクアップのお知らせ(1回)。スタッフの桁違いはサーバーに送らない");
   const evil = await newPage(tokFor(sub("b"), "<img src=x onerror=window.__x=1><script>window.__x=2</script>"));
   await evil.goto(`${BASE}/app-reference/card.html`); await evil.waitForSelector("#register"); await evil.click("#register"); await evil.waitForSelector("#name");
   assert.match(await text(evil, "#name"), /^<img src=x onerror=window.__x=1><script>/); assert.equal(await evil.evaluate(() => window.__x), undefined);

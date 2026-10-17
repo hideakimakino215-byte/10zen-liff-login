@@ -112,3 +112,12 @@ export const WEB_INTRO_TEXT = "15問で、いまの体質の傾向がわかり�
 export const WEB_PRIVACY_NOTE = "回答はこの画面の中だけで使い、保存・送信しません。";
 export const WEB_CTA_LEAD = "10ZEN の LINE 会員証に登録すると、体質チェックの結果を記録して、ご来店のたびに体質に合わせたお茶やお料理をご案内します。";
 export const WEB_CTA_BUTTON = "LINE で会員証に登録する";
+
+// ---- ペルソナ実験(2026-10-17)を受けた文言(文案・薬日本堂の表現チェック前) ----
+// 偏りが小さい・全部が同じくらい高いときの、おすすめの選び方の説明
+export const EVEN_PICK_NOTE = "大きな偏りがないため、おすすめのお料理とお茶は、今の季節と点数の高い項目から選んでいます。";
+// 会員でない方がお席の QR などから体質チェックを開いたとき
+export const CHECK_REGISTER_LEAD = "体質チェックは、10ZEN の LINE 会員証(無料)でご利用いただけます。登録するとポイントもたまります。";
+export const CHECK_REGISTER_BUTTON = "会員登録して体質チェックへ";
+// 途中でやめた体質チェックの続き
+export const RESUME_BUTTON = (n) => `続きから(${n}問目)`;
