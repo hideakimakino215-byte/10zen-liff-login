@@ -59,7 +59,7 @@ try {
     alter default privileges in schema public grant all on tables to anon, authenticated, service_role; alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;`);
   pg.loadFile("100_phase1_schema.sql"); pg.loadFile("101_search_path_fix.sql"); pg.loadFile("102_rank_perks.sql"); pg.loadFile("103_constitution_check.sql"); pg.loadFile("104_member_constitution_link.sql"); pg.loadFile("105_kpi.sql");
   pg.loadFile("106_referral.sql"); pg.loadFile("107_constitution_each_visit.sql");
-  for (const f of ["108_restore_old_backup_fix.sql", "109_confirm_inactive_member.sql", "110_dinner_tea_mode_partition.sql", "111_safeupdate_where.sql", "112_ruby_seasonal_tea.sql", "113_staff_list_cc_audit.sql"]) pg.loadFile(f);   // 監査(2026-10-15)の指摘への修正
+  for (const f of ["108_restore_old_backup_fix.sql", "109_confirm_inactive_member.sql", "110_dinner_tea_mode_partition.sql", "111_safeupdate_where.sql", "112_ruby_seasonal_tea.sql", "113_staff_list_cc_audit.sql", "114_suspicious_slot_threshold.sql"]) pg.loadFile(f);   // 監査(2026-10-15)の指摘への修正
   pg.exec(`update system_state set state='open'; update app_settings set value='false' where key='register_counts_as_visit';
     insert into auth.users(id) values ('${U.staff}'), ('${U.kiosk}');
     insert into staff_users(user_id, display_name, role) values ('${U.staff}','スタッフ','staff'),('${U.kiosk}','店頭タブレット','kiosk');`);
