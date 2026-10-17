@@ -597,7 +597,7 @@ try {
     await lp.click("#register"); await lp.waitForSelector("#points"); assert.match(await text(lp, "#memberNo"), /^会员编号 \S+/);
     await lp.reload(); await lp.waitForSelector("#points"); assert.equal(await lp.getAttribute('#langSwitch button[aria-current="true"]', "data-lang"), "zh");   // 選んだ言語を覚えている
     await lp.click('#langSwitch button[data-lang="en"]'); await lp.waitForSelector("#memberNo:has-text('Member No.')");
-    assert.match(await text(lp, "#ccCard"), /1-Minute/);
+    assert.match(await text(lp, "#ccCard"), /1-Minute/); assert.equal(await lp.locator("#ccCard .label").count(), 0);   // 初めての方は見出しなし(ボタンと同じ文が重ならない)
     await lp.goto(`${BASE}/app-reference/check.html`); await lp.waitForSelector("#ccAgree"); assert.equal(await text(lp, "#ccAgree"), "Agree and start");
     await lp.click("#ccAgree"); await lp.waitForSelector("#ccStep:has-text('1 / 16')");
     assert.equal(await text(lp, "#ccQuestion"), "I get irritated easily, or my mood goes up and down a lot");
