@@ -102,6 +102,11 @@ try {
   // 店舗情報(旧 会員証の裏面から引き継ぎ): 営業時間・電話(発信)・住所(地図)・予約・1分体質チェック
   assert.match(await text(cust, "#storeHours"), /11:00〜21:00/);
   assert.equal(await cust.getAttribute("#storeTel", "href"), "tel:0364505834");
+  // 表裏: backface-visibility が効かない端末(iPhone の LINE)でも重ならないよう、見えない面は visibility:hidden(2026-10-17 実機の不具合)
+  { const vis = () => cust.evaluate(() => [...document.querySelectorAll(".card .face")].map((f) => getComputedStyle(f).visibility));
+    assert.deepEqual(await vis(), ["visible", "hidden"]);
+    await cust.focus(".card"); await cust.keyboard.press("Enter"); await cust.waitForTimeout(700); assert.deepEqual(await vis(), ["hidden", "visible"]);
+    await cust.keyboard.press("Enter"); await cust.waitForTimeout(700); assert.deepEqual(await vis(), ["visible", "hidden"]); }
   assert.match(await cust.getAttribute("#storeMap", "href"), /^https:\/\/maps\.google\.com\/\?q=/);
   assert.equal(await cust.getAttribute("#storeBooking", "href"), "https://booking.ebica.jp/webrsv/search/e014032801/23809");
   assert.equal(await cust.getAttribute("#storeCheck", "href"), "check.html"); assert.equal(await cust.locator("#storeQuiz").count(), 0);   // 旧「30秒体質チェック」(Tally)は新しい体質チェックに置き換え(ペルソナ実験 2026-10-17)

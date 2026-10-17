@@ -26,6 +26,9 @@ a { color:inherit; }
   background:linear-gradient(135deg,var(--r1),var(--r2)); padding:5px; }
 .face .in { position:relative; width:100%; height:100%; border-radius:12px; background:var(--tint); overflow:hidden; }
 .face.back { transform:rotateY(180deg); }
+/* iPhone の LINE のブラウザでは backface-visibility が効かず表裏が重なることがある(2026-10-17 実機で確認)。カードが真横を向く瞬間(約0.09秒。回転の速さの曲線から計算)で見えない面を隠す */
+.card .front, .card.flipped .back { visibility:visible; transition:visibility 0s linear .09s; }
+.card .back, .card.flipped .front { visibility:hidden; transition:visibility 0s linear .09s; }
 .logo { display:block; height:auto; }
 .herb { position:absolute; height:auto; pointer-events:none; filter:drop-shadow(0 2px 3px rgba(60,40,20,.18)); }
 .front .logo { position:absolute; left:6.5%; top:9%; width:38%; }
@@ -117,7 +120,7 @@ details.benefits summary::-webkit-details-marker { display:none; }
 .invite .inv-url { overflow-wrap:anywhere; font-size:12px; -webkit-user-select:all; user-select:all; }
 @media (max-width:340px) { .points { font-size:36px; } .code { font-size:36px; } .back .in { padding:12px 10px 8px; } .back .hours, .back .addr, .back .tel { font-size:12.5px; margin-top:5px; } .back .btn { font-size:11.5px; min-height:38px; padding:4px; } .who h1 { font-size:16px; } }
 /* 動きを減らす設定では模様と点滅を止める(時刻は更新し続ける) */
-@media (prefers-reduced-motion: reduce) { .card { transition:none; } .front .in::after, .who .clock::before { animation:none; } }
+@media (prefers-reduced-motion: reduce) { .card, .card .face { transition:none; } .front .in::after, .who .clock::before { animation:none; } }
 /* 言語の切り替え(日本語 / English / 中文)。LINE の言語で最初に選ばれ、選び直した言語はこの端末に覚える */
 .lang { display:flex; justify-content:flex-end; gap:6px; margin:0 0 12px; }
 .lang button { min-height:36px; padding:0 12px; border-radius:18px; border:1px solid var(--line); background:#fff; color:var(--sub); font:inherit; font-size:13px; cursor:pointer; }
