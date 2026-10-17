@@ -6,7 +6,7 @@ import { rpcOver } from "../patches/pgrpc.mjs";
 import { handle as memberApi } from "../functions/member-api/handler.ts";
 import { handle as staffQrApi } from "../functions/staff-qr/handler.ts";
 import { createMemberClient, qrTokenFromLocation } from "./member-client.mjs";
-import { createStaffClient, mapError, redeemReduce, redeemInitial, createQrKiosk } from "./staff-client.mjs";
+import { createStaffClient, mapError, redeemReduce, redeemInitial, createQrKiosk, normalizeCode, isCodeShape } from "./staff-client.mjs";
 import { makeJwt, lineVerify } from "../patches/jwtstub.mjs";
 import { cardScreen, checkinScreen, redeemScreen, redeemWatch, memberView, rankUpNotice } from "./screens.mjs";
 
@@ -101,6 +101,7 @@ try {
   assert.equal(redeemScreen(await member.redeemRequest(200), NOW).screen, "redeem_pending");
   const before = req.view;
   // スタッフ: コード入力 → 確認 → 確定
+  assert.equal(normalizeCode("１２３ ４５６"), "123456"); assert.equal(normalizeCode("123-456"), "123456"); assert.ok(isCodeShape("１２３４５６")); assert.ok(!isCodeShape("12345")); assert.ok(!isCodeShape("12345a"));   // 全角の数字・空白・ハイフン(iPad の日本語キーボード)
   let st = redeemInitial; st = redeemReduce(st, { type: "lookup_start" }); assert.equal(st.step, "looking_up");
   st = redeemReduce(st, { type: "lookup_result", result: await staff.lookupRedeem(req.view.pending.codeText) });      // 空白入りの入力でも通る
   assert.equal(st.step, "confirm"); assert.equal(st.member.displayName, "試験 太郎"); assert.equal(st.request.yen, 10); assert.equal(st.member.points, 200);

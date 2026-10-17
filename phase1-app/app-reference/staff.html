@@ -284,7 +284,7 @@ h1,h2,h3{margin:0}
 <script src="config.js"></script>
 <script src="vendor/supabase.js"></script>
 <script type="module">
-import { createStaffClient, redeemReduce, redeemInitial } from "../app-core/staff-client.mjs";
+import { createStaffClient, redeemReduce, redeemInitial, isCodeShape } from "../app-core/staff-client.mjs";
 import { ELEMENTS, ELEMENT_INFO, BALANCED_NAME, ALL_HIGH_NAME, isAllHigh, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, ELEMENT_SOFT_COLORS, NEUTRAL_COLOR } from "../app-core/constitution.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
 import { KPI_DEFS, KPI_BY_CODE, MILESTONES, statusOf, STATUS_LABELS, parseTargetInput, fmtValue, milestoneLabel } from "../app-core/kpi.mjs";
@@ -425,7 +425,7 @@ function redeemView() {
     else if (st.step === "error") say("bad", "通信できませんでした。もう一度「確認」を押してください");
   };
   const lookup = async () => { if (go.disabled) return;
-    if (!/^\d{6}$/.test(code.value.replace(/\s/g, ""))) { st = { step: "bad_code" }; return render(); }   // 桁違いはサーバーに送らない(ペルソナ実験 2026-10-17)
+    if (!isCodeShape(code.value)) { st = { step: "bad_code" }; return render(); }   // 桁違いはサーバーに送らない(ペルソナ実験 2026-10-17)
     st = redeemReduce(st, { type: "lookup_start" }); render(); st = redeemReduce(st, { type: "lookup_result", result: await staff.lookupCode(code.value) }); render(); };   // ポイントか特典チケットかは DB が判定
   go.onclick = lookup; code.onkeydown = (ev) => { if (ev.key === "Enter") lookup(); };
   render();
