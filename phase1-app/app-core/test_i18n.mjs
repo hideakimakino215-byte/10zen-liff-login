@@ -77,7 +77,9 @@ const ev = { scores: { wood: 6, fire: 1, earth: 2, metal: 1, water: 0 }, primary
 const ja = constitutionResultView(ev, { todayStr: "2026-10-17" }), en = constitutionResultView(ev, { todayStr: "2026-10-17", lang: "en" }), zh = constitutionResultView(ev, { todayStr: "2026-10-17", lang: "zh" });
 assert.equal(ja.typeName, constitutionResultView(ev, { todayStr: "2026-10-17", lang: "ja" }).typeName);
 assert.equal(en.typeName, "The Tense & Stuck Type"); assert.equal(zh.typeName, "郁闷堵塞型"); assert.notEqual(ja.typeName, en.typeName);
-assert.equal(en.dish?.name, ja.dish?.name);                                                       // お料理の名前はメニューが決まるまで日本語
+const teaOf = (lang) => constitutionResultView(ev, { todayStr: "2026-10-17", lang, yourTea: "water" }).yourTea.name;
+assert.deepEqual(["ja", "en", "zh"].map(teaOf), ["五巡茶(水)", "Gojun Tea (Water)", "五巡茶（水）"]);   // かっこ書き: 日本語は今まで通り、英語は空白、中国語は全角
+  assert.equal(en.dish?.name, ja.dish?.name);                                                       // お料理の名前はメニューが決まるまで日本語
 ok("日本語の表示は今までと同じ(同意文・診断ではない旨・注文の注意)。結果のタイプ名は言語ごと、お料理の名前は日本語のまま");
 
 // 5 チケット名・ディナーの五巡茶

@@ -3,7 +3,7 @@
 // 1分体質チェックの説明文は constitution-content.mjs、判定は constitution.mjs(DB と同じ決め方)。
 import { ELEMENTS, ELEMENT_INFO, isAllHigh, jstDate } from "./constitution.mjs";
 import { recommendDish } from "./constitution-content.mjs";
-import { ccText, ticketTitle, dinnerTeaLabel, RANK_PERKS_I18N, punctDeep } from "./i18n.mjs";
+import { ccText, ticketTitle, dinnerTeaLabel, RANK_PERKS_I18N, punctDeep, paren } from "./i18n.mjs";
 import { TEA_WEEKDAY } from "./constitution.mjs";
 export const messages = {
   ja: {
@@ -255,7 +255,7 @@ export function registerNotice(res, lang = "ja") {
 // ---- 1分体質チェック(db/103・db/107: 来店のたびに任意でチェック) ----
 const dow = (dateStr) => new Date(dateStr + "T00:00:00Z").getUTCDay();
 const teaView = (el, todayStr, lang = "ja") => { const T = ccText(lang);
-  return ELEMENT_INFO[el] ? { element: el, name: `${T.teaName}(${T.kanji[el]})`, line: T.teaLines[el], weekday: todayStr ? T.weekdays[dow(todayStr)] : null } : null; };
+  return ELEMENT_INFO[el] ? { element: el, name: `${T.teaName}${paren(T.kanji[el], lang)}`, line: T.teaLines[el], weekday: todayStr ? T.weekdays[dow(todayStr)] : null } : null; };
 // 表示の区分: バランス良好 → 全部が同点で高め(allHigh) → 五行。typeNameOf / lineOf / 色(element)はこの区分で決める
 const kindOf = (primary, balanced, scores) => (balanced ? "balanced" : isAllHigh(scores) ? "allHigh" : primary);
 const typeNameOf = (primary, balanced, scores, lang = "ja") => { const T = ccText(lang), k = kindOf(primary, balanced, scores); return k === "balanced" ? T.balancedName : k === "allHigh" ? T.allHighName : ELEMENT_INFO[primary] ? T.typeName[primary] : null; };
