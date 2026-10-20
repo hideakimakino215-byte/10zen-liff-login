@@ -153,13 +153,20 @@ try {
   const timers = []; let clock = 1_000_000; const updates = [], hidden = [];
   let mode = "ok"; const kiosk = createQrKiosk({ getToken: async () => mode === "ok" ? { kind: "ok", data: { token: "t" + clock, nextChangeAt: clock + 30_000, url: "u" } } : { kind: "error" },
     onUpdate: (d) => updates.push(d.token), onHidden: (k) => hidden.push(k), now: () => clock, setTimer: (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearTimer: () => {} });
-  kiosk.start(); await Promise.resolve(); await Promise.resolve();
+  const flush = () => new Promise((r) => setImmediate(r));   // 取得の打ち切りの時計を挟むので、マイクロタスクを流し切る
+  kiosk.start(); await flush();
   assert.equal(updates.length, 1); assert.equal(timers.at(-1).ms, 28_000);                       // 切替の2秒前に取り直す
-  mode = "fail"; clock += 28_000; await timers.at(-1).fn(); assert.equal(hidden.length, 0); assert.equal(timers.at(-1).ms, 5000);
-  clock += 100_000; await timers.at(-1).fn(); assert.deepEqual(hidden, ["error"]);                // 取得できないまま期限を過ぎたら QR を隠す
-  mode = "ok"; await timers.at(-1).fn(); assert.equal(updates.length, 2);
+  mode = "fail"; clock += 28_000; timers.at(-1).fn(); await flush(); assert.equal(hidden.length, 0); assert.equal(timers.at(-1).ms, 5000);
+  clock += 100_000; timers.at(-1).fn(); await flush(); assert.deepEqual(hidden, ["error"]);                // 取得できないまま期限を過ぎたら QR を隠す
+  mode = "ok"; timers.at(-1).fn(); await flush(); assert.equal(updates.length, 2);
   kiosk.stop();
-  ok("店頭QRの自動更新: 切替の2秒前に取得・取得失敗が続いて約90秒を過ぎたらQRを隠す・復帰したら再表示");
+  { // 応答が返ってこない(通信が止まる)ときも、打ち切って先へ進み、約90秒で隠す
+    let c2 = 0; const tm = [], hid = []; const k2 = createQrKiosk({ getToken: () => new Promise(() => {}), onUpdate: () => {}, onHidden: (k) => hid.push(k), now: () => c2,
+      setTimer: (fn, ms) => { tm.push({ fn, ms }); return tm.length; }, clearTimer: () => {}, fetchTimeoutMs: 10_000 });
+    k2.start(); await Promise.resolve(); assert.equal(tm.at(-1).ms, 10_000);                       // 取得の打ち切りの時計
+    c2 += 100_000; tm.at(-1).fn(); await new Promise((r) => setImmediate(r)); assert.deepEqual(hid, ["error"]); assert.equal(tm.at(-1).ms, 5000);   // 打ち切り → 失敗扱い → 隠す・やり直し
+    k2.stop(); }
+  ok("店頭QRの自動更新: 切替の2秒前に取得・取得失敗が続いて約90秒を過ぎたらQRを隠す・復帰したら再表示。応答が返ってこないときも打ち切って隠す");
   // ---- メンテナンス中・営業時間外 ----
   pg.exec(`update system_state set state='frozen';`);
   const mres = await member.me(); assert.equal(mres.kind, "maintenance");

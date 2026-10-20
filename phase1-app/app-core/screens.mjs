@@ -27,6 +27,9 @@ export const messages = {
     redeem_confirmed: (pts, yen) => `${pts}pt(${yen}円分)を使用しました`,
     redeem_cancelled: "使用の申請を取り消しました",
     redeem_expired: "有効時間が過ぎました。もう一度申請してください",
+    // 通信の不調で結果が分からないとき(外部レビュー 2026-10-20)
+    requesting: "確認しています…",
+    cancel_failed: "取り消しを確認できませんでした。電波の良い場所で画面を開き直し、申請の状態を確かめてください",
     lifetime_unconfirmed: "累計ポイントは確認中です(ランクは現在のポイントから暫定表示)",
     top_rank: "最上位ランクです",
     ticket_done: (title) => `${title} をご利用いただきました`,
@@ -81,6 +84,8 @@ export const messages = {
     redeem_confirmed: (pts, yen) => `You used ${pts} pt (¥${yen})`,
     redeem_cancelled: "Your request was cancelled",
     redeem_expired: "The time limit has passed. Please make a new request",
+    requesting: "Checking…",
+    cancel_failed: "We couldn't confirm the cancellation. Please reopen this screen where the signal is better and check your request",
     lifetime_unconfirmed: "Your total points are being confirmed (your rank is shown from your current points for now)",
     top_rank: "You're at the top rank",
     ticket_done: (title) => `You used: ${title}`,
@@ -132,6 +137,8 @@ export const messages = {
     redeem_confirmed: (pts, yen) => `已使用 ${pts}pt(${yen}日元)`,
     redeem_cancelled: "已取消使用申请",
     redeem_expired: "已超过有效时间。请重新申请",
+    requesting: "正在确认…",
+    cancel_failed: "无法确认是否已取消。请在信号良好的地方重新打开此页面，查看申请状态",
     lifetime_unconfirmed: "累计积分正在确认中(等级暂按当前积分显示)",
     top_rank: "已是最高等级",
     ticket_done: (title) => `已使用: ${title}`,
@@ -367,7 +374,7 @@ export function checkinScreen(res, nowMs = Date.now(), lang = "ja") {
   if (res.kind === "ok") {
     const view = memberView(res.data.member, nowMs, lang);
     // 友だち紹介の初来店(db/106): 特典チケットを届けたことを添える
-    const ref = res.data.referral?.ticket ? `。${m.invite_first_visit(res.data.referral.ticket)}` : "";
+    const ref = res.data.referral?.ticket ? `${lang === "en" ? ". " : "。"}${m.invite_first_visit(ticketTitle({ title: res.data.referral.ticket, kind: "referral" }, lang))}` : "";   // チケット名も言語ごと(外部レビュー 2026-10-20)
     return res.status === "counted" ? { screen: "checkin_success", granted: res.data.granted, message: m.checkin_counted(res.data.granted) + ref, view, referral: res.data.referral ?? null }
                                     : { screen: "checkin_already", reason: res.data.reason, message: (res.data.reason === "registered_today" ? m.checkin_registered_today : m.checkin_already) + ref, view, referral: res.data.referral ?? null };
   }

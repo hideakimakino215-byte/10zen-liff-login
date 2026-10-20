@@ -8,9 +8,9 @@ export const KPI_DEFS = [
   { code: "check_rate", label: "体質チェック実施率", unit: "%", isRate: true,
     help: "月末(今月は今)の有効会員のうち、体質チェックをした会員の割合" },
   { code: "revisit_rate", label: "再来店率", unit: "%", isRate: true,
-    help: "直近60日に2日以上来店した会員 ÷ 有効会員(体質チェックの集計と同じ決め方)" },
+    help: "有効会員のうち、直近60日に2日以上来店した会員の割合(体質チェックの集計と同じ決め方)" },
   { code: "referral_clicks", label: "薬日本堂への送客", unit: "回", isRate: false,
-    help: "「薬日本堂の漢方相談へ」が押された数。今月は経過日数で日割りした目標と比べます" },
+    help: "体質チェックの結果の「薬日本堂の漢方相談へ」が押された回数(実際の相談の件数ではありません)。今月は経過日数で日割りした目標と比べます" },
 ];
 export const KPI_BY_CODE = Object.fromEntries(KPI_DEFS.map((d) => [d.code, d]));
 export const MILESTONES = [3, 6, 12];

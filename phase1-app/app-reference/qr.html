@@ -5,7 +5,7 @@
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
 <title>10ZEN 店頭QR</title>
 <style>
-:root{ --bg:#f7f4ee; --paper:#fffefb; --card:#fff; --fg:#2b2926; --ink:#2b2926; --muted:#7a746b; --line:#e7e1d8; --accent:#8a6a3b; --teal:#0f9d8f; --teal-soft:#e3f5f2; --bad:#c93a3a; --bad-soft:#fde8e8; --warn:#a4452c; --warn-soft:#fbefe9;
+:root{ --bg:#f7f4ee; --paper:#fffefb; --card:#fff; --fg:#2b2926; --ink:#2b2926; --muted:#6f685e; --line:#e7e1d8; --accent:#8a6a3b; --teal:#0f9d8f; --teal-soft:#e3f5f2; --bad:#c93a3a; --bad-soft:#fde8e8; --warn:#a4452c; --warn-soft:#fbefe9;
   --r1:#e9e7e1; --r2:#bfbcb3; --tint:#fdfcf9; --on:#4a4843; color-scheme:light }
 .serif{font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif}
 *{box-sizing:border-box}
@@ -72,6 +72,14 @@ button,input{font:inherit;color:inherit}
 .steps .n{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--accent);color:var(--accent);display:grid;place-items:center;font-weight:800;font-size:14px}
 .steps small{display:block;font-size:12.5px;font-weight:500;color:var(--muted)}
 .note{grid-area:note;margin:0;font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 24px;justify-content:center}
+/* 横置きで高さが足りないタブレット(例: 1180×820)では、QR の大きさはそのままで、見本カード・見出し・間隔を詰めて1画面に収める(外部レビュー 2026-10-20) */
+@media (orientation:landscape) and (max-height:900px){
+  .kiosk{gap:12px 32px}
+  .head .logo{height:32px} .head h1{margin:8px 0 4px;font-size:clamp(24px,2.8vw,32px)} .head .lead{font-size:15px}
+  .show{gap:10px} .mcard{width:min(100%,340px)} .mcard .who b{font-size:16px} .rankcap{font-size:14px}
+  .perk{padding:8px 10px 8px} .perk .v{font-size:21px} .perk .d{font-size:12px;line-height:1.4}
+  .qrside{padding:16px 18px 14px;gap:8px} .steps{gap:6px;padding-top:10px}
+}
 
 @media (max-width:760px),(orientation:portrait) and (max-width:900px){
   .kiosk{grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "show" "qr" "note";gap:16px;text-align:center}

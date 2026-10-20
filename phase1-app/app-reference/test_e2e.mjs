@@ -158,7 +158,8 @@ try {
   assert.match(await text(stf, "#rMember"), /試験 太郎\(user00001\)/); assert.match(await text(stf, "#rAmount"), /100pt = 10円/);
   await stf.click("#confirm"); await stf.waitForSelector("#rDone"); assert.match(await text(stf, "#rDone"), /確定しました: 100pt\(10円分\)/);
   await cust.waitForSelector("#lastRedeem", { timeout: 8000 }); assert.match(await text(cust, "#lastRedeem"), /使用しました/); assert.equal(await text(cust, "#points"), `${before - 100} pt`);
-  await stf.click("#lookup").catch(() => {});                               // 同じコードをもう一度: 確定済みなので見つからない
+  assert.equal(await stf.inputValue("#code"), "");                            // 確定したらコード欄は空(次のお客様へ。外部レビュー 2026-10-20)
+  await stf.fill("#code", code); await stf.click("#lookup").catch(() => {});   // 同じコードをもう一度: 確定済みなので見つからない
   await stf.waitForSelector("#redeemMsg"); assert.match(await text(stf, "#redeemMsg"), /見つかりません/);
   ok("ポイント使用: お客様の申請→コード表示→スタッフがコード入力・内容確認・確定→お客様の画面に自動で『使用しました』・残高-100。使い終えたコードは再利用できない");
 
@@ -183,7 +184,7 @@ try {
   await stf.click("#confirm"); await stf.waitForSelector("#rDone"); assert.match(await text(stf, "#rDone"), /確定しました: AMBER 到達のお祝い・豆花 1つ/);
   await tk.waitForSelector("#lastTicket", { timeout: 8000 }); assert.match(await text(tk, "#lastTicket"), /ご利用いただきました/); assert.match(await text(tk, "#notice"), /ご利用いただきました/);
   assert.equal(await tk.locator("#tickets button[data-ticket-id]").count(), 0); assert.equal(await tk.locator("#ticketCode").count(), 0);
-  await stf.click("#lookup").catch(() => {}); await stf.waitForSelector("#redeemMsg"); assert.match(await text(stf, "#redeemMsg"), /見つかりません/);   // 使い終えたコードは再利用できない
+  await stf.fill("#code", tcode); await stf.click("#lookup").catch(() => {}); await stf.waitForSelector("#redeemMsg"); assert.match(await text(stf, "#redeemMsg"), /見つかりません/);   // 使い終えたコードは再利用できない
   await stf.click("[data-tab=dash]"); await stf.waitForSelector("#ticketStats"); assert.match(await text(stf, "#ticketStats"), /発行1枚.*使用1枚.*使用率100%/);
   await tk.emulateMedia({ reducedMotion: "reduce" });                                                                // 動きを減らす設定: 模様は止まり、時刻は更新し続ける
   assert.equal(await tk.evaluate(() => getComputedStyle(document.querySelector(".front .in"), "::after").animationName), "none");
@@ -250,12 +251,12 @@ try {
   assert.equal(pg.exec(`select count(*) from constitution_referral_clicks where member_id=${ccMember};`), "1");
   await cc.click("#ccToCard"); await cc.waitForSelector("#ccEntry"); assert.equal(await text(cc, "#ccEntry"), "体質の結果と推移を見る");
   assert.match(await text(cc, "#ccTodayTea"), /今日の五巡茶: 五巡茶/); assert.equal(await cc.locator("#ccTodayPrompt").count(), 0);
-  assert.equal(await text(cc, "#ccToday"), "今日の傾向: モヤモヤ渋滞タイプ"); assert.match(await text(cc, "#ccProfile"), /^あなたの体質: モヤモヤ渋滞タイプ/);
+  assert.equal(await text(cc, "#ccToday"), "今日の傾向: モヤモヤ渋滞タイプ"); assert.equal(await cc.locator("#ccProfile").count(), 0);   // 1回目は今日の傾向だけ(結果の画面と同じ。外部レビュー 2026-10-20)
+  assert.match(await text(cc, "#ccDisclaimer"), /医療的な診断ではありません/);                               // 結果を出す所には診断ではない旨
   assert.match(await text(cc, "#ccTodayDish"), /^今日のおすすめ: \(仮\)/);
   // タイプ名・今日の五巡茶の名前は五行の文字色(木=#42744c)。バランス良好でなければ data-element が付く
   assert.equal(await cc.locator("#ccToday b").getAttribute("data-element"), "wood");
   assert.equal(await cc.locator("#ccToday b").evaluate((n) => getComputedStyle(n).color), "rgb(66, 116, 76)");
-  assert.equal(await cc.locator("#ccProfile b").getAttribute("data-element"), "wood");
   assert.ok(["wood", "fire", "earth", "metal", "water"].includes(await cc.locator("#ccTodayTea .cc-tea-name").getAttribute("data-element")));
   assert.doesNotMatch(await cc.textContent("#ccCard"), /今日の体調|季節が変わりました/); assert.equal(await cc.locator("#ccCondition, #ccSeasonPrompt").count(), 0);
   pg.exec(`insert into visits(member_id, visit_on) select ${ccMember}, public._jst_date(now());`);
@@ -266,7 +267,8 @@ try {
   pg.exec(`update constitution_checks set created_at = created_at - interval '2 days' where member_id=${ccMember};`);                  // 1回目は2日前のチェックにする
   await cc.reload(); await cc.waitForSelector("#ccTodayPrompt");
   assert.match(await text(cc, "#ccTodayPrompt"), /今日の1分体質チェック/); assert.equal(await text(cc, "#ccSkip"), "今日はスキップ"); assert.equal(await cc.getAttribute("#ccTodayStart", "href"), "check.html?start=1");
-  assert.equal(await cc.locator("#ccToday").count(), 0); assert.match(await text(cc, "#ccProfile"), /あなたの体質: モヤモヤ渋滞タイプ/);
+  assert.match(await text(cc, "#ccToday"), /^前回の傾向\(\d{1,2}\/\d{1,2}\): モヤモヤ渋滞タイプ/); assert.equal(await cc.locator("#ccProfile").count(), 0);   // 1回だけなら「あなたの体質」の代わりに前回の傾向
+  assert.match(await text(cc, "#ccTodayDish"), /^おすすめの一品\(前回の傾向から\): /);                        // 今日チェックしていなければ「今日の」と言わない
   await cc.click("#ccSkip"); await cc.waitForSelector("#ccTodayPrompt", { state: "detached" }); assert.equal(await cc.locator("#ccEntry").count(), 1);
   assert.equal(await cc.evaluate(() => localStorage.getItem("10zen_cc_skip")), jstToday);
   await cc.reload(); await cc.waitForSelector("#ccEntry"); assert.equal(await cc.locator("#ccTodayPrompt").count(), 0);                 // その日のあいだは出ない
@@ -669,6 +671,33 @@ try {
     rq.errs = rq.errs.filter((e) => !/status of 500/.test(e));
     for (const p of [rp, rq]) { assert.deepEqual(p.errs, [], p.errs.join("|")); assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true); } }
   ok("パスワードの再設定: スタッフ画面・店頭QRのログインに「パスワードを忘れた方」。メールを送る(登録の有無は出さない・戻り先はこのページ)→ メールのリンクで新しいパスワード(8文字以上・2回一致)→ 変更後はログアウトし URL のトークンを消す。期限切れのリンクは案内を出す。店頭タブレットは1回ログインすれば開き直してもログインなしで QR、起動時の通信の失敗ではログイン画面に戻さず自動でやり直す");
+  // ---- 外部レビュー(2026-10-20)の直し: 会計の取り違え・確定の結果が分からないとき・取り消しの失敗・申請の通信失敗 ----
+  { const rv = await newPage(tokFor(sub("8"), "会計 確認"));
+    await rv.goto(`${BASE}/app-reference/card.html`); await rv.waitForSelector("#register"); await rv.click("#register"); await rv.waitForSelector("#points");
+    pg.exec(`select public._grant(m.id, 'earn', 'visit', 1000, 'e2e:review', 'test', null, now()) from members m where display_name = '会計 確認';`);
+    // お客様: 申請の通信が失敗したら、そう伝える(押しても何も起きないように見せない)
+    await rv.route("**/member-api", (r) => (/redeem_request/.test(r.request().postData() || "") ? r.abort() : r.continue()));
+    await rv.reload(); await rv.waitForSelector("#amount"); await rv.fill("#amount", "100"); await rv.click("#redeem");
+    await rv.waitForSelector("#notice:has-text('通信できませんでした')", { timeout: 15000 }); await rv.unroute("**/member-api");
+    await rv.fill("#amount", "100"); await rv.click("#redeem"); await rv.waitForSelector("#pendingCode"); const code1 = (await text(rv, "#pendingCode")).replace(/\s/g, "");
+    const sv = await newPage(); await sv.goto(`${BASE}/app-reference/staff.html`); await sv.fill("#email", "staff@t"); await sv.fill("#password", "pw"); await sv.click("#login"); await sv.waitForSelector("#code");
+    // 確認中はコードを書き換えられない。「コードを入れ直す」で戻れる(申請はそのまま)
+    await sv.fill("#code", code1); await sv.click("#lookup"); await sv.waitForSelector("#confirm");
+    assert.equal(await sv.getAttribute("#code", "readonly"), ""); assert.equal(await sv.locator("#lookup").isHidden(), true);
+    await sv.click("#reEnter"); await sv.waitForSelector("#confirm", { state: "detached" }); assert.equal(await sv.inputValue("#code"), ""); assert.equal(await sv.getAttribute("#code", "readonly"), null);
+    // 取り消しの失敗: 申請を残して案内する
+    await sv.fill("#code", code1); await sv.click("#lookup"); await sv.waitForSelector("#confirm");
+    await sv.route("**/rpc/staff_cancel_redeem", (r) => r.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "boom" }) }));
+    await sv.click("#cancelReq"); await sv.waitForSelector("#rCancelFail"); assert.equal(await sv.locator("#confirm").count(), 1); await sv.unroute("**/rpc/staff_cancel_redeem");
+    // 確定の結果が分からない(通信の失敗)→「確定の結果を確かめる」で同じ申請を確かめる。二重には使われない
+    let once = 1; await sv.route("**/rpc/staff_confirm_redeem", (r) => (once-- > 0 ? r.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "boom" }) }) : r.continue()));
+    await sv.click("#confirm"); await sv.waitForSelector("#recheck"); assert.match(await text(sv, "#rUnknown"), /確定の結果を確認できませんでした/);
+    await sv.click("#recheck"); await sv.waitForSelector("#rDone"); assert.match(await text(sv, "#rDone"), /確定しました: 100pt/);
+    assert.equal(Number(pg.exec(`select balance from members where display_name = '会計 確認';`)), Number(pg.exec(`select coalesce(sum(points),0) from point_ledger l join members m on m.id = l.member_id where m.display_name = '会計 確認';`)));
+    assert.equal(Number(pg.exec(`select count(*) from point_ledger l join members m on m.id = l.member_id where m.display_name = '会計 確認' and l.entry_type = 'redeem';`)), 1);   // 1回だけ引かれた
+    sv.errs = sv.errs.filter((e) => !/status of 500/.test(e)); rv.errs = rv.errs.filter((e) => !/ERR_FAILED|net::/.test(e));
+    for (const p of [rv, sv]) assert.deepEqual(p.errs, [], p.errs.join("|")); }
+  ok("外部レビューの直し: お客様のポイント申請の通信失敗を伝える。スタッフ画面は確認中にコードを書き換えられず「コードを入れ直す」で戻れる、取り消しの失敗は申請を残して案内、確定の結果が分からないときは「確定の結果を確かめる」で同じ申請を確かめ二重に使われない");
   const evil = await newPage(tokFor(sub("b"), "<img src=x onerror=window.__x=1><script>window.__x=2</script>"));
   await evil.goto(`${BASE}/app-reference/card.html`); await evil.waitForSelector("#register"); await evil.click("#register"); await evil.waitForSelector("#name");
   assert.match(await text(evil, "#name"), /^<img src=x onerror=window.__x=1><script>/); assert.equal(await evil.evaluate(() => window.__x), undefined);

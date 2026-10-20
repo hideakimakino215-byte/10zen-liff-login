@@ -8,7 +8,7 @@
 <title>10ZEN 1分体質チェック</title>
 <meta name="description" content="15問で、いまの体質の傾向がわかる 10ZEN の1分体質チェック">
 <style>
-:root { --ink:#2b2926; --sub:#7a746b; --line:#e7e1d8; --bg:#f7f4ee; --paper:#fffefb; --accent:#8a6a3b; --accent-soft:#f3ebdd; --ok:#2f6b4f; --warn:#a4452c; }
+:root { --ink:#2b2926; --sub:#6f685e; --line:#e7e1d8; --bg:#f7f4ee; --paper:#fffefb; --accent:#8a6a3b; --accent-soft:#f3ebdd; --ok:#2f6b4f; --warn:#a4452c; }
 * { box-sizing:border-box; }
 [hidden] { display:none !important; }
 html, body { margin:0; background:var(--bg); color:var(--ink); font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Noto Sans JP",system-ui,sans-serif; -webkit-text-size-adjust:100%; }
@@ -81,11 +81,11 @@ html:lang(en) .top h1 { font-size:16px; letter-spacing:.01em; text-align:right; 
 @keyframes herbIn { from { opacity:0; transform:translateY(6px) rotate(-6deg); } to { opacity:1; transform:none; } }
 @media (prefers-reduced-motion: reduce) { .bar > i { transition:none; } .qherb { animation:none; } }
 .cta { text-align:center; border-color:var(--accent); }
-.cta a.primary { background:#06c755; }
+.cta a.primary { background:var(--ink); }   /* 白い文字が読みやすい濃さに(外部レビュー 2026-10-20。LINE の緑と白は 2.3:1) */
 .note { font-size:13px; color:var(--sub); text-align:center; line-height:1.7; margin-top:8px; }
 /* 言語の切り替え(会員証と同じ) */
 .lang { display:flex; justify-content:flex-end; gap:6px; margin:0 0 10px; }
-.lang button { min-height:36px; padding:0 12px; border-radius:18px; border:1px solid var(--line); background:#fff; color:var(--sub); font:inherit; font-size:13px; cursor:pointer; }
+.lang button { min-height:44px; padding:0 14px; border-radius:22px; border:1px solid var(--line); background:#fff; color:var(--sub); font:inherit; font-size:14px; cursor:pointer; }
 .lang button[aria-current="true"] { border-color:var(--ink); color:var(--ink); font-weight:600; }
 </style></head>
 <body>
@@ -150,6 +150,7 @@ function questionView() {
   const back = el("button", CT.back, { id: "wcBack", class: "back", type: "button" });
   back.onclick = () => { if (busy) return; if (idx === 0) introView(); else { idx -= 1; questionView(); } };
   show(progress, herb(HERB_NAMES[idx % HERB_NAMES.length], { class: "qherb" }), text, opts, back);
+  text.tabIndex = -1; text.setAttribute("aria-describedby", "wcStep"); text.focus({ preventScroll: true });
 }
 
 function resultView() {
@@ -173,7 +174,8 @@ function resultView() {
   const toggle = el("button", CT.detailOpen, { id: "wcDetailToggle", class: "toggle", type: "button", "aria-expanded": "false", "aria-controls": "wcDetail" });
   const flip = () => { const open = detail.hidden; detail.hidden = !open; toggle.setAttribute("aria-expanded", String(open)); toggle.textContent = open ? CT.detailClose : CT.detailOpen; };
   toggle.onclick = flip; svg.addEventListener("click", flip);
-  kids(type, kids(el("div", undefined, { class: "radar-wrap" }), svg), toggle, detail);
+  kids(type, kids(el("div", undefined, { class: "radar-wrap" }), svg), el("p", CT.radarNote, { id: "wcRadarNote", class: "meta" }), toggle, detail);
+  detail.prepend(el("p", CT.gogyoNote, { class: "meta" }));
   const nodes = [type];
   nodes.push(kids(el("section", undefined, { class: "panel item", id: "wcYourTea" }), el("p", CT.yourTeaLabel, { class: "label" }), inElementColor(el("h3", r.yourTea.name, { class: "serif" }), r.yourTea.element),
     el("p", r.yourTea.line, { class: "body" }), el("span", r.yourTea.dayText, { id: "wcYourTeaDay", class: "tea-day" })));
