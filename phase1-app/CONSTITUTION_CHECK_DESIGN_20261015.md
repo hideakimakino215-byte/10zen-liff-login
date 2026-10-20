@@ -159,7 +159,7 @@
 - **承認済み(牧野さん 2026-10-15・薬日本堂の表現チェック前):** `app-core/constitution-content.mjs` の `TYPE_LINES`(タイプのひとこと)・`TEA_LINES`(五巡茶のひとこと)・`SEASON_LINES`(季節のひとこと)。
 - **仮:** 同じファイルの `MOODS`(食事の気分。お粥・スープ・一人鍋・麺・みんなで鍋)・`RECOMMENDATIONS`(五行×気分の料理名。すべて「(仮)」)・`DISH_REASONS`。気分のコードを変えるときは DB の `app_settings` の `constitution_moods` も同じにする(テストが一致を確認)。
 - **確認前:** 同じファイルの `CONSENT_TEXT`・`INTRO_TEXT`・`CONDITION_INTRO`。
-- **行き先:** `app-core/store-info.mjs` の `NIHONDO_CONSULT_URL` = 薬日本堂の公式「漢方相談」ページ `https://www.nihondo.co.jp/kampo/consultation/`(2026-10-20 決定 1A。英語・中国語も同じ。10ZEN 経由の案内コードは未定)。
+- **行き先:** `app-core/store-info.mjs` の `NIHONDO_CONSULT_URL` = 薬日本堂の公式「漢方相談」ページ `https://www.nihondo.co.jp/kampo/consultation/`(2026-10-20 決定 1A。10ZEN 経由の案内コードは未定)。英語・中国語の方は同じビルの青山本店のページ `https://www.nihondo.co.jp/shop/boutique/aoyama/`(`NIHONDO_AOYAMA`。薬日本堂に英語・中国語のサイトがないため。事前の電話の案内と電話のリンク 03-5774-4193 を添える。2026-10-20 決定 A)。
 - 正式名称・質問の文は `app-core/constitution.mjs`(設計書のとおり)。
 
 ### テスト

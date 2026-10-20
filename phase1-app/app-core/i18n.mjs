@@ -91,6 +91,8 @@ const JA_CC = {
   gogyoNote: "五行は、自然やからだのはたらきを木・火・土・金・水の5つに分けて考える、東洋医学の考え方です。",
   // 2026-10-20 牧野さん決定(A): Web 版の結果は会員証に引き継がれないことを登録の案内に添える
   webNoCarry: "今回の結果は会員証には引き継がれません。登録後に会員証でチェックすると、その結果を記録できます。",
+  // 英語・中国語の方だけ: 行き先が青山本店(日本語のページ)なので、事前の電話をすすめる(日本語では出さない)
+  nihondoNote: "", nihondoTel: "",
 };
 
 const EN_CC = {
@@ -174,6 +176,8 @@ const EN_CC = {
   radarNote: "A higher score means more of your answers matched that tendency (0–6 each). It is not a score of how healthy you are.",
   gogyoNote: "The Five Elements (Wood, Fire, Earth, Metal, Water) are a way of grouping the workings of nature and the body in traditional East Asian medicine.",
   webNoCarry: "These results won't be carried over to your membership card. After registering, take the check on your card to save your results.",
+  nihondoNote: "Nihondo's Aoyama flagship store is in the same building as 10ZEN (1F–2F). Its website is in Japanese, and English or Chinese consultation depends on staff availability, so please call before you visit.",
+  nihondoTel: "Call the store: 03-5774-4193",
 };
 
 const ZH_CC = {
@@ -257,6 +261,8 @@ const ZH_CC = {
   radarNote: "分数越高,表示符合该倾向的回答越多(各0〜6分)。分数并不代表健康状况的好坏。",
   gogyoNote: "五行是东洋医学的一种思路,把自然和身体的功能分为木、火、土、金、水五类。",
   webNoCarry: "本次的结果不会转入会员卡。注册后在会员卡上进行测试,即可记录结果。",
+  nihondoNote: "药日本堂青山本店与10ZEN位于同一栋大楼（1～2楼）。网站为日文，能否用中文或英文咨询视工作人员安排而定，来店前请先致电。",
+  nihondoTel: "致电门店：03-5774-4193",
 };
 
 const CC = { ja: JA_CC, en: EN_CC, zh: punctDeep(ZH_CC) };

@@ -12,7 +12,7 @@ import { createMemberClient } from "./member-client.mjs";
 import * as CC from "./constitution.mjs";
 import * as CT from "./constitution-content.mjs";
 import { radarGeometry, radarSvg } from "./radar.mjs";
-import { NIHONDO_CONSULT_URL } from "./store-info.mjs";
+import { NIHONDO_CONSULT_URL, NIHONDO_AOYAMA, nihondoConsultUrl } from "./store-info.mjs";
 import { cardScreen, memberView, constitutionCardView, constitutionResultView, checkSubmitScreen, profileView, historyView, ccPromptVisible, CC_SKIP_KEY } from "./screens.mjs";
 
 const pg = startPg();
@@ -165,6 +165,8 @@ try {
   assert.equal(CT.TEA_NAME, "五巡茶"); assert.equal(CT.CHECK_NAME, "1分体質チェック");
   assert.equal(CT.yourTeaDayText(CC.teaWeekdayText("metal")), "金曜日はあなたのお茶の日");
   assert.equal(NIHONDO_CONSULT_URL, "https://www.nihondo.co.jp/kampo/consultation/");
+  assert.equal(nihondoConsultUrl("ja"), NIHONDO_CONSULT_URL); assert.equal(nihondoConsultUrl(undefined), NIHONDO_CONSULT_URL);
+  assert.equal(nihondoConsultUrl("en"), "https://www.nihondo.co.jp/shop/boutique/aoyama/"); assert.equal(nihondoConsultUrl("zh"), NIHONDO_AOYAMA.url);
   // 食事の気分(仮)は DB の設定と同じコード。おすすめ表は 五行×気分 のすべてにある(仮の料理名)
   assert.deepEqual(CT.MOODS.map((m) => m.label), ["お粥", "スープ", "一人鍋", "麺", "みんなで鍋"]);
   assert.equal(CT.MOODS.map((m) => m.code).join(","), pg.exec(`select value from app_settings where key='constitution_moods';`));

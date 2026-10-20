@@ -384,6 +384,7 @@ try {
     assert.equal(await text(wc, "#wcTypeName"), "うるおい不足タイプ"); assert.equal(await wc.getAttribute("#wcTypeName", "data-element"), "metal");
     assert.equal(await wc.locator("#wcRadar polygon.radar-area").count(), 1); assert.match(await text(wc, "#wcYourTea"), /五巡茶\(金\)/); assert.equal(await text(wc, "#wcYourTeaDay"), "金曜日はあなたのお茶の日");
     assert.equal(await wc.getAttribute("#wcLine", "href"), `https://liff.line.me/${LIFFID}`); assert.match(await wc.textContent("#wcNoCarry"), /引き継がれません/);   // 結果は会員証に引き継がれない旨(2026-10-20 決定)
+    assert.equal(await wc.getAttribute("#wcNihondo", "href"), "https://www.nihondo.co.jp/kampo/consultation/"); assert.equal(await wc.locator("#wcNihondoNote, #wcNihondoTel").count(), 0);   // 日本語は公式の漢方相談ページ。注意書きなし
     assert.equal(await text(wc, "#wcDisclaimer"), DISCLAIMER); assert.doesNotMatch(await wc.textContent("body"), /治る|効く|改善|\(仮\)/);
     await wc.click("#wcRetake"); await wc.click("#wcStart");
     for (let i = 1; i <= 15; i++) { await wc.waitForSelector(`#wcStep:has-text('${i} / 15')`); await wc.click('#wcOptions button[data-value="2"]'); }
@@ -618,15 +619,21 @@ try {
     await lp.click('#ccOptions button[data-value="soup"]'); await lp.waitForSelector("#ccTypeName");
     assert.equal(await text(lp, "#ccTypeName"), "The Tense & Stuck Type"); assert.match(await text(lp, "#ccDisclaimer"), /not a medical diagnosis/);
     assert.doesNotMatch(await text(lp, "#ccResult"), kana); assert.doesNotMatch(await text(lp, "#ccYourTea"), kana);
+    // 英語・中国語の方の薬日本堂の行き先は同じビルの青山本店(日本語のページ)。事前の電話の案内と電話のリンクを添える(2026-10-20 決定 A)
+    assert.equal(await lp.getAttribute("#ccNihondo", "href"), "https://www.nihondo.co.jp/shop/boutique/aoyama/");
+    assert.match(await text(lp, "#ccNihondoNote"), /same building as 10ZEN.*call before you visit/); assert.equal(await lp.getAttribute("#ccNihondoTel", "href"), "tel:0357744193");
     await lp.click('#langSwitch button[data-lang="zh"]'); await lp.waitForSelector("#ccTypeName:has-text('郁闷堵塞型')");              // 結果も言語を変えて作り直す
     assert.doesNotMatch(await text(lp, "#ccResult"), kana); assert.match(await text(lp, "#ccDisclaimer"), /并非医学诊断/);
+    assert.equal(await lp.getAttribute("#ccNihondo", "href"), "https://www.nihondo.co.jp/shop/boutique/aoyama/"); assert.match(await text(lp, "#ccNihondoNote"), /来店前请先致电/);
     await lp.click('#langSwitch button[data-lang="ja"]'); await lp.waitForSelector("#ccTypeName:has-text('タイプ')"); assert.equal(await lp.getAttribute("html", "lang"), "ja");
+    assert.equal(await lp.getAttribute("#ccNihondo", "href"), "https://www.nihondo.co.jp/kampo/consultation/"); assert.equal(await lp.locator("#ccNihondoNote, #ccNihondoTel").count(), 0);   // 日本語に戻すと公式の漢方相談ページ
     // Web 版: ?lang=zh(SNS の中国語の投稿から)。回答は送らない
     const wl = await newPage(null); await wl.goto(`${BASE}/app-reference/web-check.html?lang=zh`); await wl.waitForSelector("#wcStart");
     assert.equal(await text(wl, "#wcStart"), "开始"); assert.equal(await wl.getAttribute("html", "lang"), "zh-Hans");
     await wl.click('#langSwitch button[data-lang="en"]'); await wl.waitForSelector("#wcStart:has-text('Start')"); await wl.click("#wcStart");
     for (let i = 1; i <= 15; i++) { await wl.waitForSelector(`#wcStep:has-text('${i} / 15')`); await wl.click('#wcOptions button[data-value="0"]'); }
     await wl.waitForSelector("#wcTypeName"); assert.equal(await text(wl, "#wcTypeName"), "Well Balanced"); assert.doesNotMatch(await text(wl, "#wcResult"), kana);
+    assert.equal(await wl.getAttribute("#wcNihondo", "href"), "https://www.nihondo.co.jp/shop/boutique/aoyama/"); assert.equal(await wl.getAttribute("#wcNihondoTel", "href"), "tel:0357744193");
     // 店頭の QR 画面: 日本語10秒 → 英語5秒 → 中国語5秒 → 日本語。QR はそのまま(言語の切り替えで作り直さない)
     const kq = await newPage(); await kq.goto(`${BASE}/app-reference/qr.html`); await kq.waitForSelector("#login");
     await kq.fill("#email", "kiosk@t"); await kq.fill("#password", "pw"); await kq.click("#login"); await kq.waitForSelector('#kiosk[data-lang="ja"]');
@@ -644,7 +651,7 @@ try {
     assert.deepEqual(await kq.evaluate(() => [window.__langSwitches, window.__qrRebuiltOnSwitch]), [3, 0]);           // 3回切り替わり、QR は作り直していない
     assert.equal(await kq.locator("button, input, a, select, textarea, nav").count(), 0);                       // 店頭の画面に操作できる部品は増えない
     for (const p of [lp, wl, kq]) { assert.deepEqual(p.errs, [], p.errs.join("|")); assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true); } }
-  ok("英語・中国語: 端末・LINE の言語で自動(英語の端末なら英語)、画面の上で切り替え・この端末に覚える。会員証・体質チェック(途中で変えても同じ問題・結果も作り直す)・Web 版(?lang=zh)。英語・中国語の結果にかなが混ざらない。店頭の QR は 日本語10秒 → 英語5秒 → 中国語5秒で自動で切り替わり、QR はそのまま");
+  ok("英語・中国語: 端末・LINE の言語で自動(英語の端末なら英語)、画面の上で切り替え・この端末に覚える。会員証・体質チェック(途中で変えても同じ問題・結果も作り直す)・Web 版(?lang=zh)。英語・中国語の結果にかなが混ざらない。薬日本堂の行き先は日本語なら漢方相談ページ、英語・中国語なら同じビルの青山本店(電話の案内つき)。店頭の QR は 日本語10秒 → 英語5秒 → 中国語5秒で自動で切り替わり、QR はそのまま");
   // ---- パスワードの再設定(2026-10-17): スタッフ画面・店頭QRのログインから「パスワードを忘れた方」→ メールを送る → メールのリンクで新しいパスワード ----
   { const rp = await newPage();
     await rp.goto(`${BASE}/app-reference/staff.html`); await rp.waitForSelector("#forgot"); assert.equal(await rp.getAttribute("#forgot", "href"), "reset.html");

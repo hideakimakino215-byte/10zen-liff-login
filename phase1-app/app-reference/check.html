@@ -63,7 +63,9 @@ html:lang(en) .top h1 { font-size:16px; letter-spacing:.01em; text-align:right; 
 .item p.body { font-size:14px; line-height:1.75; margin-top:4px; }
 .tea-day { display:inline-block; margin-top:8px; font-size:13px; font-weight:600; color:var(--accent); border:1px solid var(--accent); border-radius:999px; padding:4px 12px; }
 .nihondo { text-align:center; }
-.nihondo a { display:flex; align-items:center; justify-content:center; min-height:52px; margin-top:12px; border-radius:12px; border:1px solid var(--accent); color:var(--accent); background:#fff; font-weight:600; text-decoration:none; }
+.nihondo a.tel { display:inline-flex; min-height:44px; margin-top:4px; border:0; background:none; text-decoration:underline; }
+.nihondo .meta { text-align:left; }
+.nihondo a:not(.tel) { display:flex; align-items:center; justify-content:center; min-height:52px; margin-top:12px; border-radius:12px; border:1px solid var(--accent); color:var(--accent); background:#fff; font-weight:600; text-decoration:none; }
 .profile h2 { font-size:22px; font-weight:600; letter-spacing:.06em; margin-top:6px; text-align:center; }
 .profile .basis { text-align:center; }
 .profile .radar { max-width:240px; cursor:default; }
@@ -98,7 +100,7 @@ import { cardScreen, checkSubmitScreen } from "../app-core/screens.mjs";
 import { QUESTIONS, ANSWER_OPTIONS, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, ELEMENT_SOFT_COLORS } from "../app-core/constitution.mjs";
 import { MOODS } from "../app-core/constitution-content.mjs";
 import { ccText, orderText, detectLang, storedLang, saveLang, langSwitcher, HTML_LANG } from "../app-core/i18n.mjs";
-import { NIHONDO_CONSULT_URL } from "../app-core/store-info.mjs";
+import { NIHONDO_AOYAMA, nihondoConsultUrl } from "../app-core/store-info.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
 import { diniiEnabled, diniiOrderUrl, diniiTableUrl, rememberTable, recallTable } from "../app-core/dinii.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
@@ -247,9 +249,10 @@ function resultView(v) {
   if (r.todayTea) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccTodayTea" }), el("p", CT.todayTeaLabel(r.todayTea.weekday), { class: "label" }),
     inElementColor(el("h3", r.todayTea.name, { class: "serif" }), r.todayTea.element), el("p", r.todayTea.line, { class: "body" })));
   if (r.season) nodes.push(kids(el("section", undefined, { class: "panel item", id: "ccSeason" }), el("p", CT.seasonLabel(r.season.name), { class: "label" }), el("p", r.season.line, { class: "body" })));
-  const link = el("a", CT.nihondoButton, { id: "ccNihondo", href: NIHONDO_CONSULT_URL, target: "_blank", rel: "noopener noreferrer" });
+  const link = el("a", CT.nihondoButton, { id: "ccNihondo", href: nihondoConsultUrl(lang), target: "_blank", rel: "noopener noreferrer" });
   link.addEventListener("click", () => { client.referralClick().catch(() => {}); });         // 押された数だけを記録(結果は待たずに開く)
-  nodes.push(kids(el("section", undefined, { class: "panel nihondo" }), el("p", CT.nihondoLead, { class: "lead" }), link));
+  nodes.push(kids(el("section", undefined, { class: "panel nihondo" }), el("p", CT.nihondoLead, { class: "lead" }), CT.nihondoNote ? el("p", CT.nihondoNote, { id: "ccNihondoNote", class: "meta" }) : null, link,
+    CT.nihondoTel ? el("a", CT.nihondoTel, { id: "ccNihondoTel", class: "tel", href: NIHONDO_AOYAMA.telHref }) : null));
   nodes.push(el("p", CT.disclaimer, { id: "ccDisclaimer", class: "disclaimer" }));
   const again = el("button", CT.retake, { id: "ccRetake", class: "ghost" }); again.onclick = () => { answers = []; idx = 0; consentGiven = false; introView(); };
   nodes.push(toCard(CT.toCard, "primary"), again);
