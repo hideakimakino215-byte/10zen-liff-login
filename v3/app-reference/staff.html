@@ -9,8 +9,8 @@
 <style>
 :root{
   --bg:#f3f5f8; --card:#fff; --fg:#1c2430; --muted:#5b6675; --line:#e3e7ee;
-  --teal:#0f9d8f; --teal-soft:#e3f5f2; --purple:#7a5af5; --purple-soft:#eee9fe;
-  --orange:#d9670f; --orange-soft:#fff0e2; --blue:#2f7fe0; --blue-soft:#e6f0fc; --sage:#4f7d3a; --sage-soft:#edf4e6; --navy:#3b4a8f; --navy-soft:#e9ecf8;
+  --teal:#0b7d72; --teal-soft:#e3f5f2; --purple:#7a5af5; --purple-soft:#eee9fe;
+  --orange:#d9670f; --orange-soft:#fff0e2; --blue:#2569c4; --blue-soft:#e6f0fc; --sage:#4f7d3a; --sage-soft:#edf4e6; --navy:#3b4a8f; --navy-soft:#e9ecf8;
   --ok:#1f8a4c; --ok-soft:#e4f6ea; --warn:#c75f0e; --warn-soft:#fff1e3; --bad:#c93a3a; --bad-soft:#fde8e8;
   --radius:16px; color-scheme:light;
 }
@@ -91,6 +91,8 @@ h1,h2,h3{margin:0}
 #ticketStats h2{font-size:17px;display:flex;align-items:center;gap:8px;color:var(--teal)}
 #ticketStats h2 svg{width:24px;height:24px}
 .actions{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center;margin-top:4px}
+#reEnter{min-height:44px;margin-top:6px;padding:0 4px;border:0;background:none;color:var(--muted);font-size:15px;text-decoration:underline;justify-self:start}
+#recheck{margin-top:8px;width:100%}
 #cancelReq{min-height:52px;padding:0 20px;border:2px solid var(--line);background:var(--card);border-radius:14px;font-size:16px;font-weight:700;color:var(--muted)}
 #confirm{min-height:76px;flex:1 1 240px;border:0;border-radius:14px;background:var(--ok);color:#fff;font-size:24px;font-weight:900}
 .done{align-items:center}
@@ -205,6 +207,7 @@ h1,h2,h3{margin:0}
 #kpiCard-member_visit_rate{--kc:var(--purple);--kc-soft:var(--purple-soft)} #kpiCard-check_rate{--kc:var(--sage);--kc-soft:var(--sage-soft)}
 #kpiCard-revisit_rate{--kc:var(--blue);--kc-soft:var(--blue-soft)} #kpiCard-referral_clicks{--kc:#8a6a3b;--kc-soft:#f5eee2}
 .kpi-card h2{font-size:15px;margin:0;color:var(--kc)}
+.kpi-card .kpi-help{font-size:12.5px;color:var(--muted);line-height:1.5;margin:2px 0 0}
 .kpi-card .v{font-size:32px;font-weight:900;line-height:1.15;overflow-wrap:anywhere}
 .kpi-card .v.missing{font-size:16px;font-weight:800;color:var(--warn);line-height:1.4}
 .kpi-card .tg,.kpi-card .sub{font-size:13px;color:var(--muted);margin:0;overflow-wrap:anywhere}
@@ -297,6 +300,9 @@ const sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
 const staff = createStaffClient({ supabase: sb, qrEndpoint: cfg.staffQrApi });
 let role = null;
 const show = (...n) => app.replaceChildren(...n);
+// タブを切り替えたあとに前の画面の応答が届いても表示しない(外部レビュー 2026-10-20): 画面ごとに番号を取り、最新の画面だけが表示を置き換える
+let viewSeq = 0;
+const guardShow = (bump = false) => { const my = bump ? ++viewSeq : viewSeq; return (...n) => { if (my === viewSeq) app.replaceChildren(...n); }; };
 
 // ---- 表示の小道具 ----
 const DASH = "—";                                                          // 未取得は「—」(0 で埋めない)
@@ -381,6 +387,8 @@ function tab(t) {
   for (const b of document.querySelectorAll("#nav [data-tab]")) { if (b.dataset.tab === t) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); }
   window.scrollTo(0, 0);
   if (t === "kpi" && !canSeeKpi()) return;
+  viewSeq++;
+  if (t !== "redeem") show(el("p", "読み込んでいます…", { class: "hint", id: "loadingView", role: "status" }));
   ({ redeem: redeemView, members: membersView, dash: dashView, constitution: constitutionView, kpi: kpiView })[t]();
 }
 
@@ -395,6 +403,9 @@ function redeemView() {
     const at = st.step === "confirm" || st.step === "confirming" ? 1 : st.step === "done" ? 2 : 0;
     stepsEl.replaceChildren(...STEPS.map((s, i) => el("li", s, i === at ? { class: "on", "aria-current": "step" } : {})));
     go.disabled = st.step === "looking_up" || st.step === "confirming";
+    // 確認中はコードを書き換えられないようにする(別のお客様のコードと取り違えない。外部レビュー 2026-10-20)
+    const locked = st.step === "confirm" || st.step === "confirming" || (st.step === "error" && !!st.request);
+    code.readOnly = locked; go.hidden = locked;
     out.replaceChildren();
     const say = (kind, t, id) => out.append(msgBox(kind, t, id || "redeemMsg"));
     if (st.step === "confirm" || st.step === "confirming") {
@@ -404,12 +415,18 @@ function redeemView() {
         ? put(el("p", undefined, { id: "rTicket" }), icon("ticket"), put(el("span", `特典チケット: ${st.ticket?.title ?? DASH}`), el("small", `有効期限 ${st.ticket?.validThrough ?? DASH} まで`)))
         : put(el("p", undefined, { id: "rAmount", class: "num" }), document.createTextNode(`使用 ${st.request.points}pt`), el("small", ` = ${st.request.yen}円`));
       const c = el("button", st.step === "confirming" ? "確定しています…" : "✓ 確定する", { id: "confirm" }); c.disabled = st.step === "confirming";
-      c.onclick = async () => { st = redeemReduce(st, { type: "confirm_start" }); render(); st = redeemReduce(st, { type: "confirm_result", result: await (ticket ? staff.confirmTicket(st.request.id) : staff.confirmRedeem(st.request.id)) }); render(); };
+      c.onclick = async () => { st = redeemReduce(st, { type: "confirm_start" }); render(); st = redeemReduce(st, { type: "confirm_result", result: await (ticket ? staff.confirmTicket(st.request.id) : staff.confirmRedeem(st.request.id)) }); render(); if (st.step === "done") code.value = ""; };
       const x = el("button", "取消", { id: "cancelReq" }); x.disabled = st.step === "confirming";
-      x.onclick = async () => { await (ticket ? staff.cancelTicket(st.request.id) : staff.cancelRedeem(st.request.id)); st = redeemInitial; render(); };
+      // 取り消しは結果を確かめてから閉じる(失敗したら申請を残して案内する)
+      x.onclick = async () => { x.disabled = true; const r = await (ticket ? staff.cancelTicket(st.request.id) : staff.cancelRedeem(st.request.id));
+        if (r.kind === "ok") { st = redeemInitial; code.value = ""; } else st = { ...st, step: "confirm", cancelFailed: true };
+        render(); if (st.step === "idle") code.focus(); };
+      const again = el("button", "コードを入れ直す", { id: "reEnter", class: "link" }); again.disabled = st.step === "confirming";
+      again.onclick = () => { st = redeemInitial; code.value = ""; render(); code.focus(); };   // 申請はそのまま(お客様の画面は変わらない)
       out.append(put(el("div", undefined, { class: "confirm" }),
         put(el("div", undefined, { class: "member" }), who, el("span", `残高 ${n(st.member.points)}pt`, { class: "bal num" })),
-        amount, put(el("div", undefined, { class: "actions" }), x, c)));
+        amount, put(el("div", undefined, { class: "actions" }), x, c), again));
+      if (st.cancelFailed) say("bad", "取り消しを確認できませんでした。もう一度「取消」を押すか、お客様の画面で申請の状態を確かめてください", "rCancelFail");
     } else if (st.step === "looking_up") say("info", "確認しています…", "redeemBusy");     // 結果の表示(#redeemMsg)とは別の id
     else if (st.step === "done" && st.kind === "ticket") { const b = msgBox("ok", `確定しました: ${st.title ?? "特典チケット"}`, "rDone", "商品をお渡しください"); b.classList.add("done"); out.append(b); }
     else if (st.step === "done") { const b = msgBox("ok", `確定しました: ${st.points}pt(${st.yen}円分)。残高 ${st.balanceAfter ?? DASH}pt`, "rDone"); b.classList.add("done"); out.append(b); }
@@ -423,11 +440,19 @@ function redeemView() {
     else if (st.step === "cancelled") say("warn", "お客様が取り消しました");
     else if (st.step === "locked") say("bad", "入力の間違いが続いたため、しばらく使えません");
     else if (st.step === "forbidden") say("bad", "この操作の権限がありません");
+    else if (st.step === "error" && st.request) {                                // 確定の結果が分からない: 同じ申請で確かめ直す(確定は二重にならない)
+      say("bad", "確定の結果を確認できませんでした(通信の不調)。下の「確定の結果を確かめる」を押してください。同じ申請なので、二重に使われることはありません", "rUnknown");
+      const ticket = st.kind === "ticket", r2 = el("button", "確定の結果を確かめる", { id: "recheck", class: "btn" });
+      r2.onclick = async () => { st = redeemReduce({ ...st, step: "confirm" }, { type: "confirm_start" }); render();
+        st = redeemReduce(st, { type: "confirm_result", result: await (ticket ? staff.confirmTicket(st.request.id) : staff.confirmRedeem(st.request.id)) }); render(); };
+      out.append(r2);
+    }
     else if (st.step === "error") say("bad", "通信できませんでした。もう一度「確認」を押してください");
   };
   const lookup = async () => { if (go.disabled) return;
     if (!isCodeShape(code.value)) { st = { step: "bad_code" }; return render(); }   // 桁違いはサーバーに送らない(ペルソナ実験 2026-10-17)
-    st = redeemReduce(st, { type: "lookup_start" }); render(); st = redeemReduce(st, { type: "lookup_result", result: await staff.lookupCode(code.value) }); render(); };   // ポイントか特典チケットかは DB が判定
+    st = redeemReduce(st, { type: "lookup_start" }); render(); st = redeemReduce(st, { type: "lookup_result", result: await staff.lookupCode(code.value) }); render(); };
+  code.oninput = () => { if (st.step === "done" || st.step === "not_found" || st.step === "bad_code" || st.step === "expired") { st = redeemInitial; render(); } };   // 次のお客様のコードを入れ始めたら前の結果を消す   // ポイントか特典チケットかは DB が判定
   go.onclick = lookup; code.onkeydown = (ev) => { if (ev.key === "Enter") lookup(); };
   render();
   const hero = put(el("section", undefined, { class: "hero", "aria-labelledby": "redeemTitle" }), title("redeem", "ポイント使用"),
@@ -464,6 +489,7 @@ function redeemView() {
 
 // ---- 会員(紫) ----
 async function membersView(query = "") {
+  const show = guardShow(true);
   const q = el("input", undefined, { id: "q", class: "input", placeholder: "会員番号・氏名", "aria-label": "会員番号・氏名", enterkeyhint: "search" }), b = el("button", "検索", { id: "search", class: "btn" });
   const list = el("ul", undefined, { id: "list", class: "list" }), count = el("span", DASH, { id: "count", class: "pill num" }), more = el("button", "さらに表示", { id: "more", class: "btn sub", hidden: "" });
   b.onclick = () => membersView(q.value); q.onkeydown = (ev) => { if (ev.key === "Enter") membersView(q.value); }; q.value = query;
@@ -492,6 +518,7 @@ async function membersView(query = "") {
 const LEDGER = (l) => l.type === "earn" ? (l.rule === "visit" ? "付与(来店)" : l.rule === "welcome" ? "付与(登録)" : "付与")
   : l.type === "redeem" ? "使用" : l.type === "adjust" ? "調整" : l.type === "opening_balance" ? "移行時の残高" : l.type === "expire" ? "失効" : l.type;
 async function detailView(id, backQuery = "") {
+  const show = guardShow(true);
   const back = el("button", "‹ 一覧へ戻る", { class: "btn-ghost", id: "back" }); back.onclick = () => membersView(backQuery);
   const r = await staff.memberDetail(id);
   if (r.kind !== "ok" || r.data.status !== "ok") return show(back, failView("取得できませんでした", () => detailView(id, backQuery)));
@@ -545,6 +572,7 @@ function memberConstitution(c) {
 // ---- 集計(青) ----
 const STATE = { open: { label: "運用中", cls: "ok" }, test: { label: "試験運用", cls: "warn" }, frozen: { label: "停止中(切替作業)", cls: "bad" } };
 async function dashView() {
+  const show = guardShow(true);
   const reload = el("button", "更新", { class: "btn sub", id: "reloadDash", style: "--c:var(--blue)" }); reload.onclick = dashView;
   const head = put(el("div", undefined, { class: "head" }), title("dash", "集計", "c-blue-text"));
   const [r, tv, tk, rf] = await Promise.all([staff.dashboard(), staff.todayVisits(), staff.ticketStats(), staff.referralStats()]);
@@ -610,6 +638,7 @@ function bars(items, id) {
 const elKanji = (e) => { const b = el("b", ELEMENT_INFO[e].kanji); b.style.color = ELEMENT_TEXT_COLORS[e]; return b; };
 const RADAR_COLORS = { dotColors: ELEMENT_COLORS, labelColors: ELEMENT_TEXT_COLORS };
 async function constitutionView() {
+  const show = guardShow(true);
   const reload = el("button", "更新", { class: "btn sub", id: "reloadCc", style: "--c:var(--sage)" }); reload.onclick = constitutionView;
   const head = put(el("div", undefined, { class: "head" }), title("constitution", "体質チェック", "c-sage-text"));
   const r = await staff.constitutionStats();
@@ -681,6 +710,7 @@ function visitRateChart(months, width = 640) {
 }
 
 async function kpiView() {
+  const show = guardShow(true);
   if (!canSeeKpi()) return;
   const reload = el("button", "更新", { class: "btn sub", id: "reloadKpi", style: "--c:var(--navy)" }); reload.onclick = kpiView;
   const head = put(el("div", undefined, { class: "head" }), title("kpi", "目標とKPI", "c-navy-text"));
@@ -716,7 +746,7 @@ function kpiDataNodes(d) {
   const card = (code, sub) => {
     const k = cur?.kpis?.[code] || {}, def = KPI_BY_CODE[code], st = statusOf(k.achievementPercent);
     const c = el("section", undefined, { class: "kpi-card", id: `kpiCard-${code}`, "data-status": st, "aria-label": def.label });
-    c.append(el("h2", def.label));
+    c.append(el("h2", def.label), el("p", def.help, { class: "kpi-help" }));   // 何を数えた数字か(外部レビュー 2026-10-20: 送客=相談リンクが押された回数、など)
     if (code === "member_visit_rate" && cur?.pos?.missing) {
       c.append(el("div", POS_MISSING, { class: "v missing", id: `kpiVal-${code}` }));
       const last = [...months].reverse().find((m) => typeof m.kpis.member_visit_rate.actual === "number");
@@ -740,8 +770,8 @@ function kpiDataNodes(d) {
       subP("紹介からの登録", typeof sp.referralRegistrations === "number" ? `${n(sp.referralRegistrations)}人` : DASH, "kpiReferralRegs")]),
     card("check_rate", [subP("来店時の実施率", typeof sp.visitCheckRatePercent === "number" ? `${sp.visitCheckRatePercent.toFixed(1)}%(来店 ${n(sp.visitDays)} 日のうち ${n(sp.checkedVisitDays)} 日)` : DASH, "kpiVisitCheck"),
       subP("実施", `${n(sp.checkedMembers)} 人 / 有効 ${n(sp.activeMembers)} 人`)]),
-    card("revisit_rate", [subP(`直近${sp.revisitWindowDays ?? 60}日に来た会員のうち2日以上`, sp.revisitAmongVisitorsPercent == null ? DASH : `${sp.revisitAmongVisitorsPercent.toFixed(1)}%`)]),
-    card("referral_clicks", [subP("実施した会員あたり", sp.referralPerCheckedPercent == null ? DASH : `${sp.referralPerCheckedPercent.toFixed(1)}%`)])));
+    card("revisit_rate", [subP(`参考: 直近${sp.revisitWindowDays ?? 60}日に来店した会員のうち、2日以上来た割合`, sp.revisitAmongVisitorsPercent == null ? DASH : `${sp.revisitAmongVisitorsPercent.toFixed(1)}%`)]),
+    card("referral_clicks", [subP("参考: 体質チェックをした会員あたりの押された割合", sp.referralPerCheckedPercent == null ? DASH : `${sp.referralPerCheckedPercent.toFixed(1)}%`)])));
   // 会員来店率の推移(線グラフ)
   out.push(put(el("section", undefined, { class: "kpi-sec", id: "kpiChartBox" }), el("h2", "会員来店率と目標の推移"),
     put(el("ul", undefined, { class: "legend" }), put(el("li"), el("i"), document.createTextNode("会員来店率")), put(el("li"), el("i", undefined, { class: "t" }), document.createTextNode("目標(段階ごと)"))),
@@ -761,6 +791,7 @@ function kpiDataNodes(d) {
   }
   out.push(put(el("section", undefined, { class: "kpi-sec" }), el("h2", "月ごとの実績"),
     el("p", "会員来店率=会員の来店数÷レジの客数(客数を取り込んだ日の来店で割る)。実施率・再来店率は月末(今月は今)の時点。「N日分」はその月に取り込んだ日数です", { class: "hint" }),
+    el("p", "表は左右に動かせます(スマホでは右側の列が隠れています)", { class: "hint scroll-hint" }),
     put(el("div", undefined, { class: "scroll-x" }), put(el("table", undefined, { class: "cmp num kpi-table", id: "kpiTable" }),
       put(el("thead"), put(el("tr"), ...["月", "POS客数", "会員来店数", "会員来店率", "新規登録", "実施率", "再来店率", "送客"].map((h) => el("th", h)))), tbody))));
   return out;
@@ -802,6 +833,7 @@ function kpiAdmin(getData, refresh) {
     };
     box.append(put(el("section", undefined, { class: "kpi-sec admin", id: "kpiTargets" }), el("h2", "目標(店長のみ)"),
       el("p", "仮の初期値です。空欄は「目標なし」(色は灰色)。変えた欄だけを保存し、変更は記録に残ります", { class: "hint" }),
+      el("p", "表は左右に動かせます(右側に12か月の目標があります)", { class: "hint scroll-hint" }),
       put(el("div", undefined, { class: "scroll-x" }), put(el("table", undefined, { class: "cmp num targets" }), put(el("thead"), put(el("tr"), el("th", "KPI"), ...MILESTONES.map((m) => el("th", `${m}か月`)))), tb)), b, o)); }
   box.append(posImportBox(getData, refresh, say, errText));
   // 月の客数の手入力(CSV がないとき)

@@ -86,6 +86,9 @@ const JA_CC = {
   todayTeaLabel: (w) => `今日の五巡茶(${w})`, seasonLabel: (s) => `季節のひとこと(${s})`, toCard: "会員証へ戻る", toCardShort: "会員証を見る", retake: "もう一度チェックする",
   retry: "もう一度試す", openInLine: "LINE アプリで開いてください", preparing: "ただいま体質チェックは準備中です", registerFailed: "登録できませんでした。もう一度お試しください",
   dishPending: "", balancedKanji: "バランス", allHighKanji: "全体", entryDone: "体質の結果と推移を見る",
+  // 外部レビュー(2026-10-20): 五角形の点数の意味と五行の説明(薬日本堂の表現チェックに追加して確認する)
+  radarNote: "点数が高いほど、その傾向にあてはまる回答が多かったことを示します(各0〜6点)。健康状態の良し悪しを示す点数ではありません。",
+  gogyoNote: "五行は、自然やからだのはたらきを木・火・土・金・水の5つに分けて考える、東洋医学の考え方です。",
 };
 
 const EN_CC = {
@@ -166,6 +169,8 @@ const EN_CC = {
   todayTeaLabel: (w) => `Today's Gojun tea (${w})`, seasonLabel: (s) => `A note for the season (${s})`, toCard: "Back to membership card", toCardShort: "View membership card", retake: "Check again",
   retry: "Try again", openInLine: "Please open this in the LINE app", preparing: "The constitution check is being prepared", registerFailed: "We couldn't register you. Please try again.",
   dishPending: "(Menu names are in Japanese while our menu is being finalized.)", balancedKanji: "Balanced", allHighKanji: "Overall", entryDone: "See your results and history",
+  radarNote: "A higher score means more of your answers matched that tendency (0–6 each). It is not a score of how healthy you are.",
+  gogyoNote: "The Five Elements (Wood, Fire, Earth, Metal, Water) are a way of grouping the workings of nature and the body in traditional East Asian medicine.",
 };
 
 const ZH_CC = {
@@ -246,6 +251,8 @@ const ZH_CC = {
   todayTeaLabel: (w) => `今天的五巡茶(${w})`, seasonLabel: (s) => `季节小贴士(${s})`, toCard: "返回会员卡", toCardShort: "查看会员卡", retake: "再测一次",
   retry: "重试", openInLine: "请在LINE应用中打开", preparing: "体质测试正在准备中", registerFailed: "注册失败,请重试。",
   dishPending: "(菜单正在定稿中,菜名暂以日文显示。)", balancedKanji: "平衡", allHighKanji: "整体", entryDone: "查看体质结果和变化",
+  radarNote: "分数越高,表示符合该倾向的回答越多(各0〜6分)。分数并不代表健康状况的好坏。",
+  gogyoNote: "五行是东洋医学的一种思路,把自然和身体的功能分为木、火、土、金、水五类。",
 };
 
 const CC = { ja: JA_CC, en: EN_CC, zh: punctDeep(ZH_CC) };
@@ -359,7 +366,7 @@ export const KIOSK_I18N = Object.freeze({
     perks: [
       { k: "Every visit", v: "100pt", d: "Scan this QR once a day to earn points" },
       { k: "Use at checkout", v: "100pt = ¥10", d: "From \"Use points\" on your card" },
-      { k: "Rank-up rewards", v: "Douhua, tea & more", d: "Your rank rises with your total points: douhua, tea to take home, Gojun tea at dinner and more" },
+      { k: "Rank-up rewards", v: "Douhua, tea & more", d: "Higher ranks bring douhua, tea to take home and Gojun tea at dinner" },
     ],
     ranks: [["white_opal", "WHITE OPAL", "Use points at checkout: 100pt = ¥10"], ["amber", "AMBER", "A douhua gift · free Gojun tea at dinner"],
       ["emerald", "EMERALD", "Tea to take home · a douhua ticket each season"], ["ruby", "RUBY", "Tea to take home · Gojun tea for your constitution each season"],

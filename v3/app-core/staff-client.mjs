@@ -131,11 +131,16 @@ export function redeemReduce(state, ev) {
 
 // 店頭QRの表示(タブレット)。トークンは30秒ごとに変わるので、切替の少し前に取得し直す。
 // 取得できない状態が続いて期限(約90秒)を過ぎたら QR を隠す(古い QR を表示し続けない)。
-export function createQrKiosk({ getToken, onUpdate, onHidden, now = () => Date.now(), setTimer = setTimeout, clearTimer = clearTimeout, hideAfterMs = 90_000 }) {
+export function createQrKiosk({ getToken, onUpdate, onHidden, now = () => Date.now(), setTimer = setTimeout, clearTimer = clearTimeout, hideAfterMs = 90_000, fetchTimeoutMs = 10_000 }) {
   let timer = null, stopped = false, lastOkAt = 0;
+  // 応答が返ってこないときも先へ進む(10秒で打ち切って失敗として扱い、5秒後にやり直す。約90秒で古い QR を隠す。外部レビュー 2026-10-20)
+  const fetchToken = () => new Promise((resolve) => {
+    const t = setTimer(() => resolve({ kind: "error", timeout: true }), fetchTimeoutMs);
+    Promise.resolve().then(getToken).then((r) => { clearTimer(t); resolve(r); }, () => { clearTimer(t); resolve({ kind: "error" }); });
+  });
   async function tick() {
     if (stopped) return;
-    const r = await getToken();
+    const r = await fetchToken();
     if (stopped) return;
     if (r.kind === "ok") {
       lastOkAt = now(); onUpdate(r.data);

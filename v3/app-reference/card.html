@@ -5,7 +5,7 @@
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
 <title>10ZEN 会員証</title>
 <style>
-:root { --r1:#e9e7e1; --r2:#bfbcb3; --r3:#fbfaf6; --on:#3b3935; --tint:#fdfcf9; --ink:#2b2926; --sub:#7a746b; --line:#e7e1d8; --bg:#f7f4ee; --paper:#fffefb; --accent:#8a6a3b; --ok:#2f6b4f; --warn:#a4452c; }
+:root { --r1:#e9e7e1; --r2:#bfbcb3; --r3:#fbfaf6; --on:#3b3935; --tint:#fdfcf9; --ink:#2b2926; --sub:#6f685e; --line:#e7e1d8; --bg:#f7f4ee; --paper:#fffefb; --accent:#8a6a3b; --ok:#2f6b4f; --warn:#a4452c; }
 * { box-sizing:border-box; }
 html, body { margin:0; background:var(--bg); color:var(--ink); font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Noto Sans JP",system-ui,sans-serif; -webkit-text-size-adjust:100%; }
 main { max-width:440px; margin:0 auto; padding:20px 16px 40px; }
@@ -25,6 +25,7 @@ a { color:inherit; }
 .face { position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; border-radius:16px; overflow:hidden; box-shadow:0 12px 30px rgba(60,45,20,.18), 0 1px 3px rgba(60,45,20,.14);
   background:linear-gradient(135deg,var(--r1),var(--r2)); padding:5px; }
 .face .in { position:relative; width:100%; height:100%; border-radius:12px; background:var(--tint); overflow:hidden; }
+.face.back .in { overflow-y:auto; -webkit-overflow-scrolling:touch; }   /* 小さな画面・文字を大きくした端末でも裏の内容に届く(外部レビュー 2026-10-20) */
 .face.back { transform:rotateY(180deg); }
 /* iPhone の LINE のブラウザでは backface-visibility が効かず表裏が重なることがある(2026-10-17 実機で確認)。カードが真横を向く瞬間(約0.09秒。回転の速さの曲線から計算)で見えない面を隠す */
 .card .front, .card.flipped .back { visibility:visible; transition:visibility 0s linear .09s; }
@@ -98,7 +99,7 @@ details.benefits summary::-webkit-details-marker { display:none; }
 .tickets .tt { flex:1; min-width:0; }
 .tickets .tt b { display:block; font-size:14px; font-weight:600; line-height:1.45; overflow-wrap:anywhere; }
 .tickets .tt small { font-size:12.5px; color:var(--sub); }
-.tickets .use { height:40px; min-width:72px; border-radius:10px; border:0; background:var(--ink); color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
+.tickets .use { min-height:44px; min-width:72px; border-radius:10px; border:0; background:var(--ink); color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
 .tickets .use:disabled { opacity:.4; cursor:default; }
 /* ---- 1分体質チェック(入口・来店した日の「今日の1分体質チェック」・今日の傾向・あなたの体質・今日のおすすめ) ---- */
 .cc .cc-entry { display:flex; align-items:center; justify-content:center; min-height:48px; margin-top:12px; border-radius:10px; border:1px solid var(--ink); background:#fff; color:var(--ink); font-size:15px; font-weight:600; text-decoration:none; }
@@ -109,6 +110,7 @@ details.benefits summary::-webkit-details-marker { display:none; }
 .cc .cc-prompt .cc-entry { margin-top:10px; }
 .cc .cc-skip { display:block; width:100%; min-height:44px; margin-top:8px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--sub); font-size:14px; font-weight:600; cursor:pointer; }
 .cc .cc-line { margin-top:10px; font-size:14px; line-height:1.7; }
+.cc .cc-note { margin-top:10px; font-size:12.5px; line-height:1.6; color:var(--sub); }
 .cc .cc-line b { font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; font-weight:600; font-size:16px; }
 .cc .cc-tea { margin-top:8px; font-size:13px; line-height:1.6; color:var(--sub); }
 .cc .cc-tea .cc-tea-name { font-weight:600; }
@@ -118,16 +120,16 @@ details.benefits summary::-webkit-details-marker { display:none; }
 .invite .inv-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
 .invite .inv-actions .primary, .invite .inv-actions .ghost { width:100%; display:flex; align-items:center; justify-content:center; text-decoration:none; padding:0 8px; }
 .invite .inv-url { overflow-wrap:anywhere; font-size:12px; -webkit-user-select:all; user-select:all; }
-@media (max-width:340px) { .points { font-size:36px; } .code { font-size:36px; } .back .in { padding:12px 10px 8px; } .back .hours, .back .addr, .back .tel { font-size:12.5px; margin-top:5px; } .back .btn { font-size:11.5px; min-height:38px; padding:4px; } .who h1 { font-size:16px; } }
+@media (max-width:340px) { .points { font-size:36px; } .code { font-size:36px; } .back .in { padding:12px 10px 8px; } .back .hours, .back .addr, .back .tel { font-size:12.5px; margin-top:5px; } .back .btn { font-size:12px; min-height:44px; padding:4px; } .who h1 { font-size:16px; } }
 /* 動きを減らす設定では模様と点滅を止める(時刻は更新し続ける) */
 @media (prefers-reduced-motion: reduce) { .card, .card .face { transition:none; } .front .in::after, .who .clock::before { animation:none; } }
 /* 言語の切り替え(日本語 / English / 中文)。LINE の言語で最初に選ばれ、選び直した言語はこの端末に覚える */
 .lang { display:flex; justify-content:flex-end; gap:6px; margin:0 0 12px; }
-.lang button { min-height:36px; padding:0 12px; border-radius:18px; border:1px solid var(--line); background:#fff; color:var(--sub); font:inherit; font-size:13px; cursor:pointer; }
+.lang button { min-height:44px; padding:0 14px; border-radius:22px; border:1px solid var(--line); background:#fff; color:var(--sub); font:inherit; font-size:14px; cursor:pointer; }
 .lang button[aria-current="true"] { border-color:var(--ink); color:var(--ink); font-weight:600; }
 </style></head>
 <body>
-<main id="app" aria-live="polite"><p id="loading" class="msg">読み込み中…</p></main>
+<main id="app"><p id="loading" class="msg">読み込み中…</p></main>
 <script src="config.js"></script>
 <script src="vendor/liff.js"></script>
 <script type="module">
@@ -220,12 +222,12 @@ function checkNodes(view) {
     box.append(kids(el("div", undefined, { id: "ccTodayPrompt", class: "cc-prompt" }), el("h2", CT.todayTitle), el("p", CT.todayCheckText),
       el("a", CT.todayStart, { id: "ccTodayStart", href: c.startHref, class: "cc-entry first" }), skip));
   }
-  if (c.checkedToday && c.result) box.append(ccLine("ccToday", c.latestLabel, c.result.typeName, null, c.result.element));
-  if (c.profile) box.append(ccLine("ccProfile", CT.profileLabel, c.profile.typeName, paren(c.profile.basisText, lang), c.profile.element));
-  if (c.result?.dish) box.append(ccLine("ccTodayDish", U.todayDish, c.result.dish.name));
+  if (c.result && (c.checkedToday || !(c.profile && c.profile.count > 1))) box.append(ccLine("ccToday", c.latestLabel, c.result.typeName, null, c.result.element));
+  if (c.profile && c.profile.count > 1) box.append(ccLine("ccProfile", CT.profileLabel, c.profile.typeName, paren(c.profile.basisText, lang), c.profile.element));   // 1回目は今日の傾向だけ(結果の画面と同じ)
+  if (c.result?.dish) box.append(ccLine("ccTodayDish", c.checkedToday ? U.todayDish : CT.dishLatest, c.result.dish.name, CT.dishPending ? " " + CT.dishPending : null));   // 今日チェックしていなければ「前回の傾向から」
   if (c.todayTea) box.append(kids(el("p", undefined, { id: "ccTodayTea", class: "cc-tea" }), document.createTextNode(`${U.todayTea}: `),
     inElementColor(el("b", c.todayTea.name, { class: "cc-tea-name" }), c.todayTea.element), document.createTextNode(`・${c.todayTea.line}`)));
-  box.append(el("a", c.entryLabel, { id: "ccEntry", href: c.entryHref, class: "cc-entry" }));
+  box.append(el("a", c.entryLabel, { id: "ccEntry", href: c.entryHref, class: "cc-entry" }), el("p", CT.disclaimer, { id: "ccDisclaimer", class: "cc-note" }));   // 診断ではない旨(結果を出す所には必ず)
   return box;
 }
 
@@ -280,12 +282,13 @@ function cardNodes(view) {
   if (view.pending) {
     const p = view.pending, box = el("section", undefined, { class: "panel pending" });
     kids(box, el("p", U.pendingInfo(p.points, p.yen), { id: "pendingInfo", class: "label" }), el("p", p.codeText, { id: "pendingCode", class: "code" }), el("p", U.pendingLeft(p.secondsLeft), { id: "pendingLeft", class: "meta" }));
-    const c = el("button", U.cancelRedeem, { id: "cancel", class: "ghost full" }); c.onclick = async () => { await client.redeemCancel(); load(); }; box.append(c); n.push(box);
+    const c = el("button", U.cancelRedeem, { id: "cancel", class: "ghost full" }); c.onclick = async () => { c.disabled = true; const r = await client.redeemCancel(); if (r.kind !== "ok") notice = M.cancel_failed; load(); }; box.append(c); n.push(box);
   } else if (view.canRedeem) {
     const box = el("section", undefined, { class: "panel" }), row = el("div", undefined, { class: "row" });
     const i = el("input", undefined, { id: "amount", type: "number", inputmode: "numeric", min: String(view.redeemUnit), step: String(view.redeemUnit), placeholder: String(view.redeemUnit), "aria-label": U.amountLabel });
     const b = el("button", U.redeemButton, { id: "redeem", class: "primary" });
-    b.onclick = async () => { const s = redeemScreen(await client.redeemRequest(Number(i.value)), Date.now(), lang); if (s.error) { notice = s.error; } else { notice = s.notice || null; } load(); };
+    b.onclick = async () => { if (b.disabled) return; b.disabled = true; b.textContent = M.requesting;   // 二重に押せないように(外部レビュー 2026-10-20)
+      const s = redeemScreen(await client.redeemRequest(Number(i.value)), Date.now(), lang); notice = s.error || s.notice || (s.screen === "error" ? s.message : null); load(); };
     kids(row, i, b); kids(box, el("p", U.redeemLabel(view.redeemUnit), { class: "label" }), row);
     const all = Math.floor(view.points / view.redeemUnit) * view.redeemUnit, quick = el("div", undefined, { class: "quick", id: "amountQuick" });
     for (const [label, v] of [["500pt", 500], ["1,000pt", 1000], [U.quickAll(all.toLocaleString("ja-JP")), all]]) {
@@ -300,7 +303,7 @@ function cardNodes(view) {
     const p = view.pendingTicket, box = el("section", undefined, { class: "panel pending", id: "ticketPending" });
     kids(box, el("p", U.ticketPendingInfo(p.title), { id: "ticketPendingInfo", class: "label" }), el("p", p.codeText, { id: "ticketCode", class: "code" }),
       el("p", U.ticketLeft(p.secondsLeft), { id: "ticketLeft", class: "meta" }));
-    const c = el("button", U.cancelTicket, { id: "ticketCancel", class: "ghost full" }); c.onclick = async () => { await client.ticketCancel(); load(); }; box.append(c); n.push(box);
+    const c = el("button", U.cancelTicket, { id: "ticketCancel", class: "ghost full" }); c.onclick = async () => { c.disabled = true; const r = await client.ticketCancel(); if (r.kind !== "ok") notice = M.cancel_failed; load(); }; box.append(c); n.push(box);
   }
   if (view.tickets.length || view.lastTicket) {
     const box = el("section", undefined, { class: "panel", id: "tickets" }), ul = el("ul", undefined, { class: "tickets" });
@@ -340,7 +343,11 @@ async function load() {
     if (ack) { inviteNote = nt.text; inviteAcked = nt.until; }                     // 紹介者へのお知らせ(1回だけ): 表示してから既読にする
     let seen = null; try { seen = localStorage.getItem(RANK_KEY + s.view.memberNo); localStorage.setItem(RANK_KEY + s.view.memberNo, s.view.rank); } catch (_e) { /* 使えない端末: お知らせなし */ }
     const up = rankUpNotice(seen, s.view, lang); if (up) notice = notice ? `${notice}\n${up}` : up;   // ランクが上がったら1回だけ(ペルソナ実験 2026-10-17)
+    // 数秒ごとの確認で描き直しても、入力中の金額と操作中の場所は保つ(外部レビュー 2026-10-20)
+    const keepAmount = document.getElementById("amount")?.value, keepFocus = document.activeElement?.id;
     prevView = s.view; show(...cardNodes(s.view));
+    const amt = document.getElementById("amount"); if (amt && keepAmount) amt.value = keepAmount;
+    if (keepFocus) document.getElementById(keepFocus)?.focus({ preventScroll: true });
     if (ack) client.inviteSeen(nt.until);
     if (s.view.pending || s.view.pendingTicket) poll = setTimeout(load, 3000);
   } else if (s.screen === "register") {

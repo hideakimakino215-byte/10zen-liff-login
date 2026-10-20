@@ -7,7 +7,7 @@
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
 <title>10ZEN パスワードの再設定</title>
 <style>
-:root { --ink:#2b2926; --sub:#7a746b; --line:#e7e1d8; --bg:#f7f4ee; --paper:#fffefb; --accent:#8a6a3b; --ok:#2f6b4f; --warn:#a4452c; }
+:root { --ink:#2b2926; --sub:#6f685e; --line:#e7e1d8; --bg:#f7f4ee; --paper:#fffefb; --accent:#8a6a3b; --ok:#2f6b4f; --warn:#a4452c; }
 * { box-sizing:border-box; }
 [hidden] { display:none !important; }
 html, body { margin:0; background:var(--bg); color:var(--ink); font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Noto Sans JP",system-ui,sans-serif; -webkit-text-size-adjust:100%; }
@@ -74,9 +74,11 @@ button:disabled { opacity:.5; }
     m.className = "msg"; m.textContent = "";
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { m.className = "msg bad"; m.textContent = "メールアドレスの形を確かめてください。"; return; }
     $("send").disabled = true;
-    var r = await sb.auth.resetPasswordForEmail(email, { redirectTo: here });
+    var r; try { r = await sb.auth.resetPasswordForEmail(email, { redirectTo: here }); } catch (_e) { r = { error: { message: "network" } }; }
     $("send").disabled = false;
     if (r && r.error && /rate|limit|seconds/i.test(r.error.message || "")) { m.className = "msg bad"; m.textContent = "続けて送ることはできません。しばらく時間をおいてからお試しください。"; return; }
+    // それ以外の失敗(通信など)は「送った」と言わない(外部レビュー 2026-10-20)。登録の有無はどちらにしても画面に出さない
+    if (r && r.error) { m.className = "msg bad"; m.textContent = "メールの送信を確認できませんでした。電波の良い場所で、もう一度お試しください。"; return; }
     m.className = "msg ok";
     m.textContent = "登録されたメールアドレスであれば、再設定のメールをお送りしました。メールのリンクを開いて、新しいパスワードを決めてください(届くまで数分かかることがあります。迷惑メールのフォルダもご確認ください)。";
   };
