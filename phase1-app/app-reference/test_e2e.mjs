@@ -383,7 +383,7 @@ try {
     await wc.waitForSelector("#wcTypeName");
     assert.equal(await text(wc, "#wcTypeName"), "うるおい不足タイプ"); assert.equal(await wc.getAttribute("#wcTypeName", "data-element"), "metal");
     assert.equal(await wc.locator("#wcRadar polygon.radar-area").count(), 1); assert.match(await text(wc, "#wcYourTea"), /五巡茶\(金\)/); assert.equal(await text(wc, "#wcYourTeaDay"), "金曜日はあなたのお茶の日");
-    assert.equal(await wc.getAttribute("#wcLine", "href"), `https://liff.line.me/${LIFFID}`);
+    assert.equal(await wc.getAttribute("#wcLine", "href"), `https://liff.line.me/${LIFFID}`); assert.match(await wc.textContent("#wcNoCarry"), /引き継がれません/);   // 結果は会員証に引き継がれない旨(2026-10-20 決定)
     assert.equal(await text(wc, "#wcDisclaimer"), DISCLAIMER); assert.doesNotMatch(await wc.textContent("body"), /治る|効く|改善|\(仮\)/);
     await wc.click("#wcRetake"); await wc.click("#wcStart");
     for (let i = 1; i <= 15; i++) { await wc.waitForSelector(`#wcStep:has-text('${i} / 15')`); await wc.click('#wcOptions button[data-value="2"]'); }

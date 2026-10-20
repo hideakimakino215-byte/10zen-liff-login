@@ -11,8 +11,9 @@ export const STORE = Object.freeze({
   quizBaseUrl: "https://tally.so/r/440keB",
 });
 // 1分体質チェックの結果画面の「薬日本堂の漢方相談へ」の行き先。
-// TODO: 仮の行き先(薬日本堂のトップページ)。漢方相談の正式な案内先・10ZEN 経由の案内コードは、薬日本堂との相談で決めてから差し替える
-export const NIHONDO_CONSULT_URL = "https://www.nihondo.co.jp/";
+// 薬日本堂の公式「漢方相談」の案内ページ(相談の流れ・オンライン相談の予約・店舗検索へ進める)。2026-10-20 牧野さん決定(1A)。
+// 10ZEN 経由の案内コードが決まったら付け足す
+export const NIHONDO_CONSULT_URL = "https://www.nihondo.co.jp/kampo/consultation/";
 // 30秒体質チェックの URL。Tally は line_user_id を隠しフィールドで受け取り、回答を顧客に紐づける(tally-webhook)。LINE ID が未取得なら付けない。
 export function quizUrl(lineUserId) {
   return lineUserId ? `${STORE.quizBaseUrl}?line_user_id=${encodeURIComponent(lineUserId)}` : STORE.quizBaseUrl;

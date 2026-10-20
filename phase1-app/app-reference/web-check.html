@@ -182,7 +182,7 @@ function resultView() {
   if (r.todayTea) nodes.push(kids(el("section", undefined, { class: "panel item", id: "wcTodayTea" }), el("p", CT.todayTeaLabel(r.todayTea.weekday), { class: "label" }),
     inElementColor(el("h3", r.todayTea.name, { class: "serif" }), r.todayTea.element), el("p", r.todayTea.line, { class: "body" })));
   if (r.season) nodes.push(kids(el("section", undefined, { class: "panel item", id: "wcSeason" }), el("p", CT.seasonLabel(r.season.name), { class: "label" }), el("p", r.season.line, { class: "body" })));
-  if (memberUrl) nodes.push(kids(el("section", undefined, { class: "panel cta", id: "wcCta" }), el("p", CT.webCtaLead, { class: "lead" }),
+  if (memberUrl) nodes.push(kids(el("section", undefined, { class: "panel cta", id: "wcCta" }), el("p", CT.webCtaLead, { class: "lead" }), el("p", CT.webNoCarry, { id: "wcNoCarry", class: "meta" }),
     el("a", CT.webCtaButton, { id: "wcLine", class: "primary", href: memberUrl })));
   nodes.push(kids(el("section", undefined, { class: "panel nihondo" }), el("p", CT.nihondoLead, { class: "lead" }),
     el("a", CT.nihondoButton, { id: "wcNihondo", href: NIHONDO_CONSULT_URL, target: "_blank", rel: "noopener noreferrer" })));
