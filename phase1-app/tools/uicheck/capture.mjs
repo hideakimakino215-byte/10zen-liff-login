@@ -29,7 +29,7 @@ const staffDeps = () => ({ supabase: { auth: { getUser: async (t) => ({ data: { 
 const LIFF = `window.liff={init:async()=>{},isLoggedIn:()=>!!localStorage.getItem('tok'),getIDToken:()=>localStorage.getItem('tok'),getProfile:async()=>({userId:'Uline0000000000000000000000000001',displayName:'x'}),login:()=>{window.__loginCalled=true}};`;
 const SB = `window.supabase={createClient(){const S=()=>JSON.parse(localStorage.getItem('sess')||'null');return{
  auth:{signInWithPassword:async({email,password})=>{const r=await fetch('/auth',{method:'POST',body:JSON.stringify({email,password})});if(!r.ok)return{error:{message:'bad'}};const j=await r.json();localStorage.setItem('sess',JSON.stringify(j));return{data:j,error:null}},
- getSession:async()=>({data:{session:S()}}),signOut:async()=>{localStorage.removeItem('sess');return{}}},
+ getSession:async()=>({data:{session:S()}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}}),resetPasswordForEmail:async()=>({data:{},error:null}),updateUser:async()=>({data:{},error:null}),signOut:async()=>{localStorage.removeItem('sess');return{}}},
  rpc:async(name,args)=>{const s=S();const r=await fetch('/rpc/'+name,{method:'POST',headers:{'x-test-uid':s?s.user.id:'','content-type':'application/json'},body:JSON.stringify(args)});const j=await r.json();return r.ok?{data:j,error:null}:{data:null,error:{message:j.message}}}}}};`;
 const CONFIG = `window.APP_CONFIG={liffId:"x",memberApi:"/member-api",staffQrApi:"/staff-qr",supabaseUrl:"x",supabaseKey:"x"};`;
 const MIME = { ".html": "text/html; charset=utf-8", ".mjs": "text/javascript", ".js": "text/javascript", ".jpg": "image/jpeg", ".webp": "image/webp", ".png": "image/png" };
@@ -150,6 +150,27 @@ try {
   // お席の QR(印刷用・日本語のみ)
   const tq = await page(null, { w: 900, h: 900 }); await tq.goto(`${BASE}/app-reference/table-qr.html`); await tq.waitForSelector("#list");
   await tq.fill("#list", "A1,T01\nA2,T02"); await tq.click("#make"); await tq.waitForSelector(".pop"); await snap(tq, "t1_tablecard", "ja");
+  // ---- スタッフ画面(日本語のみ。スマホ幅)・パスワード再設定・店頭QRのログイン ----
+  { const cu = await page(tokFor(hx("s"), "山田 太郎"));
+    await cu.goto(`${BASE}/app-reference/card.html`); await cu.waitForSelector("#register"); await cu.click("#register"); await cu.waitForSelector("#points");
+    const no = (await cu.textContent("#memberNo")).split(" ").pop();
+    pg.exec(`select public._grant(m.id, 'earn', 'visit', 1200, 'uicheck-staff', 'test', null, now() - interval '1 day') from members m where m.member_no = '${no}';`);
+    await cu.goto(`${BASE}/app-reference/card.html${await freshQs()}`); await cu.waitForSelector("#points");
+    await cu.click('#amountQuick button[data-amount="500"]'); await cu.waitForFunction(() => document.getElementById("amount")?.value === "500"); await cu.click("#redeem"); await cu.waitForSelector("#pendingCode");
+    const code = (await cu.textContent("#pendingCode")).replace(/\D/g, "");
+    const st = await page(null);
+    await st.goto(`${BASE}/app-reference/staff.html`); await st.waitForSelector("#login"); await snap(st, "s1_login", "ja");
+    await st.fill("#email", "mgr@t"); await st.fill("#password", "pw"); await st.click("#login"); await st.waitForSelector("#code"); await snap(st, "s2_home", "ja");
+    await st.fill("#code", code); await st.click("#lookup"); await st.waitForSelector("#confirm"); await snap(st, "s3_redeem_confirm", "ja");
+    await st.click("#confirm"); await st.waitForFunction(() => !document.getElementById("confirm")); await st.waitForTimeout(400); await snap(st, "s4_redeem_done", "ja");
+    await st.click("[data-tab=members]"); await st.waitForSelector("#list button"); await snap(st, "s5_members", "ja");
+    await st.click("#list button"); await st.waitForTimeout(700); await snap(st, "s6_member_detail", "ja");
+    await st.click("[data-tab=dash]"); await st.waitForTimeout(900); await snap(st, "s7_dash", "ja");
+    await st.click("[data-tab=constitution]"); await st.waitForTimeout(900); await snap(st, "s8_constitution", "ja");
+    if (await st.$("[data-tab=kpi]")) { await st.click("[data-tab=kpi]"); await st.waitForTimeout(900); await snap(st, "s9_kpi", "ja"); }
+    const rs = await page(null); await rs.goto(`${BASE}/app-reference/reset.html`); await rs.waitForSelector("#send"); await snap(rs, "s10_reset", "ja");
+    const kl = await page(null, { w: 1180, h: 820 }); await kl.goto(`${BASE}/app-reference/qr.html`); await kl.waitForSelector("#login"); await snap(kl, "s11_kiosk_login", "ja", { full: false });
+    console.log("staff errors:", cu.errs.length + st.errs.length + rs.errs.length + kl.errs.length); }
   fs.writeFileSync(`${OUT}/../items.json`, JSON.stringify(items, null, 1));
   console.log("done", items.length, "errors", items.reduce((a, i) => a + i.errs.length, 0));
 } finally { await browser.close(); server.close(); pg.stop(); }
