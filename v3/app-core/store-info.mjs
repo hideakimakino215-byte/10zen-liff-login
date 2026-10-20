@@ -14,6 +14,15 @@ export const STORE = Object.freeze({
 // 薬日本堂の公式「漢方相談」の案内ページ(相談の流れ・オンライン相談の予約・店舗検索へ進める)。2026-10-20 牧野さん決定(1A)。
 // 10ZEN 経由の案内コードが決まったら付け足す
 export const NIHONDO_CONSULT_URL = "https://www.nihondo.co.jp/kampo/consultation/";
+// 英語・中国語の方の行き先: 同じビル(1・2階)の薬日本堂 青山本店のページ。薬日本堂に英語・中国語のサイトがなく、
+// 青山本店のページに「対応言語: 英語・中国語」とあるため(要予約・相談員の不在あり)。2026-10-20 牧野さん決定(A)
+export const NIHONDO_AOYAMA = Object.freeze({
+  url: "https://www.nihondo.co.jp/shop/boutique/aoyama/",
+  telHref: "tel:0357744193",
+});
+export function nihondoConsultUrl(lang) {
+  return lang === "en" || lang === "zh" ? NIHONDO_AOYAMA.url : NIHONDO_CONSULT_URL;
+}
 // 30秒体質チェックの URL。Tally は line_user_id を隠しフィールドで受け取り、回答を顧客に紐づける(tally-webhook)。LINE ID が未取得なら付けない。
 export function quizUrl(lineUserId) {
   return lineUserId ? `${STORE.quizBaseUrl}?line_user_id=${encodeURIComponent(lineUserId)}` : STORE.quizBaseUrl;
