@@ -89,6 +89,8 @@ const JA_CC = {
   // 外部レビュー(2026-10-20): 五角形の点数の意味と五行の説明(薬日本堂の表現チェックに追加して確認する)
   radarNote: "点数が高いほど、その傾向にあてはまる回答が多かったことを示します(各0〜6点)。健康状態の良し悪しを示す点数ではありません。",
   gogyoNote: "五行は、自然やからだのはたらきを木・火・土・金・水の5つに分けて考える、東洋医学の考え方です。",
+  // 2026-10-20 牧野さん決定(A): Web 版の結果は会員証に引き継がれないことを登録の案内に添える
+  webNoCarry: "今回の結果は会員証には引き継がれません。登録後に会員証でチェックすると、その結果を記録できます。",
 };
 
 const EN_CC = {
@@ -171,6 +173,7 @@ const EN_CC = {
   dishPending: "(Menu names are in Japanese while our menu is being finalized.)", balancedKanji: "Balanced", allHighKanji: "Overall", entryDone: "See your results and history",
   radarNote: "A higher score means more of your answers matched that tendency (0–6 each). It is not a score of how healthy you are.",
   gogyoNote: "The Five Elements (Wood, Fire, Earth, Metal, Water) are a way of grouping the workings of nature and the body in traditional East Asian medicine.",
+  webNoCarry: "These results won't be carried over to your membership card. After registering, take the check on your card to save your results.",
 };
 
 const ZH_CC = {
@@ -253,6 +256,7 @@ const ZH_CC = {
   dishPending: "(菜单正在定稿中,菜名暂以日文显示。)", balancedKanji: "平衡", allHighKanji: "整体", entryDone: "查看体质结果和变化",
   radarNote: "分数越高,表示符合该倾向的回答越多(各0〜6分)。分数并不代表健康状况的好坏。",
   gogyoNote: "五行是东洋医学的一种思路,把自然和身体的功能分为木、火、土、金、水五类。",
+  webNoCarry: "本次的结果不会转入会员卡。注册后在会员卡上进行测试,即可记录结果。",
 };
 
 const CC = { ja: JA_CC, en: EN_CC, zh: punctDeep(ZH_CC) };
