@@ -3,6 +3,9 @@
 //  * ダイニーの QR の形(ダイニーの回答 2026-10-16):
 //      1. https://web.self.dinii.jp/gateway?shopId=<店舗ID>&tableCode=<テーブル>
 //      2. LINE 連携あり: https://liff.line.me/<ダイニーの LIFF ID(店舗ごと)>/shops/<店舗ID>/items?shopId=<店舗ID>&tableCode=<テーブル>(末尾に1つ増えることがある)
+//    ダイニーの回答(2026-10-21): テーブルごとの固定 URL は1つの形 https://web.self.dinii.jp/gateway?liffId=<LIFF ID>&shopId=<店舗ID>&tableCode=<テーブル>。
+//      LINE を使う方・使わない方のどちらもこの URL で案内できる。有効期限なし。iframe の中では開けない(このアプリは画面ごと移るので問題なし)。
+//      遷移後のアドレスバーの URL は5分で失効するので、この形の URL をそのまま使う。こちらで作る URL はこの形にする(読み取りは 2 の形も引き続き受け付ける)
 //  * 店舗ID・LIFF ID は導入時に発行される。config.js の diniiShopId が空の間はボタンを出さない(diniiEnabled)。
 //  * (2026-10-16 牧野さん承認)お席に置く10ZEN の QR(体質チェック → そのまま注文)。QR は会員証の LIFF の check.html?table=<テーブル>。
 //    結果の「このまま注文する」は、読み直さずにそのテーブルのダイニーの注文画面を開く(diniiTableUrl)。お席の QR から入った人だけに出すので、
@@ -19,18 +22,22 @@ export function diniiOrderUrl(text, { shopId, liffId } = {}) {
   if (u.protocol !== "https:" || u.username || u.password || u.port) return null;
   const table = u.searchParams.get("tableCode");
   if (u.searchParams.get("shopId") !== shopId || !table || !TABLE_RE.test(table)) return null;
-  if (u.hostname === "web.self.dinii.jp" && u.pathname === "/gateway") return u.href;
+  if (u.hostname === "web.self.dinii.jp" && u.pathname === "/gateway") {
+    const l = u.searchParams.get("liffId");                                   // LINE 連携の LIFF ID が付いているなら、10ZEN の設定と同じときだけ
+    if (l !== null && !(typeof liffId === "string" && LIFF_RE.test(liffId) && l === liffId)) return null;
+    return u.href;
+  }
   if (u.hostname === "liff.line.me" && typeof liffId === "string" && LIFF_RE.test(liffId) && u.pathname === `/${liffId}/shops/${shopId}/items`) return u.href;
   return null;
 }
 
 // お席の QR から入ったテーブル(?table=)。形が違えば null
 export function tableFromParam(v) { return typeof v === "string" && TABLE_RE.test(v) ? v : null; }
-// そのテーブルのダイニーの注文画面。LIFF ID があれば LINE 連携の形(LINE の中で開く)、なければ通常の形
+// そのテーブルのダイニーの注文画面(ダイニーの回答 2026-10-21 の形)。LIFF ID があれば付ける(LINE の方は LINE の中で、そうでない方はブラウザで開く)
 export function diniiTableUrl(table, { shopId, liffId } = {}) {
   if (!tableFromParam(table) || typeof shopId !== "string" || !ID_RE.test(shopId)) return null;
-  const q = `shopId=${encodeURIComponent(shopId)}&tableCode=${encodeURIComponent(table)}`;
-  return typeof liffId === "string" && LIFF_RE.test(liffId) ? `https://liff.line.me/${liffId}/shops/${shopId}/items?${q}` : `https://web.self.dinii.jp/gateway?${q}`;
+  const l = typeof liffId === "string" && LIFF_RE.test(liffId) ? `liffId=${encodeURIComponent(liffId)}&` : "";
+  return `https://web.self.dinii.jp/gateway?${l}shopId=${encodeURIComponent(shopId)}&tableCode=${encodeURIComponent(table)}`;
 }
 // お席に置く QR の中身(会員証の LIFF の体質チェック。?table= にテーブル)
 export function tableQrUrl(liffId, table) {

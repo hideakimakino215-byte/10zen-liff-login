@@ -39,9 +39,13 @@ assert.equal(diniiOrderUrl(line, { shopId: SHOP }), null);                      
 assert.equal(diniiOrderUrl(web, { shopId: SHOP }), web);
 ok("他店・テーブルなし・http・似せたサイト・別の LIFF・パスの食い違い・利用者名やポート付き・スクリプト・長すぎる値・未設定は開かない");
 
-assert.equal(diniiTableUrl(TABLE, cfg), line);
-assert.equal(diniiTableUrl(TABLE, { shopId: SHOP }), web);                                       // LIFF ID がなければ通常の形
-assert.equal(diniiOrderUrl(diniiTableUrl(TABLE, cfg), cfg), line);                                // 作った URL は読み取りの判定も通る
+const gw = `https://web.self.dinii.jp/gateway?liffId=${LIFF}&shopId=${SHOP}&tableCode=${TABLE}`;   // ダイニーの回答(2026-10-21)の1つの形
+assert.equal(diniiTableUrl(TABLE, cfg), gw);
+assert.equal(diniiTableUrl(TABLE, { shopId: SHOP }), web);                                       // LIFF ID がなければ付けない
+assert.equal(diniiOrderUrl(diniiTableUrl(TABLE, cfg), cfg), gw);                                  // 作った URL は読み取りの判定も通る
+assert.equal(diniiOrderUrl(gw, cfg), gw);                                                         // ダイニーの席の QR(liffId 付き)も開く
+assert.equal(diniiOrderUrl(gw.replace(LIFF, "2011158053-N7nKgExB"), cfg), null);                  // 別の LIFF ID が付いた URL は開かない
+assert.equal(diniiOrderUrl(gw, { shopId: SHOP }), null);                                          // LIFF ID 未設定なのに付いているときも開かない
 for (const t of ["", null, undefined, "a b", "<x>", "../x", "a".repeat(65), 12]) { assert.equal(tableFromParam(t), null); assert.equal(diniiTableUrl(t, cfg), null); }
 assert.equal(diniiTableUrl(TABLE, { shopId: "", liffId: LIFF }), null);
 ok("お席の QR のテーブルから、読み直さずにそのテーブルの注文画面の URL を作る(形の違うテーブル・店舗ID未設定は作らない)");

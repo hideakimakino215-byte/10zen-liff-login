@@ -359,7 +359,7 @@ try {
     const tp = await withDinii(await newPage(tokFor(sub("d"), "試験 体質")));
     await tp.goto(`${BASE}/app-reference/check.html?table=T07`); await tp.waitForSelector("#ccStart, #ccAgree");
     await tp.goto(`${BASE}/app-reference/check.html?view=result`); await tp.waitForSelector("#ccTypeName");          // 画面を移っても、お席の QR から入ったことを覚えている
-    assert.equal(await tp.getAttribute("#ccOrderTable", "href"), `https://liff.line.me/${DLIFF}/shops/${SHOP}/items?shopId=${SHOP}&tableCode=T07`);
+    assert.equal(await tp.getAttribute("#ccOrderTable", "href"), `https://web.self.dinii.jp/gateway?liffId=${DLIFF}&shopId=${SHOP}&tableCode=T07`);
     assert.equal(await text(tp, "#ccOrderTable"), "このまま注文する"); assert.match(await text(tp, "#ccOrderNote"), /通常のメニュー.*スタッフにお声がけ/); assert.equal(await tp.locator("#ccOrderScan").count(), 0);
     const bad = await withDinii(await newPage(tokFor(sub("d"), "試験 体質")));
     await bad.goto(`${BASE}/app-reference/check.html?table=${encodeURIComponent("<x>")}&view=result`); await bad.waitForSelector("#ccTypeName");
@@ -404,7 +404,7 @@ try {
     const tq2 = await newPage(null); await tq2.route("**/app-reference/config.js", (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: CONFIG.replace('liffId:"x"', `liffId:"${LIFFID}"`).replace("};", `,diniiShopId:"${SHOP}",diniiLiffId:"${DLIFF}"};`) }));
     await tq2.goto(`${BASE}/app-reference/table-qr.html`); await tq2.fill("#list", "A1,T01"); await tq2.click("#make");
     assert.equal(await tq2.locator(".pop .qr svg").count(), 2); assert.equal(await tq2.isVisible("#directNote"), false);
-    assert.equal(await tq2.getAttribute(".pop[data-table=T01] .direct", "data-url"), `https://liff.line.me/${DLIFF}/shops/${SHOP}/items?shopId=${SHOP}&tableCode=T01`);
+    assert.equal(await tq2.getAttribute(".pop[data-table=T01] .direct", "data-url"), `https://web.self.dinii.jp/gateway?liffId=${DLIFF}&shopId=${SHOP}&tableCode=T01`);
     assert.match(await text(tq2, ".pop[data-table=T01] .direct"), /すぐにご注文の方はこちら/); assert.deepEqual(tq2.errs, []);
     assert.equal(await tq.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true); assert.deepEqual(tq.errs, []);
   }
