@@ -145,7 +145,7 @@ const EN_CC = {
     water: "Winter is cold. Warm up from the core with warming ingredients like ginger and green onion, and black ingredients.",
   },
   moodQuestion: "What do you feel like eating today?",
-  moods: { okayu: "Rice porridge", soup: "Soup", nabe_solo: "Hot pot for one", noodle: "Noodles", nabe_share: "Hot pot to share" },
+  moods: { okayu: "Rice porridge", soup: "Soup", nabe_solo: "Hot pot for one", noodle: "Noodles", nabe_share: "Hot pot set" },
   dishReasons: {
     wood: "For when you want to feel at ease, with fragrant ingredients",
     fire: "For when you want to feel refreshed, with fresh, juicy ingredients",
@@ -230,7 +230,7 @@ const ZH_CC = {
     water: "寒冷的冬天,用生姜、葱等温热食材和黑色食材,从身体内部暖起来。",
   },
   moodQuestion: "今天想吃什么?",
-  moods: { okayu: "粥", soup: "汤", nabe_solo: "一人锅", noodle: "面", nabe_share: "多人火锅" },
+  moods: { okayu: "粥", soup: "汤", nabe_solo: "一人锅", noodle: "面", nabe_share: "火锅套餐" },
   dishReasons: {
     wood: "适合想放松身心的人,选用香气宜人的食材",
     fire: "适合想清爽一下的人,选用水分丰富的食材",

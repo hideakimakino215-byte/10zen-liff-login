@@ -2,7 +2,7 @@
 // 言葉づかいのきまり(設計書 7章): 「治る・効く・改善」を使わない。「〜な方に」「〜したい日に」のような表現にする(五巡茶もメニューも食品のため)。
 //   app-core/test_constitution.mjs が、このファイル・constitution.mjs・check.html に禁止の言葉がないことを確かめる。
 // 区分: 「文案(牧野さん承認 2026-10-15・薬日本堂の表現チェック前)」= 承認済みの文。公開前に薬日本堂の表現チェックの部署を通す。
-//       「仮」= メニューが決まったら差し替える(食事の気分の選択肢・おすすめの一品)。
+//       「仮」= まだ決まっていない文(おすすめの理由)。
 //       「文案(確認前)」= まだ承認されていない文。
 
 // ---- タイプのひとこと ----
@@ -42,24 +42,24 @@ export const SEASON_LINES = Object.freeze({
 });
 
 // ---- 16問目: 食事の気分(5択) ----
-// 仮: メニューが決まったら差し替える(メニューの設計は別件)。コードは DB の app_settings 'constitution_moods' と同じにする(テストが確認)
+// 文案(牧野さん承認 2026-10-21・メニュー名 v1.0・薬日本堂の表現チェック前)。コードは DB の app_settings 'constitution_moods' と同じにする(テストが確認)
 export const MOOD_QUESTION = "今日の食事の気分は?";
 export const MOODS = Object.freeze([
-  { code: "okayu", label: "お粥" },          // 仮
-  { code: "soup", label: "スープ" },         // 仮
-  { code: "nabe_solo", label: "一人鍋" },    // 仮
-  { code: "noodle", label: "麺" },           // 仮
-  { code: "nabe_share", label: "みんなで鍋" }, // 仮
+  { code: "okayu", label: "お粥" },
+  { code: "soup", label: "スープ" },
+  { code: "nabe_solo", label: "一人鍋" },
+  { code: "noodle", label: "麺" },
+  { code: "nabe_share", label: "鍋セット" }, // 青山本店のみ(展開店は4択の予定)
 ]);
 
 // ---- 今日のおすすめの一品(五行 × 食事の気分) ----
-// 仮: メニューが決まったら差し替える。料理名はすべて仮の名前
+// 文案(牧野さん承認 2026-10-21・メニュー名 v1.0・薬日本堂の表現チェック前)。五色湯: 木=麻辣湯(赤)、火=酸辣湯(緑)、土=黄金湯(黄)、金=鶏白湯(白)、水=黒麻湯(黒)
 export const RECOMMENDATIONS = Object.freeze({
-  wood:  { okayu: "(仮)春菊と鶏のお粥", soup: "(仮)陳皮香る野菜スープ", nabe_solo: "(仮)香味野菜の一人鍋", noodle: "(仮)ジャスミン香る汁麺", nabe_share: "(仮)香草たっぷりの薬膳鍋" },
-  fire:  { okayu: "(仮)緑豆のお粥", soup: "(仮)冬瓜とトマトのスープ", nabe_solo: "(仮)ゴーヤと豆腐の一人鍋", noodle: "(仮)きゅうりと蒸し鶏の冷やし麺", nabe_share: "(仮)夏野菜の白湯鍋" },
-  earth: { okayu: "(仮)はとむぎとかぼちゃのお粥", soup: "(仮)さつまいもと生姜のポタージュ", nabe_solo: "(仮)きのこと鶏の一人鍋", noodle: "(仮)やさしい味の鶏だし麺", nabe_share: "(仮)根菜たっぷりの薬膳鍋" },
-  metal: { okayu: "(仮)白きくらげと百合根のお粥", soup: "(仮)梨と白きくらげのスープ", nabe_solo: "(仮)豆乳と白菜の一人鍋", noodle: "(仮)れんこんのとろみ麺", nabe_share: "(仮)白い食材の豆乳鍋" },
-  water: { okayu: "(仮)黒米と黒豆のお粥", soup: "(仮)黒ごまと生姜のスープ", nabe_solo: "(仮)羊肉とねぎの一人鍋", noodle: "(仮)黒ごま担々麺", nabe_share: "(仮)クコの実と生姜の薬膳鍋" },
+  wood:  { okayu: "野菜粥", soup: "麻辣湯", nabe_solo: "麻辣湯 一人鍋", noodle: "麻辣湯麺", nabe_share: "陰陽鍋セット(麻辣湯と鶏白湯)" },
+  fire:  { okayu: "海老とアスパラの粥", soup: "酸辣湯", nabe_solo: "酸辣湯 一人鍋(辛さ0から)", noodle: "酸辣湯麺", nabe_share: "陰陽鍋セット(酸辣湯と鶏白湯)" },
+  earth: { okayu: "ホタテとナツメの粥", soup: "黄金湯", nabe_solo: "黄金湯 一人鍋", noodle: "黄金湯麺", nabe_share: "陰陽鍋セット(黄金湯と黒麻湯)" },
+  metal: { okayu: "蒸し鶏と茗荷の粥", soup: "鶏白湯", nabe_solo: "鶏白湯 一人鍋", noodle: "鶏白湯麺", nabe_share: "陰陽鍋セット(鶏白湯と黄金湯)" },
+  water: { okayu: "海鮮粥", soup: "黒麻湯", nabe_solo: "黒麻湯 一人鍋", noodle: "黒麻湯麺", nabe_share: "陰陽鍋セット(黒麻湯と麻辣湯)" },
 });
 // おすすめの理由(五行ごと)。仮
 export const DISH_REASONS = Object.freeze({
