@@ -60,8 +60,9 @@ export function parseTableList(text) {
 }
 // カードの文言。direct はダイニーの注文 URL を直接開く小さな QR(LINE を使わない方・すぐ注文したい方。2026-10-16 牧野さん承認。店舗IDを設定したときだけ)
 //   2026-10-16 牧野さん「体質チェックをするメリットが弱い」→ 見出しを「今の体質と気分に合う一品のご提案」にした(文案・薬日本堂の表現チェック前)
-export const TABLE_POP = Object.freeze({ eyebrow: "1分体質チェック", title: "あなたに合う一品を、1分で", lead: "15の質問と今日の食事の気分から、いまの体質に合わせたお料理とお茶をご提案します",
-  scan: "スマホのカメラで読み取ってください(LINE が開きます)", after: "ご提案から、そのままご注文いただけます", direct: "すぐにご注文の方はこちら", directEn: "Order here (scan)" });
+//   改行(\n)の位置で行を分け、各行は途中で折り返さない(2026-10-21 牧野さん:「1/分で」「ます」だけの行が見づらい)
+export const TABLE_POP = Object.freeze({ eyebrow: "1分体質チェック", title: "あなたに合う一品を、\n1分で", lead: "15の質問と今日の食事の気分から、\nいまの体質に合わせた\nお料理とお茶をご提案します",
+  scan: "スマホのカメラで読み取ってください(LINE が開きます)", after: "ご提案から、\nそのままご注文いただけます。", direct: "すぐにご注文の方は\nこちら", directEn: "Order here (scan)" });
 
 // お席の QR から入ったことを、会員登録などで画面を移っても覚えておく(この端末の中だけ・4時間)
 export const TABLE_KEY = "10zen_dinii_table";

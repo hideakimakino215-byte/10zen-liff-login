@@ -32,6 +32,7 @@ button.primary { background:var(--ink); color:#fff; border:0; }
 .pop .qr svg { display:block; width:170px; height:170px; margin:10px auto 6px; background:#fff; border-radius:6px; }
 .pop .scan { font-size:12.5px; color:var(--sub); line-height:1.6; }
 .pop .after { font-size:14px; font-weight:600; line-height:1.6; margin-top:6px; }
+.pop .ln { display:block; white-space:nowrap; }   /* 改行の位置で行を分け、行の途中では折り返さない */
 .pop .direct { display:flex; align-items:center; justify-content:center; gap:10px; margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); }
 .pop .direct svg { display:block; width:84px; height:84px; }
 .pop .direct p { font-size:12.5px; font-weight:600; text-align:left; line-height:1.5; }
@@ -63,6 +64,8 @@ const cfg = window.APP_CONFIG;
 const $ = (id) => document.getElementById(id);
 const kids = (parent, ...nodes) => { for (const n of nodes) if (n) parent.append(n); return parent; };
 const el = (tag, text, attrs = {}) => { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+// 改行(\n)ごとに1行(行の途中では折り返さない)
+const lines = (tag, text, attrs = {}) => kids(el(tag, undefined, attrs), ...String(text).split("\n").map((t) => el("span", t, { class: "ln" })));
 // URL を QR の SVG にする(qr.html と同じ。SVG は DOMParser で読み、文字列を HTML として差し込まない)
 function qrSvg(text) {
   const q = window.qrcode(0, "M"); q.addData(text); q.make();
@@ -80,10 +83,10 @@ function make() {
     const card = el("article", undefined, { class: "pop", "data-table": table });
     card.append(...HERBS.map(([name, pos]) => el("img", undefined, { src: `assets/herb-${name}.webp`, alt: "", "aria-hidden": "true", class: "herb", style: pos })),
       el("img", undefined, { src: "assets/logo.png", alt: "10ZEN YAKUZEN RESTAURANT" }),
-      el("p", TABLE_POP.eyebrow, { class: "eyebrow" }), el("h2", TABLE_POP.title, { class: "serif" }), el("p", TABLE_POP.lead, { class: "lead" }), qr,
-      el("p", TABLE_POP.scan, { class: "scan" }), el("p", TABLE_POP.after, { class: "after" }));
+      el("p", TABLE_POP.eyebrow, { class: "eyebrow" }), lines("h2", TABLE_POP.title, { class: "serif" }), lines("p", TABLE_POP.lead, { class: "lead" }), qr,
+      el("p", TABLE_POP.scan, { class: "scan" }), lines("p", TABLE_POP.after, { class: "after" }));
     const direct = diniiEnabled(cfg) ? diniiTableUrl(table, { shopId: cfg.diniiShopId, liffId: cfg.diniiLiffId }) : null;
-    if (direct) { const d = el("div", undefined, { class: "direct qr", "data-url": direct }); d.append(qrSvg(direct), kids(el("p", TABLE_POP.direct), el("br"), el("span", TABLE_POP.directEn, { class: "en", lang: "en" }))); card.append(d); }
+    if (direct) { const d = el("div", undefined, { class: "direct qr", "data-url": direct }); d.append(qrSvg(direct), kids(lines("p", TABLE_POP.direct), el("span", TABLE_POP.directEn, { class: "en ln", lang: "en" }))); card.append(d); }
     card.append(el("p", `お席 ${label}`, { class: "tbl" }));
     return card;
   }).filter(Boolean);
