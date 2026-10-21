@@ -53,12 +53,12 @@ export const MOODS = Object.freeze([
 ]);
 
 // ---- 今日のおすすめの一品(五行 × 食事の気分) ----
-// 文案(牧野さん承認 2026-10-21・メニュー名 v1.0・薬日本堂の表現チェック前)。五色湯: 木=麻辣湯(赤)、火=酸辣湯(緑)、土=黄金湯(黄)、金=鶏白湯(白)、水=黒麻湯(黒)
+// 文案(牧野さん承認 2026-10-21・メニュー名 v1.0・薬日本堂の表現チェック前)。五色湯: 木=麻辣湯(赤)、火=酸辣湯(緑)、土=スパイス湯(黄)、金=鶏白湯(白)、水=黒麻湯(黒)
 export const RECOMMENDATIONS = Object.freeze({
   wood:  { okayu: "野菜粥", soup: "麻辣湯", nabe_solo: "麻辣湯 一人鍋", noodle: "麻辣湯麺", nabe_share: "陰陽鍋セット(麻辣湯と鶏白湯)" },
   fire:  { okayu: "海老とアスパラの粥", soup: "酸辣湯", nabe_solo: "酸辣湯 一人鍋(辛さ0から)", noodle: "酸辣湯麺", nabe_share: "陰陽鍋セット(酸辣湯と鶏白湯)" },
-  earth: { okayu: "ホタテとナツメの粥", soup: "黄金湯", nabe_solo: "黄金湯 一人鍋", noodle: "黄金湯麺", nabe_share: "陰陽鍋セット(黄金湯と黒麻湯)" },
-  metal: { okayu: "蒸し鶏と茗荷の粥", soup: "鶏白湯", nabe_solo: "鶏白湯 一人鍋", noodle: "鶏白湯麺", nabe_share: "陰陽鍋セット(鶏白湯と黄金湯)" },
+  earth: { okayu: "ホタテとナツメの粥", soup: "スパイス湯", nabe_solo: "スパイス湯 一人鍋", noodle: "スパイス湯麺", nabe_share: "陰陽鍋セット(スパイス湯と黒麻湯)" },
+  metal: { okayu: "蒸し鶏と茗荷の粥", soup: "鶏白湯", nabe_solo: "鶏白湯 一人鍋", noodle: "鶏白湯麺", nabe_share: "陰陽鍋セット(鶏白湯とスパイス湯)" },
   water: { okayu: "海鮮粥", soup: "黒麻湯", nabe_solo: "黒麻湯 一人鍋", noodle: "黒麻湯麺", nabe_share: "陰陽鍋セット(黒麻湯と麻辣湯)" },
 });
 // おすすめの理由(五行ごと)。仮
