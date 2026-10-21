@@ -263,8 +263,15 @@ function resultView(v) {
 function orderTableNodes(table) {
   const url = diniiTableUrl(table, { shopId: cfg.diniiShopId, liffId: cfg.diniiLiffId });
   if (!url) return null;
+  const a = el("a", OT.table, { id: "ccOrderTable", class: "primary", href: url });
+  // 押された数だけを記録(注文したかは分からない。2026-10-21 決定 2A)。同じ画面で移るので、記録の送信を最大0.8秒だけ待ってから注文画面へ
+  a.addEventListener("click", async (ev) => {
+    ev.preventDefault();
+    try { await Promise.race([client.orderClick(table), new Promise((r) => setTimeout(r, 800))]); } catch (_e) { /* 記録できなくても注文画面へ */ }
+    window.location.assign(url);
+  });
   return kids(el("section", undefined, { class: "panel item", id: "ccOrder" }), el("p", OT.label, { class: "label" }),
-    el("p", OT.note, { id: "ccOrderNote", class: "meta" }), el("a", OT.table, { id: "ccOrderTable", class: "primary", href: url }));
+    el("p", OT.note, { id: "ccOrderNote", class: "meta" }), a);
 }
 
 // このまま注文する(来店した日・お席の QR から入っていないとき): LIFF のカメラでお席のQRを読み、10ZEN のダイニーの注文用のQRのときだけ開く(app-core/dinii.mjs)。カメラが使えない端末では案内の文だけ
@@ -279,6 +286,7 @@ function orderNodes() {
     let r; try { r = await window.liff.scanCodeV2(); } catch (_e) { msg.textContent = OT.noScan; return; }
     const url = diniiOrderUrl(r?.value, { shopId: cfg.diniiShopId, liffId: cfg.diniiLiffId });
     if (!url) { msg.textContent = OT.notDinii; return; }
+    try { await Promise.race([client.orderClick(new URL(url).searchParams.get("tableCode")), new Promise((r) => setTimeout(r, 800))]); } catch (_e) { /* 記録できなくても注文画面へ */ }
     window.location.assign(url);
   };
   return kids(box, el("p", OT.label, { class: "label" }), note, b, msg);

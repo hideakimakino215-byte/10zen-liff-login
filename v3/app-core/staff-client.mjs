@@ -45,6 +45,8 @@ export function createStaffClient({ supabase, qrEndpoint, fetchFn = (...a) => fe
     constitutionStats: () => rpc("staff_constitution_stats"),
     // 友だち紹介の集計(db/106)。閲覧以上(店頭タブレットは forbidden)。個人の情報は返らない。data.canEdit が true なのは店長だけ
     referralStats: () => rpc("staff_referral_stats"),
+    // 「このまま注文する」が押された数(db/116。閲覧以上)
+    orderClickStats: () => rpc("staff_order_click_stats"),
     // 店長のみ: ディナーの五巡茶の出し方 "cup"(1杯)/ "free_flow"(飲み放題)。まだ使っていない紹介のチケットの名前も変わる
     setDinnerTeaMode: (mode) => rpc("manager_set_dinner_tea_mode", { p_mode: mode }),
     // 目標と KPI(db/105)。集計は店長・閲覧(本部)だけ(スタッフ・店頭タブレットは forbidden)。data.canEdit が true なのは店長だけ

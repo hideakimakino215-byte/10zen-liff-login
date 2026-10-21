@@ -1,6 +1,6 @@
 <!doctype html>
 <!-- 会員証(両面)。見た目だけを持つ。業務処理は ../app-core のクライアントと画面状態(screens.mjs)・店舗情報(store-info.mjs)に集約されている。
-     UI が守ること: 画面は cardScreen/checkinScreen/redeemScreen が返す screen 名で分岐し、表示は view の項目をそのまま使う。値の未取得は『—』。値は textContent で入れる(innerHTML 不可)。
+     UI が守ること: 画面は cardScreen/checkinScreen/ticketScreen が返す screen 名で分岐し、表示は view の項目をそのまま使う。値の未取得は『—』。値は textContent で入れる(innerHTML 不可)。
      素材: assets/logo.png(店のロゴ・透過)と assets/herb-*.webp(水彩の生薬イラスト。白背景を透過に加工)。 -->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
 <title>10ZEN 会員証</title>
@@ -54,19 +54,14 @@ a { color:inherit; }
 .panel { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:18px 18px 16px; margin-top:20px; }
 .label { font-size:13px; letter-spacing:.1em; color:var(--sub); }
 .points { font-size:42px; font-weight:600; letter-spacing:.01em; line-height:1.15; margin-top:4px; font-variant-numeric:tabular-nums; }
-.yen { font-size:13px; color:var(--sub); margin-top:2px; }
+.pts-note { font-size:13px; color:var(--sub); margin-top:2px; }
 .bar { height:8px; background:#ece6dc; border-radius:999px; overflow:hidden; margin-top:16px; }
 .bar > i { display:block; height:100%; background:linear-gradient(90deg,#b99256,#8a6a3b); border-radius:999px; }
 .nextrow { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-top:9px; font-size:13px; }
 .nextrow .life { color:var(--sub); font-size:13px; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .meta { font-size:13px; color:var(--sub); margin-top:8px; line-height:1.6; }
-.expiry { font-size:14px; margin-top:10px; padding:8px 10px; border-radius:10px; background:#fff7ea; color:#7a4b12; line-height:1.6; }
-.quick { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
-.quick .chip-btn { min-height:44px; padding:0 14px; border-radius:999px; border:1px solid var(--line); background:#fff; font:inherit; font-size:15px; font-weight:600; color:var(--ink); cursor:pointer; }
 .pending { text-align:center; }
 .code { font-size:44px; letter-spacing:.14em; font-weight:700; margin:10px 0 4px; font-variant-numeric:tabular-nums; }
-.row { display:flex; gap:8px; margin-top:14px; }
-input[type=number] { flex:1; min-width:0; height:46px; border:1px solid var(--line); border-radius:10px; padding:0 12px; font-size:16px; background:#fff; color:var(--ink); }
 button { font-family:inherit; }
 .primary, .ghost { height:46px; border-radius:10px; padding:0 14px; font-size:15px; font-weight:600; cursor:pointer; }
 .primary { border:0; background:var(--ink); color:#fff; } .ghost { border:1px solid var(--ink); background:#fff; color:var(--ink); }
@@ -134,7 +129,7 @@ details.benefits summary::-webkit-details-marker { display:none; }
 <script src="vendor/liff.js"></script>
 <script type="module">
 import { createMemberClient, qrTokenFromLocation, inviteCodeFromLocation, isInviteCode, inviteUrl } from "../app-core/member-client.mjs";
-import { cardScreen, checkinScreen, redeemScreen, redeemWatch, ticketScreen, ticketWatch, messages, lineShareUrl, registerNotice, ccPromptVisible, CC_SKIP_KEY, rankUpNotice } from "../app-core/screens.mjs";
+import { cardScreen, checkinScreen, ticketScreen, ticketWatch, messages, lineShareUrl, registerNotice, ccPromptVisible, CC_SKIP_KEY, rankUpNotice } from "../app-core/screens.mjs";
 import { ELEMENT_TEXT_COLORS } from "../app-core/constitution.mjs";
 import { STORE, flowFromLocation } from "../app-core/store-info.mjs";
 import { cardText, ccText, detectLang, storedLang, saveLang, langSwitcher, HTML_LANG, paren } from "../app-core/i18n.mjs";
@@ -266,7 +261,8 @@ function cardNodes(view) {
   n.unshift(switcher());
   n.push(cardFace(view), el("p", U.flipHint, { class: "hint" }));
   const pts = el("section", undefined, { class: "panel" });
-  kids(pts, el("p", U.pointsLabel, { class: "label" }), el("p", view.pointsText, { id: "points", class: "points" }), el("p", view.yenText, { id: "yen", class: "yen" }));
+  // 2026-10-21 牧野さん決定: ポイントはお会計の値引きに使わない(来店の記録とランクだけ)。大きな数字は累計(ランクを決める値)
+  kids(pts, el("p", U.pointsLabel, { class: "label" }), el("p", view.lifetimeText, { id: "points", class: "points" }), el("p", M.points_note, { id: "pointsNote", class: "pts-note" }));
   const bar = el("div", undefined, { class: "bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(view.next.percent ?? 0), "aria-label": U.nextAria });
   const fill = el("i"); fill.style.width = `${Math.max(0, Math.min(100, Number(view.next.percent) || 0))}%`; bar.append(fill);
   const target = view.next.target, life = String(view.lifetimeText || "—").replace(/ pt$/, "");     // 次のランクの基準は DB から(rank_thresholds)
@@ -275,30 +271,9 @@ function cardNodes(view) {
     el("span", target ? U.lifetime(life, target.toLocaleString("ja-JP")) : U.lifetime(view.lifetimeText), { id: "lifetime", class: "life" }));
   kids(pts, bar, row);
   if (view.lifetimeNote) pts.append(el("p", view.lifetimeNote, { id: "lifetimeNote", class: "meta" }));
-  if (view.lastRedeem) pts.append(el("p", view.lastRedeem.message, { id: "lastRedeem", class: "meta" }));
-  if (view.expirySoonText) pts.append(el("p", view.expirySoonText, { id: "expirySoon", class: "expiry" }));
   n.push(pts);
   const cc = checkNodes(view); if (cc) n.push(cc);
-  if (view.pending) {
-    const p = view.pending, box = el("section", undefined, { class: "panel pending" });
-    kids(box, el("p", U.pendingInfo(p.points, p.yen), { id: "pendingInfo", class: "label" }), el("p", p.codeText, { id: "pendingCode", class: "code" }), el("p", U.pendingLeft(p.secondsLeft), { id: "pendingLeft", class: "meta" }));
-    const c = el("button", U.cancelRedeem, { id: "cancel", class: "ghost full" }); c.onclick = async () => { c.disabled = true; const r = await client.redeemCancel(); if (r.kind !== "ok") notice = M.cancel_failed; load(); }; box.append(c); n.push(box);
-  } else if (view.canRedeem) {
-    const box = el("section", undefined, { class: "panel" }), row = el("div", undefined, { class: "row" });
-    const i = el("input", undefined, { id: "amount", type: "number", inputmode: "numeric", min: String(view.redeemUnit), step: String(view.redeemUnit), placeholder: String(view.redeemUnit), "aria-label": U.amountLabel });
-    const b = el("button", U.redeemButton, { id: "redeem", class: "primary" });
-    b.onclick = async () => { if (b.disabled) return; b.disabled = true; b.textContent = M.requesting;   // 二重に押せないように(外部レビュー 2026-10-20)
-      const s = redeemScreen(await client.redeemRequest(Number(i.value)), Date.now(), lang); notice = s.error || s.notice || (s.screen === "error" ? s.message : null); load(); };
-    kids(row, i, b); kids(box, el("p", U.redeemLabel(view.redeemUnit), { class: "label" }), row);
-    const all = Math.floor(view.points / view.redeemUnit) * view.redeemUnit, quick = el("div", undefined, { class: "quick", id: "amountQuick" });
-    for (const [label, v] of [["500pt", 500], ["1,000pt", 1000], [U.quickAll(all.toLocaleString("ja-JP")), all]]) {
-      if (v < view.redeemUnit || v > view.points || (v === all && (all === 500 || all === 1000))) continue;
-      const q = el("button", label, { type: "button", class: "chip-btn", "data-amount": String(v) }); q.onclick = () => { i.value = String(v); i.focus(); }; quick.append(q);
-    }
-    if (quick.childNodes.length) box.append(quick);
-    n.push(box);
-  }
-  // 特典チケット(1回で終わる特典)。「使う」→6桁コード→スタッフが確定(ポイント使用と同じ流れ)
+  // 特典チケット(初回特典・到達のお祝い・季節・紹介)。「使う」→6桁コード→スタッフが確定
   if (view.pendingTicket) {
     const p = view.pendingTicket, box = el("section", undefined, { class: "panel pending", id: "ticketPending" });
     kids(box, el("p", U.ticketPendingInfo(p.title), { id: "ticketPendingInfo", class: "label" }), el("p", p.codeText, { id: "ticketCode", class: "code" }),
@@ -336,20 +311,18 @@ async function load() {
   clearTimeout(poll);
   const s = cardScreen(await client.me(), Date.now(), lang);
   if (s.screen === "card") {
-    const w = redeemWatch(prevView, s.view); if (w.change === "confirmed" || w.change === "cancelled" || w.change === "expired") notice = w.message || notice;
     const wt = ticketWatch(prevView, s.view); if (wt.change === "confirmed" || wt.change === "cancelled" || wt.change === "expired") notice = wt.message || notice;
     if (inviteRef) { inviteRef = null; keepRef(null); }                          // すでに会員: 招待のリンクから開いても紹介にはならない
     const nt = s.view.invite?.notice, ack = nt && inviteAcked !== nt.until;
     if (ack) { inviteNote = nt.text; inviteAcked = nt.until; }                     // 紹介者へのお知らせ(1回だけ): 表示してから既読にする
     let seen = null; try { seen = localStorage.getItem(RANK_KEY + s.view.memberNo); localStorage.setItem(RANK_KEY + s.view.memberNo, s.view.rank); } catch (_e) { /* 使えない端末: お知らせなし */ }
     const up = rankUpNotice(seen, s.view, lang); if (up) notice = notice ? `${notice}\n${up}` : up;   // ランクが上がったら1回だけ(ペルソナ実験 2026-10-17)
-    // 数秒ごとの確認で描き直しても、入力中の金額と操作中の場所は保つ(外部レビュー 2026-10-20)
-    const keepAmount = document.getElementById("amount")?.value, keepFocus = document.activeElement?.id;
+    // 数秒ごとの確認で描き直しても、操作中の場所は保つ(外部レビュー 2026-10-20)
+    const keepFocus = document.activeElement?.id;
     prevView = s.view; show(...cardNodes(s.view));
-    const amt = document.getElementById("amount"); if (amt && keepAmount) amt.value = keepAmount;
     if (keepFocus) document.getElementById(keepFocus)?.focus({ preventScroll: true });
     if (ack) client.inviteSeen(nt.until);
-    if (s.view.pending || s.view.pendingTicket) poll = setTimeout(load, 3000);
+    if (s.view.pendingTicket) poll = setTimeout(load, 3000);
   } else if (s.screen === "register") {
     const b = el("button", U.register, { id: "register", class: "primary full" }); b.onclick = async () => { b.disabled = true; await registerNow(); load(); };
     show(switcher(), cardFace(null), ...(inviteRef ? [el("p", M.invite_register, { id: "inviteWelcome", class: "notice" })] : []), el("p", s.message, { id: "msg", class: "msg" }), b);

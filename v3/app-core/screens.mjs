@@ -8,7 +8,7 @@ import { TEA_WEEKDAY } from "./constitution.mjs";
 export const messages = {
   ja: {
     needs_login: "LINE でログインしてください",
-    not_registered: "会員登録がまだです。登録すると 100pt をプレゼントします",
+    not_registered: "会員登録がまだです。登録すると、ディナーの五巡茶 飲み放題 無料のチケットをお届けします",
     network_error: "通信できませんでした。電波の良い場所で、もう一度お試しください",
     server_error: "ただいま混み合っています。しばらくしてからもう一度お試しください",
     rate_limited: "操作が多すぎます。しばらくしてからもう一度お試しください",
@@ -45,27 +45,30 @@ export const messages = {
     // 友だち紹介(db/106)
     invite_title: "友だちを招待",
     invite_count: (n, cap) => `今月の招待 ${n}/${cap}人`,
-    invite_reward_ticket: (tea) => `お友だちが初めてご来店されると、お二人に「${tea}」のチケットをお届けします`,
-    invite_reward_points: (tea, pts) => `お友だちが初めてご来店されると、お友だちに「${tea}」のチケット、あなたに ${pts}pt をお届けします`,
+    invite_reward_ticket: (tea) => `お友だちが初めてご来店されると、あなたに「${tea}」のチケットをお届けします。お友だちには、ご登録の特典のチケットが届きます`,
+    invite_reward_points: (tea, pts) => `お友だちが初めてご来店されると、あなたに ${pts}pt をお届けします。お友だちには、ご登録の特典のチケットが届きます`,
     invite_full: (cap) => `今月の招待は上限(${cap}人)に達しました。来月また招待できます`,
-    invite_referred_waiting: (tea) => `お友だちの招待で登録されました。初めてのご来店で「${tea}」のチケットをお届けします`,
+    invite_referred_waiting: (tea) => "お友だちの招待で登録されました。ご登録の特典のチケットをお使いください",
     invite_notice_ticket: "お友だちが来店しました。チケットが届いています",
     invite_notice_points: (pts) => `お友だちが来店しました。${pts}ptを付けました`,
     invite_notice_both: (pts) => `お友だちが来店しました。チケットが届いています。${pts}ptを付けました`,
-    invite_register: "お友だちからの招待です。登録して初めてご来店いただくと、特典チケットをお届けします",
-    invite_linked: "招待を受け付けました。初めてのご来店で特典チケットをお届けします",
+    invite_register: "お友だちからの招待です。登録すると、ディナーの五巡茶 飲み放題 無料のチケットをお届けします",
+    invite_linked: "招待を受け付けました",
     invite_first_visit: (title) => `お友だち紹介の特典チケット「${title}」をお届けしました`,
-    invite_share_text: (tea, url) => `10ZEN の LINE 会員証にご招待します。登録して初めてご来店いただくと「${tea}」のチケットをお届けします。\n${url}`,
+    invite_share_text: (tea, url) => `10ZEN の LINE 会員証にご招待します。登録すると「${tea}」のチケットをお届けします。\n${url}`,
     invite_copied: "リンクをコピーしました",
     invite_copy_failed: "コピーできませんでした。下のリンクを長押ししてコピーしてください",
     invite_sent: "招待を送りました",
     // 多言語(2026-10-17)で足した部品。日本語は今までの表示と同じ
+    // 2026-10-21 牧野さん決定: ポイントの値引きをやめ、初回特典(ディナーの五巡茶 飲み放題 無料)。ポイントは来店の記録とランクだけ
+    welcome_ticket: (title) => `ご登録ありがとうございます。「${title}」のチケットをお届けしました`,
+    points_note: "ご来店でたまり、ランクが上がると特典が届きます",
     yen_equiv: (n) => `${n}円相当`, next_remaining: (n) => `あと ${n} pt`, date: (y, m, d) => `${y}年${m}月${d}日`, invite_tea_fallback: "特典",
   },
   // 英語・中国語(文案。英語・中国語のわかる方の確認と薬日本堂の表現チェックの前。言葉づかいのきまりは app-core/i18n.mjs と同じ)
   en: {
     needs_login: "Please log in with LINE",
-    not_registered: "You're not registered yet. Register now and get 100 pt",
+    not_registered: "You're not registered yet. Register now and get a ticket for free unlimited Gojun tea at dinner",
     network_error: "We couldn't connect. Please try again where the signal is better",
     server_error: "We're busy right now. Please try again in a little while",
     rate_limited: "Too many attempts. Please try again in a little while",
@@ -100,25 +103,27 @@ export const messages = {
     cc_invalid: "We couldn't send your answers. Please start again",
     invite_title: "Invite friends",
     invite_count: (n, cap) => `Invited this month: ${n}/${cap}`,
-    invite_reward_ticket: (tea) => `When your friend visits for the first time, you'll both get a ticket for ${tea}`,
-    invite_reward_points: (tea, pts) => `When your friend visits for the first time, they'll get a ticket for ${tea} and you'll get ${pts} pt`,
+    invite_reward_ticket: (tea) => `When your friend visits for the first time, you'll get a ticket for ${tea}. Your friend gets a welcome ticket when they register`,
+    invite_reward_points: (tea, pts) => `When your friend visits for the first time, you'll get ${pts} pt. Your friend gets a welcome ticket when they register`,
     invite_full: (cap) => `You've reached this month's limit (${cap}). You can invite more next month`,
-    invite_referred_waiting: (tea) => `You registered through a friend's invitation. You'll get a ticket for ${tea} on your first visit`,
+    invite_referred_waiting: (tea) => "You registered through a friend's invitation. Please use your welcome ticket",
     invite_notice_ticket: "Your friend visited. You've received a ticket",
     invite_notice_points: (pts) => `Your friend visited. You earned ${pts} pt`,
     invite_notice_both: (pts) => `Your friend visited. You've received a ticket and ${pts} pt`,
-    invite_register: "You were invited by a friend. Register and visit for the first time to get a reward ticket",
-    invite_linked: "Your invitation was accepted. You'll get a reward ticket on your first visit",
+    invite_register: "You were invited by a friend. Register to get a ticket for free unlimited Gojun tea at dinner",
+    invite_linked: "Your invitation was accepted",
     invite_first_visit: (title) => `Here's your friend referral ticket: ${title}`,
-    invite_share_text: (tea, url) => `You're invited to the 10ZEN LINE membership card. Register and visit for the first time to get a ticket for ${tea}.\n${url}`,
+    invite_share_text: (tea, url) => `You're invited to the 10ZEN LINE membership card. Register to get a ticket for ${tea}.\n${url}`,
     invite_copied: "Link copied",
     invite_copy_failed: "We couldn't copy it. Press and hold the link below to copy",
     invite_sent: "Invitation sent",
+    welcome_ticket: (title) => `Thank you for registering. Here's your ticket: ${title}`,
+    points_note: "Earned by visiting. As your rank goes up, you receive rewards",
     yen_equiv: (n) => `Worth ¥${n}`, next_remaining: (n) => `${n} pt left`, date: (y, m, d) => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`, invite_tea_fallback: "a reward",
   },
   zh: punctDeep({
     needs_login: "请用LINE登录",
-    not_registered: "您还没有注册会员。现在注册即送100pt",
+    not_registered: "您还没有注册会员。现在注册即送晚餐五巡茶畅饮(免费)券",
     network_error: "无法连接网络。请在信号良好的地方重试",
     server_error: "当前访问人数较多。请稍后再试",
     rate_limited: "操作过于频繁。请稍后再试",
@@ -153,20 +158,22 @@ export const messages = {
     cc_invalid: "回答发送失败。请从头再试一次",
     invite_title: "邀请好友",
     invite_count: (n, cap) => `本月已邀请 ${n}/${cap}人`,
-    invite_reward_ticket: (tea) => `好友首次来店后,你们两人都将获得「${tea}」券`,
-    invite_reward_points: (tea, pts) => `好友首次来店后,好友将获得「${tea}」券,你将获得 ${pts}pt`,
+    invite_reward_ticket: (tea) => `好友首次来店后,你将获得「${tea}」券。好友注册时也会获得注册礼券`,
+    invite_reward_points: (tea, pts) => `好友首次来店后,你将获得 ${pts}pt。好友注册时也会获得注册礼券`,
     invite_full: (cap) => `本月邀请已达上限(${cap}人)。下个月可以继续邀请`,
-    invite_referred_waiting: (tea) => `您已通过好友邀请注册。首次来店时将获得「${tea}」券`,
+    invite_referred_waiting: (tea) => "您已通过好友邀请注册。请使用注册礼券",
     invite_notice_ticket: "您的好友已来店。优惠券已送达",
     invite_notice_points: (pts) => `您的好友已来店。已赠送 ${pts}pt`,
     invite_notice_both: (pts) => `您的好友已来店。优惠券已送达,并已赠送 ${pts}pt`,
-    invite_register: "这是好友的邀请。注册并首次来店后,即可获得优惠券",
-    invite_linked: "已接受邀请。首次来店时将送上优惠券",
+    invite_register: "这是好友的邀请。注册即送晚餐五巡茶畅饮(免费)券",
+    invite_linked: "已接受邀请",
     invite_first_visit: (title) => `已送上好友推荐优惠券「${title}」`,
-    invite_share_text: (tea, url) => `邀请你加入10ZEN的LINE会员卡。注册并首次来店后,即可获得「${tea}」券。\n${url}`,
+    invite_share_text: (tea, url) => `邀请你加入10ZEN的LINE会员卡。注册即送「${tea}」券。\n${url}`,
     invite_copied: "已复制链接",
     invite_copy_failed: "复制失败。请长按下方链接进行复制",
     invite_sent: "已发送邀请",
+    welcome_ticket: (title) => `感谢注册。已送上「${title}」券`,
+    points_note: "来店即可累积,等级提升后可获得特典",
     yen_equiv: (n) => `相当于${n}日元`, next_remaining: (n) => `还差 ${n} pt`, date: (y, m, d) => `${y}年${m}月${d}日`, invite_tea_fallback: "特典",
   }),
 };
@@ -186,7 +193,7 @@ export function rankUpNotice(prevRank, view, lang = "ja") {
   return a >= 0 && b > a ? msgs(lang).rank_up(view.rankLabel) : null;
 }
 export const RANK_PERKS = [
-  ["amber", "ディナーの五巡茶 無料"],
+  ["amber", "ディナーの五巡茶 飲み放題 無料"],
   ["emerald", "季節の豆花チケット(季節ごとに1枚)"],
   ["ruby", "あなたの体質の五巡茶(持ち帰り用)チケット(季節ごとに1枚)"],
   ["onyx", "新メニュー試食会へご招待"],
@@ -255,8 +262,13 @@ export function inviteView(member, lang = "ja") {
 // LINE の「送る」画面の URL(shareTargetPicker が使えないときの代わり)
 export const lineShareUrl = (text) => `https://line.me/R/share?text=${encodeURIComponent(text)}`;
 // 登録の結果(register())→ 会員証に出す文言(招待が受け付けられたときだけ)
+// 登録のあとのお知らせ: 招待を受け付けた旨と、初回特典のチケット(db/116)
 export function registerNotice(res, lang = "ja") {
-  return res?.kind === "ok" && res.data?.invite === "linked" ? msgs(lang).invite_linked : null;
+  if (res?.kind !== "ok") return null;
+  const m = msgs(lang), parts = [];
+  if (res.data?.invite === "linked") parts.push(m.invite_linked);
+  if (res.data?.welcomeTicket) parts.push(m.welcome_ticket(ticketTitle({ title: res.data.welcomeTicket, kind: "welcome" }, lang)));
+  return parts.length ? parts.join(lang === "en" ? ". " : "。") : null;
 }
 
 // ---- 1分体質チェック(db/103・db/107: 来店のたびに任意でチェック) ----

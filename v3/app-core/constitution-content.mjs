@@ -117,7 +117,7 @@ export const WEB_CTA_BUTTON = "LINE で会員証に登録する";
 // 偏りが小さい・全部が同じくらい高いときの、おすすめの選び方の説明
 export const EVEN_PICK_NOTE = "大きな偏りがないため、おすすめのお料理とお茶は、今の季節と点数の高い項目から選んでいます。";
 // 会員でない方がお席の QR などから体質チェックを開いたとき
-export const CHECK_REGISTER_LEAD = "体質チェックは、10ZEN の LINE 会員証(無料)でご利用いただけます。登録するとポイントもたまります。";
+export const CHECK_REGISTER_LEAD = "体質チェックは、10ZEN の LINE 会員証(無料)でご利用いただけます。登録すると、ディナーの五巡茶 飲み放題 無料のチケットもお届けします。";
 export const CHECK_REGISTER_BUTTON = "会員登録して体質チェックへ";
 // 途中でやめた体質チェックの続き
 export const RESUME_BUTTON = (n) => `続きから(${n}問目)`;
