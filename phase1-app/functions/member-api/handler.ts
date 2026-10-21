@@ -102,7 +102,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       case "redeem_request": {
         if (!Number.isInteger(body.points) || body.points <= 0 || body.points > 10_000_000) return json({ error: "invalid_amount" }, 400, ch);
         const r = await rpc("app_redeem_request", { p_issuer: issuer, p_subject: subject, p_points: body.points, p_now: now });
-        const st = r.status === "not_registered" ? 404 : (r.status === "invalid_amount" || r.status === "insufficient_balance" || r.status === "already_pending") ? 409 : 200;
+        const st = r.status === "not_registered" ? 404 : (r.status === "invalid_amount" || r.status === "insufficient_balance" || r.status === "already_pending" || r.status === "redeem_disabled") ? 409 : 200;
         return json(r, st, ch);
       }
       case "redeem_cancel": {
@@ -145,6 +145,12 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       }
       case "referral_click": {
         const r = await rpc("app_referral_click", { p_issuer: issuer, p_subject: subject, p_now: now });
+        return json(r, r.status === "not_registered" ? 404 : 200, ch);
+      }
+      // 「このまま注文する」を押した(注文したかは分からない。2026-10-21 決定 2A)。テーブルコードは形が合うときだけ DB に残る
+      case "order_click": {
+        const table = typeof body.table === "string" && /^[0-9A-Za-z_-]{1,64}$/.test(body.table) ? body.table : null;
+        const r = await rpc("app_order_click", { p_issuer: issuer, p_subject: subject, p_table: table, p_now: now });
         return json(r, r.status === "not_registered" ? 404 : 200, ch);
       }
       default: return json({ error: "unknown_action" }, 400, ch);

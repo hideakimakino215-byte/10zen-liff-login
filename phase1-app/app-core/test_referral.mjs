@@ -63,21 +63,21 @@ try {
   const A = sub("a"), F = sub("f"), referrer = mkMember(A, "紹介 太郎"), friend = mkMember(F, "友だち 花子");
   let s = cardScreen(await referrer.register(), NOW()); assert.equal(s.screen, "card");
   let iv = s.view.invite; assert.ok(isInviteCode(iv.code)); assert.equal(iv.countText, "今月の招待 0/5人"); assert.equal(iv.full, false);
-  assert.equal(iv.rewardText, "お友だちが初めてご来店されると、お二人に「ディナーの五巡茶 1杯」のチケットをお届けします"); assert.equal(iv.referredText, null); assert.equal(iv.notice, null);
+  assert.equal(iv.rewardText, "お友だちが初めてご来店されると、あなたに「ディナーの五巡茶 1杯」のチケットをお届けします。お友だちには、ご登録の特典のチケットが届きます"); assert.equal(iv.referredText, null); assert.equal(iv.notice, null);
   assert.match(iv.shareText(inviteUrl("x", iv.code)), /ディナーの五巡茶 1杯[\s\S]*https:\/\/liff\.line\.me\/x\?ref=/);
   assert.doesNotMatch(iv.shareText(inviteUrl("x", iv.code)), /user\d{5}/);                                                     // 会員番号はリンクにも文面にも出ない
   const code = iv.code;
   assert.equal(cardScreen(await friend.me(), NOW()).screen, "register");
   const fr = await friend.register({ inviteCode: inviteCodeFromLocation("?liff.state=" + enc(`?ref=${code}`)), displayName: "x" });
-  assert.equal(fr.kind, "ok"); assert.equal(fr.data.invite, "linked"); assert.equal(registerNotice(fr), "招待を受け付けました。初めてのご来店で特典チケットをお届けします");
-  s = cardScreen(fr, NOW()); assert.equal(s.view.pointsText, "100 pt"); assert.equal(s.view.invite.referredText, "お友だちの招待で登録されました。初めてのご来店で「ディナーの五巡茶 1杯」のチケットをお届けします");
+  assert.equal(fr.kind, "ok"); assert.equal(fr.data.invite, "linked"); assert.equal(registerNotice(fr), "招待を受け付けました");   // 初回特典のチケット(db/116)はこのテストの DB(106 まで)にはない
+  s = cardScreen(fr, NOW()); assert.equal(s.view.pointsText, "100 pt"); assert.equal(s.view.invite.referredText, "お友だちの招待で登録されました。ご登録の特典のチケットをお使いください");
   assert.equal(cardScreen(await referrer.me(), NOW()).view.invite.countText, "今月の招待 1/5人"); assert.equal(cardScreen(await referrer.me(), NOW()).view.pointsText, "100 pt");
   // 形の違うコードはクライアントが送らない・サーバーも無視する。すでに会員なら紹介にならない
   const G = sub("c"), g = mkMember(G, "通常"); const gr = await g.register({ inviteCode: "user00001" }); assert.equal(gr.data.invite, null); assert.equal(registerNotice(gr), null);
   assert.equal((await raw(sub("d"), { action: "register", inviteCode: "AAAAAAAAAAAA" })).body.invite, "invalid");
   assert.equal((await referrer.register({ inviteCode: code })).data.status, "existing");
   assert.equal(pg.exec(`select count(*) from member_referrals;`), "1");
-  ok("紹介: 紹介者の会員証に招待コード・『今月の招待 0/5人』・特典の説明(文面に会員番号なし)。友だちは招待のリンク(liff.state の形でも)から登録するだけで紹介として記録され(通常の 100pt)、『初めてのご来店で…』と出る。紹介者は『1/5人』。形の違うコード・すでに会員の人は紹介にならない");
+  ok("紹介: 紹介者の会員証に招待コード・『今月の招待 0/5人』・特典の説明(文面に会員番号なし)。友だちは招待のリンク(liff.state の形でも)から登録するだけで紹介として記録され(通常の 100pt)、『ご登録の特典のチケットをお使いください』と出る。紹介者は『1/5人』。形の違うコード・すでに会員の人は紹介にならない");
 
   // ---- 3. 初来店(店頭QR)→ 友だちに特典 → 紹介者の会員証に1回だけお知らせ ----
   const tok = (await makeToken(SECRET, UNIT, NOW())).token;
@@ -99,7 +99,7 @@ try {
   await amber.register();
   pg.exec(`select public._grant(m.id, 'earn', 'visit', 1000 - public._effective_lifetime(m), 'ref-app-test', 'test', null, now()) from members m where m.id = ${q(midOf(B))};`);
   let av = cardScreen(await amber.me(), NOW()).view; assert.equal(av.rank, "amber");
-  assert.equal(av.invite.rewardText, "お友だちが初めてご来店されると、お友だちに「ディナーの五巡茶 1杯」のチケット、あなたに 100pt をお届けします");
+  assert.equal(av.invite.rewardText, "お友だちが初めてご来店されると、あなたに 100pt をお届けします。お友だちには、ご登録の特典のチケットが届きます");
   await friend2.register({ inviteCode: av.invite.code });
   await friend2.checkin(tok);
   av = cardScreen(await amber.me(), NOW()).view;

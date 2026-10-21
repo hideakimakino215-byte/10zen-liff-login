@@ -75,8 +75,8 @@ try {
   pg.loadFile("105_kpi.sql");                                                                                           // 105: 目標と KPI(店長・閲覧のみ)
   pg.loadFile("106_referral.sql");                                                                                      // 106: 友だち紹介と月次レポート
   pg.loadFile("107_constitution_each_visit.sql");                                                                       // 107: 体質チェックを来店のたびに(任意・スキップ可)
-  for (const f of ["108_restore_old_backup_fix.sql", "109_confirm_inactive_member.sql", "110_dinner_tea_mode_partition.sql", "111_safeupdate_where.sql", "112_ruby_seasonal_tea.sql", "113_staff_list_cc_audit.sql", "114_suspicious_slot_threshold.sql"]) pg.loadFile(f);   // 108〜110: 監査(2026-10-15)の指摘への修正
-  pg.exec(`update system_state set state='open';`);
+  for (const f of ["108_restore_old_backup_fix.sql", "109_confirm_inactive_member.sql", "110_dinner_tea_mode_partition.sql", "111_safeupdate_where.sql", "112_ruby_seasonal_tea.sql", "113_staff_list_cc_audit.sql", "114_suspicious_slot_threshold.sql", "115_legacy_table_grants.sql", "116_points_policy.sql"]) pg.loadFile(f);   // 108〜110: 監査(2026-10-15)の指摘への修正
+  pg.exec(`update system_state set state='open'; update app_settings set value='free_flow' where key='dinner_tea_mode';`);   // 本番開始(運営変更の後)の姿: ディナーの五巡茶は飲み放題
   pg.exec(`update app_settings set value='false' where key='register_counts_as_visit'; update app_settings set value='0' where key='checkin_open_hour'; update app_settings set value='24' where key='checkin_close_hour';`);   // 登録日の扱い(既定=来店日として扱う)は DB テストと下の専用ケースで検証。ここでは来店の流れを見るため解除
   pg.exec(`insert into auth.users(id) values ${Object.values(U).map((u) => `('${u}')`).join(",")};
     insert into staff_users(user_id, display_name, role) values ('${U.staff}','スタッフ','staff'),('${U.viewer}','閲覧','viewer'),('${U.mgr}','店長','manager'),('${U.kiosk}','店頭タブレット','kiosk');`);
@@ -122,8 +122,9 @@ try {
     await p.goto(`${BASE}/app-reference/card.html${await freshQs()}`); await p.waitForSelector("#points"); await p.evaluate(() => window.scrollTo(0, 0)); await snap(p, "c2_card", lang);
     await p.focus(".card"); await p.keyboard.press("Enter"); await p.waitForTimeout(900); await snap(p, "c3_back", lang, { full: false });
     await p.focus(".card"); await p.keyboard.press("Enter"); await p.waitForTimeout(700);
-    await p.click('#amountQuick button[data-amount="500"]'); await p.waitForFunction(() => document.getElementById("amount")?.value === "500"); await p.click("#redeem"); await p.waitForSelector("#pendingLeft", { timeout: 5000 }).catch(async () => { console.log("REDEEM FAIL", await p.evaluate(() => [document.getElementById("notice")?.textContent, document.getElementById("amount")?.value, document.querySelectorAll("#redeem").length])); }); await snap(p, "c4_redeem", lang);
-    await p.click("#cancel"); await p.waitForSelector("#amount");
+    // 特典チケットを使うとき(ポイントの値引きは 2026-10-21 にやめた。初回特典のチケット)
+    await p.click("#tickets li:has-text('ご登録の特典') button, #tickets li:has-text('Welcome') button, #tickets li:has-text('注册礼') button"); await p.waitForSelector("#ticketCode"); await snap(p, "c4_ticket", lang);
+    await p.click("#ticketCancel"); await p.waitForSelector("#ticketCode", { state: "detached" });
     // 体質チェック(お席の QR から)
     await p.goto(`${BASE}/app-reference/check.html?table=T01`); await p.waitForSelector("#ccAgree"); await snap(p, "k1_intro", lang);
     await p.click("#ccAgree"); await p.waitForSelector("#ccStep:has-text('1 / 16')"); await snap(p, "k2_question", lang);
@@ -156,8 +157,8 @@ try {
     const no = (await cu.textContent("#memberNo")).split(" ").pop();
     pg.exec(`select public._grant(m.id, 'earn', 'visit', 1200, 'uicheck-staff', 'test', null, now() - interval '1 day') from members m where m.member_no = '${no}';`);
     await cu.goto(`${BASE}/app-reference/card.html${await freshQs()}`); await cu.waitForSelector("#points");
-    await cu.click('#amountQuick button[data-amount="500"]'); await cu.waitForFunction(() => document.getElementById("amount")?.value === "500"); await cu.click("#redeem"); await cu.waitForSelector("#pendingCode");
-    const code = (await cu.textContent("#pendingCode")).replace(/\D/g, "");
+    await cu.click("#tickets li:has-text('ご登録の特典') button"); await cu.waitForSelector("#ticketCode");
+    const code = (await cu.textContent("#ticketCode")).replace(/\D/g, "");
     const st = await page(null);
     await st.goto(`${BASE}/app-reference/staff.html`); await st.waitForSelector("#login"); await snap(st, "s1_login", "ja");
     await st.fill("#email", "mgr@t"); await st.fill("#password", "pw"); await st.click("#login"); await st.waitForSelector("#code"); await snap(st, "s2_home", "ja");

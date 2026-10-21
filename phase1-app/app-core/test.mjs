@@ -57,12 +57,12 @@ try {
   assert.equal(cardScreen(await noAuth.me()).screen, "needs_login");
   assert.equal(cardScreen(await createMemberClient({ endpoint: "x", getIdToken: async () => { throw new Error("liff"); }, fetchFn: toApi }).me()).screen, "needs_login");
   assert.equal(cardScreen(await createMemberClient({ endpoint: "x", getIdToken: async () => "bad", fetchFn: toApi }).me()).screen, "needs_login");
-  let s = cardScreen(await member.me()); assert.equal(s.screen, "register"); assert.match(s.message, /100pt/);
+  let s = cardScreen(await member.me()); assert.equal(s.screen, "register"); assert.match(s.message, /ディナーの五巡茶 飲み放題 無料/);
   const regRes = await member.register(); s = cardScreen(regRes, NOW);
   assert.equal(s.screen, "card"); assert.equal(s.view.displayName, "試験 太郎"); assert.equal(s.view.pointsText, "100 pt"); assert.equal(s.view.yenText, "10円相当");
   assert.equal(s.view.rankLabel, "WHITE OPAL"); assert.equal(s.view.next.label, "AMBER"); assert.equal(s.view.next.remainingText, "あと 9,900 pt"); assert.equal(s.view.lifetimeNote, null);
   assert.equal(s.view.expiresText, "2027年11月10日"); assert.equal(s.view.canRedeem, true); assert.equal(s.view.pending, null); assert.equal(s.view.visitedToday, false);
-  ok("お客様: 未ログイン/不正トークン→ログイン画面、未登録→登録画面(100ptの案内)、登録→会員証(氏名・ポイント・円相当・ランク・次ランク・有効期限)");
+  ok("お客様: 未ログイン/不正トークン→ログイン画面、未登録→登録画面(初回特典の案内)、登録→会員証(氏名・ポイント・円相当・ランク・次ランク・有効期限)");
   assert.deepEqual(memberView({ memberNo: "u", displayName: null, points: null, yenPer100pt: 10, lifetimePoints: null, lifetimeConfirmed: false, nextRank: null, expiresOn: null, redeemUnit: 100 }, NOW).pointsText, "— pt");
   const top = memberView({ memberNo: "u", displayName: "x", points: 300000, yenPer100pt: 10, lifetimePoints: 300000, lifetimeConfirmed: true, nextRank: null, expiresOn: null, redeemUnit: 100, rankLabel: "ONYX" }, NOW);
   assert.equal(top.next.remainingText, "最上位ランクです"); assert.equal(top.next.percent, 100); assert.equal(top.yenText, "30,000円相当");

@@ -165,7 +165,7 @@ const EN_CC = {
   webIntro: "15 questions show your current constitution tendency (about 1 minute).", webPrivacy: "Your answers stay on this screen and are not saved or sent.",
   webCtaLead: "Register for the 10ZEN LINE membership card to save your results, and we'll suggest teas and dishes for your constitution on each visit.",
   webCtaButton: "Register on LINE", evenNote: "Since no strong tendency shows, we chose the dish and tea from the current season and your highest-scoring items.",
-  registerLead: "The constitution check is available with the free 10ZEN LINE membership card. You'll also earn points.", registerButton: "Register and start the check", resume: (n) => `Continue (question ${n})`,
+  registerLead: "The constitution check is available with the free 10ZEN LINE membership card. Registering also gets you a ticket for free unlimited Gojun tea at dinner.", registerButton: "Register and start the check", resume: (n) => `Continue (question ${n})`,
   introLabel: "Before you start", start: "Start", agreeStart: "Agree and start", back: "‹ Back", making: "Preparing your results…", loading: "Loading…",
   detailOpen: "Show Five Elements and organ names", detailClose: "Close", formal: (k, o, s) => `Element: ${k} / Organ: ${o} / State: ${s}`, organLine: (o, s) => `Organ: ${o} / ${s}`, points: (x) => `${x} pts`,
   radarTitle: "Score for each element (0–6)", profileRadarTitle: "Your constitution: average score for each element (0–6)", resultLabel: "Your constitution tendency",
@@ -250,7 +250,7 @@ const ZH_CC = {
   webIntro: "通过15个问题,了解你现在的体质倾向(约1分钟)。", webPrivacy: "回答只在本页面中使用,不会保存或发送。",
   webCtaLead: "注册10ZEN的LINE会员卡,即可记录测试结果,每次来店时为你推荐适合体质的茶饮和菜品。",
   webCtaButton: "用LINE注册会员卡", evenNote: "由于没有明显的偏向,推荐的菜品和茶饮是根据当前季节和得分较高的项目选择的。",
-  registerLead: "体质测试需使用10ZEN的LINE会员卡(免费)。注册后还可以累积积分。", registerButton: "注册会员并开始测试", resume: (n) => `继续(第${n}题)`,
+  registerLead: "体质测试需使用10ZEN的LINE会员卡(免费)。注册即送晚餐五巡茶畅饮(免费)券。", registerButton: "注册会员并开始测试", resume: (n) => `继续(第${n}题)`,
   introLabel: "开始之前", start: "开始", agreeStart: "同意并开始", back: "‹ 返回", making: "正在生成结果…", loading: "加载中…",
   detailOpen: "查看五行・五脏・正式名称", detailClose: "关闭", formal: (k, o, s) => `五行: ${k} / 五脏: ${o} / 状态: ${s}`, organLine: (o, s) => `五脏: ${o} / ${s}`, points: (x) => `${x}分`,
   radarTitle: "各五行的得分(0〜6)", profileRadarTitle: "你的体质: 各五行的平均分(0〜6)", resultLabel: "你的体质倾向",
@@ -272,7 +272,7 @@ export const ccText = (lang) => CC[lang] ?? CC.ja;
 const RANK_LABELS = { white_opal: "WHITE OPAL", amber: "AMBER", emerald: "EMERALD", ruby: "RUBY", onyx: "ONYX" };
 const CARD = {
   ja: {   // card.html の今までの日本語(表示は変えない)
-    pointsLabel: "保有ポイント", nextRank: (l, r) => `${l}まで ${r}`, lifetime: (a, b) => (b ? `累計 ${a} / ${b} pt` : `累計 ${a}`),
+    pointsLabel: "ポイント", nextRank: (l, r) => `${l}まで ${r}`, lifetime: (a, b) => (b ? `累計 ${a} / ${b} pt` : `累計 ${a}`),
     flipHint: "タップで表裏を切り替え", backNote: "タップで表面へ", booking: "WEBご予約", checkLink: "1分体質チェック",
     hours: null, branch: "青山店", memberNo: (n) => `会員番号 ${n}`, clockLabel: "現在の時刻", cardAria: "会員証。タップで表裏を切り替え", nextAria: "次のランクまで",
     redeemLabel: (u) => `ポイントを使う(${u}pt単位)`, redeemButton: "ポイントを使う", quickAll: (n) => `全部(${n}pt)`, amountLabel: "使うポイント",
@@ -281,10 +281,10 @@ const CARD = {
     ticketPendingInfo: (t) => `チケットを使用中: ${t}`, ticketLeft: (s) => `あと ${s} 秒・スタッフにこのコードをお見せください`, cancelTicket: "使用を取り消す",
     ccLabel: "1分体質チェック", todayDish: "今日のおすすめ", todayTea: "今日の五巡茶",
     benefitsTitle: "会員ランク特典", perksNow: (l) => `${l} のいまの特典`,
-    benefits: [["white_opal", "100pt = 10円としてお会計時にいつでも利用可能"], ["amber", "1,000pt達成:豆花を1つプレゼント・ディナーの五巡茶 無料"],
+    benefits: [["white_opal", "ご登録の特典:ディナーの五巡茶 飲み放題 無料のチケット(1回・ご登録から60日間)"], ["amber", "1,000pt達成:豆花を1つプレゼント・ディナーの五巡茶 飲み放題 無料(毎回)"],
       ["emerald", "3,000pt達成:持ち帰り用のお茶を1袋プレゼント・季節ごとに豆花チケット(年4枚)"], ["ruby", "6,000pt達成:持ち帰り用のお茶を1袋プレゼント・季節ごとに、あなたの体質の五巡茶(持ち帰り用)チケット(年4枚)"],
       ["onyx", "10,000pt達成:持ち帰り用のお茶を1袋プレゼント・新メニュー試食会へご招待"]],
-    benefitNote: "上のランクでは、下のランクの特典も続けてご利用いただけます。ランクは累計ポイントで決まり、下がりません。到達のお祝いのチケットは発行から60日間、季節のチケット(豆花・五巡茶)はその季節の終わりまで有効です。",
+    benefitNote: "上のランクでは、下のランクの特典も続けてご利用いただけます。ランクは累計ポイントで決まり、下がりません。ポイントはご来店の記録で、お会計での値引きには使えません。到達のお祝いのチケットは発行から60日間、季節のチケット(豆花・五巡茶)はその季節の終わりまで有効です。",
     onyxSpecial: "ONYX 会員特別ご招待", onyxSpecialNote: "新メニュー試食会へご招待します。ご案内は LINE でお送りします",
     register: "会員登録する", copyLink: "リンクをコピー", retry: "もう一度試す", openInLine: "LINE アプリで開いてください",
   },
@@ -298,15 +298,15 @@ const CARD = {
     ticketPendingInfo: (t) => `Using ticket: ${t}`, ticketLeft: (s) => `${s} sec left · Please show this code to our staff`, cancelTicket: "Cancel",
     ccLabel: "1-Minute Constitution Check", todayDish: "Today's pick", todayTea: "Today's Gojun tea",
     benefitsTitle: "Membership rank benefits", perksNow: (l) => `Your current ${l} benefits`,
-    benefits: [["white_opal", "Use points at checkout anytime (100 pt = ¥10)"], ["amber", "At 1,000 pt: a free douhua (tofu pudding), plus free Gojun tea at dinner"],
+    benefits: [["white_opal", "Welcome gift: a ticket for free unlimited Gojun tea at dinner (once, valid 60 days after registering)"], ["amber", "At 1,000 pt: a free douhua (tofu pudding), plus free unlimited Gojun tea at dinner every visit"],
       ["emerald", "At 3,000 pt: a free bag of tea to take home, plus a douhua ticket each season (4 a year)"], ["ruby", "At 6,000 pt: a free bag of tea to take home, plus a ticket each season for Gojun tea to take home, chosen for your constitution (4 a year)"],
       ["onyx", "At 10,000 pt: a free bag of tea to take home, plus an invitation to our new menu tasting"]],
-    benefitNote: "Higher ranks keep the benefits of lower ranks. Your rank is based on your total points and never goes down. Rank-up tickets are valid for 60 days, and seasonal tickets (douhua, Gojun tea) until the end of the season.",
+    benefitNote: "Higher ranks keep the benefits of lower ranks. Your rank is based on your total points and never goes down. Points record your visits and can't be used as a discount at checkout. Rank-up tickets are valid for 60 days, and seasonal tickets (douhua, Gojun tea) until the end of the season.",
     onyxSpecial: "Special invitation for ONYX members", onyxSpecialNote: "You're invited to our new menu tasting. We'll send details on LINE.",
     register: "Register", copyLink: "Copy link", retry: "Try again", openInLine: "Please open this in the LINE app", cardAria: "Membership card. Tap to flip", nextAria: "To the next rank",
   },
   zh: {
-    pointsLabel: "持有积分", nextRank: (l, r) => `距离${l} ${r}`, lifetime: (a, b) => (b ? `累计 ${a} / ${b} pt` : `累计 ${a}`),
+    pointsLabel: "积分", nextRank: (l, r) => `距离${l} ${r}`, lifetime: (a, b) => (b ? `累计 ${a} / ${b} pt` : `累计 ${a}`),
     flipHint: "点击翻转会员卡", backNote: "点击查看正面", booking: "网上预约", checkLink: "1分钟体质测试",
     hours: "营业时间: 11:00〜21:00(最后点餐 20:30)", branch: "青山店", memberNo: (n) => `会员编号 ${n}`, clockLabel: "当前时间",
     redeemLabel: (u) => `使用积分(以${u}pt为单位)`, redeemButton: "使用积分", quickAll: (n) => `全部(${n}pt)`, amountLabel: "要使用的积分",
@@ -315,10 +315,10 @@ const CARD = {
     ticketPendingInfo: (t) => `正在使用优惠券: ${t}`, ticketLeft: (s) => `剩余 ${s} 秒・请向工作人员出示此代码`, cancelTicket: "取消使用",
     ccLabel: "1分钟体质测试", todayDish: "今日推荐", todayTea: "今天的五巡茶",
     benefitsTitle: "会员等级特典", perksNow: (l) => `${l} 当前可享特典`,
-    benefits: [["white_opal", "结账时可随时使用积分(100pt = 10日元)"], ["amber", "达到1,000pt: 赠送豆花1份・晚餐五巡茶免费"],
+    benefits: [["white_opal", "注册礼: 晚餐五巡茶畅饮免费券(1次・注册后60天内有效)"], ["amber", "达到1,000pt: 赠送豆花1份・每次晚餐五巡茶畅饮免费"],
       ["emerald", "达到3,000pt: 赠送外带茶1袋・每季豆花券(每年4张)"], ["ruby", "达到6,000pt: 赠送外带茶1袋・每季一张适合你体质的五巡茶(外带)券(每年4张)"],
       ["onyx", "达到10,000pt: 赠送外带茶1袋・邀请参加新菜单试吃会"]],
-    benefitNote: "高等级会员可继续享受低等级的特典。等级根据累计积分决定,不会下降。升级纪念券自发放起60天内有效,季节券(豆花・五巡茶)在该季节结束前有效。",
+    benefitNote: "高等级会员可继续享受低等级的特典。等级根据累计积分决定,不会下降。积分用于记录来店,不能在结账时抵扣。升级纪念券自发放起60天内有效,季节券(豆花・五巡茶)在该季节结束前有效。",
     onyxSpecial: "ONYX 会员特别邀请", onyxSpecialNote: "诚邀您参加新菜单试吃会。详情将通过LINE通知。",
     register: "注册会员", copyLink: "复制链接", retry: "重试", openInLine: "请在LINE应用中打开", cardAria: "会员卡。点击翻转", nextAria: "距离下一等级",
   },
@@ -329,9 +329,9 @@ export const rankLabel = (rank) => RANK_LABELS[rank] ?? rank;
 
 // ランクごとの『来るたびに使える特典』(screens.mjs の RANK_PERKS と同じ順)
 export const RANK_PERKS_I18N = Object.freeze({
-  en: [["amber", "Free Gojun tea at dinner"], ["emerald", "A douhua ticket each season"], ["ruby", "A ticket each season for Gojun tea to take home, chosen for your constitution"],
+  en: [["amber", "Free unlimited Gojun tea at dinner"], ["emerald", "A douhua ticket each season"], ["ruby", "A ticket each season for Gojun tea to take home, chosen for your constitution"],
     ["onyx", "Invitation to our new menu tasting"], ["emerald", "Nihondo member benefits (coming soon)", true]],
-  zh: punctDeep([["amber", "晚餐五巡茶免费"], ["emerald", "每季豆花券1张"], ["ruby", "每季适合你体质的五巡茶(外带)券1张"], ["onyx", "邀请参加新菜单试吃会"], ["emerald", "药日本堂会员优惠(准备中)", true]]),
+  zh: punctDeep([["amber", "晚餐五巡茶畅饮免费"], ["emerald", "每季豆花券1张"], ["ruby", "每季适合你体质的五巡茶(外带)券1张"], ["onyx", "邀请参加新菜单试吃会"], ["emerald", "药日本堂会员优惠(准备中)", true]]),
 });
 
 // チケット名(DB には日本語で保存)→ 言語ごと。種類は kind・rank・season と日本語の名前から判断する。分からなければ日本語のまま
@@ -341,7 +341,7 @@ export function ticketTitle(t, lang) { const r = ticketTitleRaw(t, lang); return
 function ticketTitleRaw(t, lang) {
   if (lang === "ja" || !t || typeof t.title !== "string") return t?.title ?? null;
   const T = lang === "en" ? EN_CC : ZH_CC, title = t.title;
-  const kind = t.kind ?? (/到達のお祝い/.test(title) ? "milestone" : /お友だち紹介/.test(title) ? "referral" : /\((春|夏|秋|冬)\)$/.test(title) ? "seasonal" : null);
+  const kind = t.kind ?? (/到達のお祝い/.test(title) ? "milestone" : /お友だち紹介/.test(title) ? "referral" : /ご登録の特典/.test(title) ? "welcome" : /\((春|夏|秋|冬)\)$/.test(title) ? "seasonal" : null);
   const rank = t.rank ?? (title.match(/^(WHITE OPAL|AMBER|EMERALD|RUBY|ONYX)/)?.[1] ?? "").toLowerCase().replace(" ", "_");
   const JA_SEASON = { 春: "spring", 夏: "summer", 秋: "autumn", 冬: "winter" };
   const seasonName = (() => { const k = String(t.season ?? "").split("-")[1] || JA_SEASON[title.match(/\((春|夏|秋|冬)\)$/)?.[1]]; return SEASON_OF_KEY[k]?.[lang] ?? null; })();
@@ -357,14 +357,17 @@ function ticketTitleRaw(t, lang) {
     if (/豆花/.test(title)) return lang === "en" ? `1 seasonal douhua (${seasonName})` : `季节豆花券1张(${seasonName})`;
     return title;
   }
-  if (t.kind === "referral") return /飲み放題/.test(title) ? (lang === "en" ? "Friend referral: unlimited Gojun tea at dinner" : "好友推荐・晚餐五巡茶畅饮") : (lang === "en" ? "Friend referral: 1 cup of Gojun tea at dinner" : "好友推荐・晚餐五巡茶1杯");
+  if (t.kind === "referral" || t.kind === "welcome") {   // 名前は「(無料)」つき(db/116)。英語・中国語も無料と分かるように
+    const head = t.kind === "welcome" ? (lang === "en" ? "Welcome gift" : "注册礼") : (lang === "en" ? "Friend referral" : "好友推荐");
+    return `${head}${lang === "en" ? ": " : "・"}${dinnerTeaLabel(title, lang)}`;
+  }
   return title;
 }
-// ディナーの五巡茶の名前(DB の _dinner_tea_label: 「ディナーの五巡茶 1杯」/「… 飲み放題」)
+// ディナーの五巡茶の名前(DB の _dinner_tea_label: 「ディナーの五巡茶 1杯(無料)」/「… 飲み放題(無料)」。db/116 で「(無料)」が付いた)
 export function dinnerTeaLabel(label, lang) {
   if (lang === "ja" || typeof label !== "string") return label;
   const free = /飲み放題/.test(label);
-  return lang === "en" ? (free ? "unlimited Gojun tea at dinner" : "1 cup of Gojun tea at dinner") : (free ? "晚餐五巡茶畅饮" : "晚餐五巡茶1杯");
+  return lang === "en" ? (free ? "free unlimited Gojun tea at dinner" : "1 free cup of Gojun tea at dinner") : (free ? "晚餐五巡茶畅饮(免费)" : "晚餐五巡茶1杯(免费)");
 }
 
 // ---- 店頭の QR 画面(qr.html)。2026-10-17 牧野さん決定: 言語が自動で切り替わる(日本語2:英語1:中国語1。QR はそのまま)----
@@ -374,29 +377,29 @@ export const KIOSK_I18N = Object.freeze({
   en: {
     title: "Your 10ZEN membership card, on your phone.", lead: "Just scan with LINE. No app to download, nothing to type.",
     perks: [
+      { k: "Welcome gift", v: "Free unlimited tea", d: "Gojun tea at dinner, once (valid 60 days after registering)" },
       { k: "Every visit", v: "100pt", d: "Scan this QR once a day to earn points" },
-      { k: "Use at checkout", v: "100pt = ¥10", d: "From \"Use points\" on your card" },
       { k: "Rank-up rewards", v: "Douhua, tea & more", d: "Higher ranks bring douhua, tea to take home and Gojun tea at dinner" },
     ],
-    ranks: [["white_opal", "WHITE OPAL", "Use points at checkout: 100pt = ¥10"], ["amber", "AMBER", "A douhua gift · free Gojun tea at dinner"],
+    ranks: [["white_opal", "WHITE OPAL", "Welcome gift: free unlimited Gojun tea at dinner (once)"], ["amber", "AMBER", "A douhua gift · free unlimited Gojun tea at dinner"],
       ["emerald", "EMERALD", "Tea to take home · a douhua ticket each season"], ["ruby", "RUBY", "Tea to take home · Gojun tea for your constitution each season"],
       ["onyx", "ONYX", "Tea to take home · invitation to our new menu tasting"]],
-    steps: [["Scan this QR code", "With LINE's QR reader or your phone camera"], ["Your 10ZEN card opens", "First time? Register on the spot (100pt gift)"], ["Earn visit points", "Check your points, rank and rewards anytime"]],
-    notes: ["See how to use points on your membership card"], scanHead: "Scan to start", refresh: "The QR code changes every 30 seconds",
+    steps: [["Scan this QR code", "With LINE's QR reader or your phone camera"], ["Your 10ZEN card opens", "First time? Register on the spot (free unlimited Gojun tea at dinner)"], ["Earn visit points", "Points raise your rank and bring rewards"]],
+    notes: ["Points set your rank (they aren't a discount at checkout)"], scanHead: "Scan to start", refresh: "The QR code changes every 30 seconds",
     sampleName: "Your name", sampleNo: "Member No. ····", sampleAria: "Sample 10ZEN membership card", qrAria: "QR code for your visit", perksAria: "Member benefits", stepsAria: "How to use",
     hidden: "The QR code can't be shown right now. Please ask our staff.",
   },
   zh: punctDeep({
     title: "把10ZEN会员卡放进手机。", lead: "用LINE扫一扫即可。无需下载应用,无需填写。",
     perks: [
+      { k: "注册礼", v: "畅饮免费", d: "晚餐五巡茶1次(注册后60天内有效)" },
       { k: "每次来店", v: "100pt", d: "每天扫描一次此二维码即可累积" },
-      { k: "结账时可用", v: "100pt=10日元", d: "在会员卡的「使用积分」中使用" },
       { k: "升级特典", v: "豆花・茶等", d: "累计积分提升等级,可享豆花、外带茶、晚餐五巡茶等特典" },
     ],
-    ranks: [["white_opal", "WHITE OPAL", "结账可用:100pt=10日元"], ["amber", "AMBER", "豆花礼物・晚餐五巡茶免费"],
+    ranks: [["white_opal", "WHITE OPAL", "注册礼: 晚餐五巡茶畅饮免费(1次)"], ["amber", "AMBER", "豆花礼物・晚餐五巡茶畅饮免费"],
       ["emerald", "EMERALD", "外带茶・每季豆花券"], ["ruby", "RUBY", "外带茶・每季适合你体质的五巡茶"], ["onyx", "ONYX", "外带茶・邀请参加新菜单试吃会"]],
-    steps: [["扫描此二维码", "使用LINE的二维码扫描或手机相机"], ["打开10ZEN会员卡", "首次使用可当场注册(赠送100pt)"], ["累积来店积分", "随时在会员卡查看积分、等级和特典"]],
-    notes: ["积分的使用方法请在会员卡页面查看"], scanHead: "扫码开始", refresh: "二维码每30秒更新一次",
+    steps: [["扫描此二维码", "使用LINE的二维码扫描或手机相机"], ["打开10ZEN会员卡", "首次使用可当场注册(赠送晚餐五巡茶畅饮券)"], ["累积来店积分", "积分提升等级,即可获得特典"]],
+    notes: ["积分用于决定等级(不能在结账时抵扣)"], scanHead: "扫码开始", refresh: "二维码每30秒更新一次",
     sampleName: "你的名字", sampleNo: "会员编号 ・・・・", sampleAria: "10ZEN会员卡样例", qrAria: "来店用二维码", perksAria: "会员特典", stepsAria: "使用方法",
     hidden: "暂时无法显示二维码。请联系工作人员。",
   }),

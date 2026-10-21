@@ -44,6 +44,7 @@ export function createMemberClient({ endpoint, getIdToken, fetchFn = (...a) => f
     constitutionSubmit: ({ answers, mood, consent = false } = {}) => call("constitution_submit", { answers: Array.isArray(answers) ? answers.slice(0, 15) : answers, mood: String(mood || ""), consent: consent === true }),
     // 「薬日本堂の漢方相談へ」が押された(数えるだけ。画面は結果を待たずに行き先を開く)
     referralClick: () => call("referral_click"),
+    orderClick: (table) => call("order_click", table ? { table } : {}),
     // 友だち紹介のお知らせ(「お友だちが来店しました」)を表示した。until は表示したお知らせの時刻(member.inviteNotice.until)
     inviteSeen: (until) => call("invite_seen", { until: String(until || "") }),
   };

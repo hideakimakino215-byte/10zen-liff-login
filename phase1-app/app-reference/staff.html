@@ -281,7 +281,7 @@ h1,h2,h3{margin:0}
 <body>
 <header class="topbar"><img class="logo" src="assets/logo.png" alt="10ZEN"><span id="who"></span> <button id="logout" class="btn-ghost" hidden>ログアウト</button></header>
 <nav id="nav" hidden aria-label="機能">
-  <button data-tab="redeem">ポイント使用</button> <button data-tab="members">会員</button>
+  <button data-tab="redeem">特典の確定</button> <button data-tab="members">会員</button>
   <button data-tab="dash">集計</button> <button data-tab="constitution">体質チェック</button>
 </nav>
 <main id="app"></main>
@@ -291,6 +291,7 @@ h1,h2,h3{margin:0}
 import { createStaffClient, redeemReduce, redeemInitial, isCodeShape } from "../app-core/staff-client.mjs";
 import { ELEMENTS, ELEMENT_INFO, BALANCED_NAME, ALL_HIGH_NAME, isAllHigh, ELEMENT_COLORS, ELEMENT_TEXT_COLORS, ELEMENT_SOFT_COLORS, NEUTRAL_COLOR } from "../app-core/constitution.mjs";
 import { radarSvg } from "../app-core/radar.mjs";
+import { diniiEnabled } from "../app-core/dinii.mjs";
 import { KPI_DEFS, KPI_BY_CODE, MILESTONES, statusOf, STATUS_LABELS, parseTargetInput, fmtValue, milestoneLabel } from "../app-core/kpi.mjs";
 import { analyzePosFile, summarize, rowsForImport, SKIP_REASONS, ERRORS as POS_ERRORS, ENCODING_LABELS, OUTLIER_FACTOR, MAX_FILE_BYTES } from "../app-core/pos-import.mjs";
 const cfg = window.APP_CONFIG, app = document.getElementById("app");
@@ -424,7 +425,7 @@ function redeemView() {
       const again = el("button", "コードを入れ直す", { id: "reEnter", class: "link" }); again.disabled = st.step === "confirming";
       again.onclick = () => { st = redeemInitial; code.value = ""; render(); code.focus(); };   // 申請はそのまま(お客様の画面は変わらない)
       out.append(put(el("div", undefined, { class: "confirm" }),
-        put(el("div", undefined, { class: "member" }), who, el("span", `残高 ${n(st.member.points)}pt`, { class: "bal num" })),
+        put(el("div", undefined, { class: "member" }), who, el("span", `${n(st.member.points)}pt`, { class: "bal num" })),
         amount, put(el("div", undefined, { class: "actions" }), x, c), again));
       if (st.cancelFailed) say("bad", "取り消しを確認できませんでした。もう一度「取消」を押すか、お客様の画面で申請の状態を確かめてください", "rCancelFail");
     } else if (st.step === "looking_up") say("info", "確認しています…", "redeemBusy");     // 結果の表示(#redeemMsg)とは別の id
@@ -455,8 +456,9 @@ function redeemView() {
   code.oninput = () => { if (st.step === "done" || st.step === "not_found" || st.step === "bad_code" || st.step === "expired") { st = redeemInitial; render(); } };   // 次のお客様のコードを入れ始めたら前の結果を消す   // ポイントか特典チケットかは DB が判定
   go.onclick = lookup; code.onkeydown = (ev) => { if (ev.key === "Enter") lookup(); };
   render();
-  const hero = put(el("section", undefined, { class: "hero", "aria-labelledby": "redeemTitle" }), title("redeem", "ポイント使用"),
-    el("p", "お客様の画面に表示された6桁のコードを入力してください。ポイントの使用も、特典チケット(豆花・お茶など)も同じ欄です。", { class: "hint" }), stepsEl,
+  // 2026-10-21 牧野さん決定: ポイントはお会計の値引きに使わない。この欄は特典チケット(初回特典・豆花・お茶など)の確定だけ(古いポイントのコードが来たときの表示は残す)
+  const hero = put(el("section", undefined, { class: "hero", "aria-labelledby": "redeemTitle" }), title("redeem", "特典チケットの確定"),
+    el("p", "お客様の画面に表示された6桁のコードを入力してください(ご登録の特典・豆花・お茶などの特典チケット)。", { class: "hint" }), stepsEl,
     put(el("div", undefined, { class: "row-flex" }), code, go), out);
   hero.firstChild.id = "redeemTitle";
   // 下の入口(会員・集計)。件数は集計から(取れなければ「—」)。本日の来店は集計にまとめた
@@ -464,7 +466,7 @@ function redeemView() {
     constitution: el("span", role === "staff" ? `今週のチェック ${DASH} 件` : `実施 ${DASH} 人`, { class: "pill num", id: "ccPill" }) };
   const card = (t, cls, name, h, go) => { const b = put(el("button", undefined, { class: `card ${cls}`, "data-go": t }), icon(name), el("h2", h), pills[t], el("span", `${go} ›`, { class: "go" })); b.onclick = () => tab(t); return b; };
   const cards = put(el("section", undefined, { class: "cards", "aria-label": "ほかの機能" }),
-    card("members", "c-purple", "members", "会員", "会員番号・氏名で探す"), card("dash", "c-blue", "dash", "集計", "本日の来店・今月の付与と使用"),
+    card("members", "c-purple", "members", "会員", "会員番号・氏名で探す"), card("dash", "c-blue", "dash", "集計", "本日の来店・今月の付与・特典チケット"),
     card("constitution", "c-sage", "constitution", "体質チェック", role === "staff" ? "今週のチェック結果の傾向" : "実施・タイプ・来店時の実施率"));
   // 目標と KPI(店長・閲覧だけ。スタッフには DOM ごと出さない)
   if (canSeeKpi()) {
@@ -590,7 +592,7 @@ async function dashView() {
   if (d.balanceMismatches === 0) ok.push(msgBox("ok", "残高と履歴は一致しています"));
   const stat = (cls, k, v, unit) => put(el("div", undefined, { class: `stat ${cls}` }), el("div", k, { class: "k" }), put(el("div", n(v), { class: "v num" }), el("small", unit)));
   const nodes = [head, put(el("div", undefined, { class: "alerts" }), ...bad, ...warn, ...ok),
-    put(el("div", undefined, { class: "stats" }), stat("p", "有効会員数", d.membersActive, "人"), stat("o", "本日の来店", d.visitsToday, "人"), stat("t", "今月の付与ポイント", d.pointsIssuedThisMonth, "pt"), stat("b", "今月の使用ポイント", d.pointsRedeemedThisMonth, "pt"))];
+    put(el("div", undefined, { class: "stats three" }), stat("p", "有効会員数", d.membersActive, "人"), stat("o", "本日の来店", d.visitsToday, "人"), stat("t", "今月の付与ポイント", d.pointsIssuedThisMonth, "pt"))];   // ポイントの使用はやめた(2026-10-21)
   // 特典チケット(累計): 発行数・使用数・使用率(使用数÷発行数)。取れなければ出さない
   if (tk.kind === "ok") nodes.push(put(el("section", undefined, { id: "ticketStats", "aria-label": "特典チケット" }), put(el("h2"), icon("ticket"), document.createTextNode("特典チケット(累計)")),
     put(el("div", undefined, { class: "stats three" }), stat("t", "発行", tk.data.issued, "枚"), stat("t", "使用", tk.data.used, "枚"), stat("t", "使用率", tk.data.usageRatePercent, "%"))));
@@ -615,7 +617,7 @@ function teaModeBox(d) {
     o.className = "c-ok"; o.textContent = `保存しました: ${x.data.label}(まだ使っていない紹介のチケット ${n(x.data.retitled)} 枚の名前も変えました)`; cur.textContent = `いまのチケットの名前: ${x.data.label}`;
   };
   return put(el("section", undefined, { class: "panel", id: "teaModeBox" }), el("h3", "お友だち紹介のチケット(店長のみ)"),
-    el("p", "紹介した人・された人に届くチケット(友だちの初来店のとき)は「ディナーの五巡茶」です。運営変更で飲み放題が始まったら切り替えてください", { class: "hint" }),
+    el("p", "ご登録の特典と、紹介した人に届くチケット(友だちの初来店のとき)は「ディナーの五巡茶(無料)」です。運営変更で飲み放題が始まったら切り替えてください(まだ使っていないチケットの名前も変わります)", { class: "hint" }),
     put(el("div", undefined, { class: "row-flex" }), sel, b), cur, o);
 }
 
@@ -641,7 +643,7 @@ async function constitutionView() {
   const show = guardShow(true);
   const reload = el("button", "更新", { class: "btn sub", id: "reloadCc", style: "--c:var(--sage)" }); reload.onclick = constitutionView;
   const head = put(el("div", undefined, { class: "head" }), title("constitution", "体質チェック", "c-sage-text"));
-  const r = await staff.constitutionStats();
+  const [r, oc] = await Promise.all([staff.constitutionStats(), staff.orderClickStats()]);
   if (r.kind !== "ok") return show(head, failView(r.kind === "forbidden" ? "この画面の権限がありません" : "取得できませんでした", constitutionView));
   const d = r.data, w = d.week || {};
   head.append(el("span", `${jst(d.asOf) ?? DASH} 時点`, { class: "asof num" }), reload);
@@ -657,6 +659,10 @@ async function constitutionView() {
       el("p", `会員の来店 ${n(vc.visitDays)} 日のうち、同じ日にチェックした日 ${n(vc.checkedVisitDays)} 日`, { class: "hint num" })));
     nodes.push(put(el("div", undefined, { class: "stats", id: "ccReach" }), ccStat("g", "実施した人数", d.checkedMembers, "人"), ccStat("g", "実施率(有効会員のうち)", d.checkRatePercent, "%", "ccRate"),
       ccStat("p", "有効会員数", d.membersActive, "人"), ref));
+    // 「このまま注文する」が押された数(db/116・決定 2A)。注文したかどうかは分からない(ダイニーの注文データでは区別できない)。ダイニー導入前で0回なら出さない
+    if (oc.kind === "ok" && (diniiEnabled(window.APP_CONFIG) || oc.data.total > 0)) nodes.push(put(el("div", undefined, { class: "stat b", id: "ccOrderClicks" }),
+      el("div", "結果から「このまま注文する」が押された数", { class: "k" }), put(el("div", n(oc.data.thisMonth), { class: "v num" }), el("small", `回(今月・${n(oc.data.membersThisMonth)}人。累計 ${n(oc.data.total)} 回)`)),
+      el("p", "押された数です。実際に注文したかは分かりません", { class: "hint" })));
     const types = bars([...ELEMENTS.map((e) => ({ k: [elKanji(e), ` ${ELEMENT_INFO[e].typeName}`], v: d.byType?.[e], el: e })), { k: BALANCED_NAME, v: d.byType?.balanced, el: null }], "ccTypes");
     const avg = d.averages ? radarSvg(document, d.averages, { labels: Object.fromEntries(ELEMENTS.map((e) => [e, ELEMENT_INFO[e].kanji])), max: 6, id: "ccAvgRadar", title: "五行ごとの平均(0〜6)",
       valueText: (x) => (typeof x === "number" ? Number(x).toFixed(1) : DASH), ...RADAR_COLORS }) : el("p", "まだ実施した人がいません", { class: "hint", id: "ccAvgRadar" });

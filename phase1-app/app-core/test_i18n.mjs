@@ -88,11 +88,14 @@ assert.equal(ticketTitle({ title: "AMBER 到達のお祝い・豆花 1つ" }, "e
 assert.equal(ticketTitle({ title: "EMERALD 到達のお祝い・持ち帰り用のお茶 1袋" }, "zh"), "EMERALD 升级纪念：外带茶1袋");
 assert.equal(ticketTitle({ title: "季節の豆花チケット(秋)" }, "en"), "1 seasonal douhua (Autumn)");
 assert.equal(ticketTitle({ title: "持ち帰りの五巡茶(水) 1つ(冬)" }, "zh"), "外带五巡茶（水）1份（冬）");
-assert.match(ticketTitle({ title: "お友だち紹介・ディナーの五巡茶 飲み放題" }, "en"), /unlimited/);
+assert.match(ticketTitle({ title: "お友だち紹介・ディナーの五巡茶 飲み放題(無料)" }, "en"), /free unlimited/);
+assert.equal(ticketTitle({ title: "ご登録の特典・ディナーの五巡茶 飲み放題(無料)", kind: "welcome" }, "en"), "Welcome gift: free unlimited Gojun tea at dinner");
+assert.equal(ticketTitle({ title: "ご登録の特典・ディナーの五巡茶 飲み放題(無料)" }, "zh"), "注册礼·晚餐五巡茶畅饮（免费）");   // 種類が分からなくても名前から判断
+assert.equal(ticketTitle({ title: "ご登録の特典・ディナーの五巡茶 1杯(無料)", kind: "welcome" }, "en"), "Welcome gift: 1 free cup of Gojun tea at dinner");
 assert.equal(ticketTitle({ title: "知らない名前" }, "en"), "知らない名前"); assert.equal(ticketTitle(null, "en"), null);   // 分からなければ日本語のまま
-assert.equal(dinnerTeaLabel("ディナーの五巡茶 1杯", "en"), "1 cup of Gojun tea at dinner"); assert.equal(dinnerTeaLabel("ディナーの五巡茶 飲み放題", "zh"), "晚餐五巡茶畅饮");
+assert.equal(dinnerTeaLabel("ディナーの五巡茶 1杯(無料)", "en"), "1 free cup of Gojun tea at dinner"); assert.equal(dinnerTeaLabel("ディナーの五巡茶 飲み放題(無料)", "zh"), "晚餐五巡茶畅饮(免费)");
 assert.equal(dinnerTeaLabel("ディナーの五巡茶 1杯", "ja"), "ディナーの五巡茶 1杯");
-ok("DB の日本語のチケット名(到達のお祝い・季節・紹介)とディナーの五巡茶を言語ごとに直す。分からない名前は日本語のまま");
+ok("DB の日本語のチケット名(到達のお祝い・季節・紹介・初回特典)とディナーの五巡茶を言語ごとに直す(無料と分かるように)。分からない名前は日本語のまま");
 
 // 6 会員証の数字と日付(言語が変わっても数字は同じ)
 const member = { memberNo: "AO00001", displayName: "Test", rank: "amber", nextRank: { label: "EMERALD", remainingPoints: 1500, percent: 50 }, points: 1200, lifetimePoints: 1500, expiresOn: "2026-11-30", yenPer100pt: 10, redeemUnit: 100, rankLabel: "AMBER", tickets: [], visitedToday: false };
@@ -107,13 +110,14 @@ ok("会員証: 言語が変わってもポイント・ランクは同じ。期�
 // 7 店頭の QR 画面: 日本語10秒 → 英語5秒 → 中国語5秒(2:1:1)
 assert.deepEqual(KIOSK_ROTATION.map(([l]) => l), ["ja", "en", "zh"]);
 const [j, e, z] = KIOSK_ROTATION.map(([, ms]) => ms); assert.equal(j, 2 * e); assert.equal(e, z); assert.equal(j + e + z, 20_000);
-// 数字は日本語と同じ(来店 100pt・100pt=10円・ランクの基準 1,000 / 3,000 / 6,000 / 10,000。日本語は tools/test_kiosk_copy.mjs が DB と照らす)
+// 数字は日本語と同じ(来店 100pt・初回特典の60日・ランクの基準 1,000 / 3,000 / 6,000 / 10,000。日本語は tools/test_kiosk_copy.mjs が DB と照らす)
 for (const l of ["en", "zh"]) {
-  const K = KIOSK_I18N[l]; assert.equal(K.perks[0].v, "100pt"); assert.match(K.perks[1].v, l === "en" ? /^100pt = ¥10$/ : /^100pt=10日元$/);
-  assert.deepEqual(K.ranks.map(([c]) => c), ["white_opal", "amber", "emerald", "ruby", "onyx"]); assert.match(K.ranks[0][2], l === "en" ? /100pt = ¥10/ : /100pt=10日元/);
+  const K = KIOSK_I18N[l]; assert.equal(K.perks[1].v, "100pt"); assert.match(K.perks[0].d, /60/);                 // 初回特典(60日)・来店 100pt
+  assert.doesNotMatch(JSON.stringify(K), /¥10|10日元/);                                                              // ポイントの値引きはやめた(2026-10-21)
+  assert.deepEqual(K.ranks.map(([c]) => c), ["white_opal", "amber", "emerald", "ruby", "onyx"]); assert.match(K.ranks[0][2], l === "en" ? /free unlimited Gojun tea/ : /五巡茶畅饮免费/);
   const ja = cardText("ja").benefits, b = cardText(l).benefits; assert.deepEqual(b.map(([c]) => c), ja.map(([c]) => c));
   ja.forEach(([, t], i) => { for (const num of t.match(/\d[\d,]*pt/g) ?? []) assert.ok(b[i][1].replace(/ /g, "").includes(num), `${l}: 特典の ${num} がない: ${b[i][1]}`); });
 }
-ok("店頭の QR 画面: 日本語10秒 → 英語5秒 → 中国語5秒(2:1:1)で自動で切り替わる。英語・中国語の数字(来店100pt・100pt=10円・ランクの基準)は日本語と同じ");
+ok("店頭の QR 画面: 日本語10秒 → 英語5秒 → 中国語5秒(2:1:1)で自動で切り替わる。英語・中国語の数字(来店100pt・初回特典の60日・ランクの基準)は日本語と同じ。値引きの案内はない");
 
 console.log(`\n${n} i18n checks passed`);

@@ -59,7 +59,7 @@ try {
     alter default privileges in schema public grant all on tables to anon, authenticated, service_role; alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;`);
   pg.loadFile("100_phase1_schema.sql"); pg.loadFile("101_search_path_fix.sql"); pg.loadFile("102_rank_perks.sql"); pg.loadFile("103_constitution_check.sql"); pg.loadFile("104_member_constitution_link.sql"); pg.loadFile("105_kpi.sql");
   pg.loadFile("106_referral.sql"); pg.loadFile("107_constitution_each_visit.sql");
-  for (const f of ["108_restore_old_backup_fix.sql", "109_confirm_inactive_member.sql", "110_dinner_tea_mode_partition.sql", "111_safeupdate_where.sql", "112_ruby_seasonal_tea.sql", "113_staff_list_cc_audit.sql", "114_suspicious_slot_threshold.sql"]) pg.loadFile(f);   // 監査(2026-10-15)の指摘への修正
+  for (const f of ["108_restore_old_backup_fix.sql", "109_confirm_inactive_member.sql", "110_dinner_tea_mode_partition.sql", "111_safeupdate_where.sql", "112_ruby_seasonal_tea.sql", "113_staff_list_cc_audit.sql", "114_suspicious_slot_threshold.sql", "115_legacy_table_grants.sql", "116_points_policy.sql"]) pg.loadFile(f);   // 監査(2026-10-15)の指摘への修正
   pg.exec(`update system_state set state='open'; update app_settings set value='false' where key='register_counts_as_visit';
     insert into auth.users(id) values ('${U.staff}'), ('${U.kiosk}');
     insert into staff_users(user_id, display_name, role) values ('${U.staff}','スタッフ','staff'),('${U.kiosk}','店頭タブレット','kiosk');`);
@@ -90,16 +90,16 @@ try {
     assert.equal(await text(w, "#uid"), "U" + "7".repeat(32)); assert.deepEqual(w.errs, []); }
   ok("試験者ID表示ページ: 本人の LINE ユーザーID(U+32桁)が表示される");
 
-  // 3) スタッフ: 実物の supabase-js でログイン → 使用の確認まで
-  await cust.fill("#amount", "100"); await cust.click("#redeem"); await cust.waitForSelector("#pendingCode");
-  const code = (await text(cust, "#pendingCode")).replace(/\s/g, "");
+  // 3) スタッフ: 実物の supabase-js でログイン → 初回特典のチケットの確定まで(ポイントの値引きは 2026-10-21 にやめた)
+  await cust.click("#tickets button[data-ticket-id]"); await cust.waitForSelector("#ticketCode");
+  const code = (await text(cust, "#ticketCode")).replace(/\s/g, "");
   const stf = await newPage(); await stf.goto(`${BASE}/app-reference/staff.html`); await stf.waitForSelector("#login");
   await stf.fill("#email", "kiosk@t"); await stf.fill("#password", "pw"); await stf.click("#login"); await stf.waitForSelector("#msg:has-text('店頭QR専用')");
   await stf.fill("#email", "staff@t"); await stf.fill("#password", "pw"); await stf.click("#login"); await stf.waitForSelector("#who:has-text('staff')");
-  await stf.fill("#code", code); await stf.click("#lookup"); await stf.waitForSelector("#confirm"); assert.match(await text(stf, "#rAmount"), /100pt = 10円/);
-  await stf.click("#confirm"); await stf.waitForSelector("#rDone"); assert.match(await text(stf, "#rDone"), /確定しました: 100pt/);
-  await cust.waitForSelector("#lastRedeem", { timeout: 8000 }); assert.equal(await text(cust, "#points"), `${welcomeExpected} pt`);
+  await stf.fill("#code", code); await stf.click("#lookup"); await stf.waitForSelector("#confirm"); assert.match(await text(stf, "#rTicket"), /ご登録の特典・ディナーの五巡茶/);
+  await stf.click("#confirm"); await stf.waitForSelector("#rDone"); assert.match(await text(stf, "#rDone"), /確定しました: ご登録の特典/);
+  await cust.waitForSelector("#lastTicket", { timeout: 8000 }); assert.equal(await text(cust, "#points"), `${welcomeExpected + 100} pt`);   // ポイントは減らない
   assert.equal(val("select count(*) from public.verify_balances()"), "0"); assert.deepEqual(stf.errs, []);
-  ok("スタッフ(実物の supabase-js): 店頭専用アカウントは拒否・スタッフでログイン → コード入力 → 確定 → お客様の画面が自動で『使用しました』・残高100。残高=台帳");
+  ok("スタッフ(実物の supabase-js): 店頭専用アカウントは拒否・スタッフでログイン → 初回特典のチケットのコード入力 → 確定 → お客様の画面が自動で『ご利用いただきました』・ポイントは減らない。残高=台帳");
   console.log(`\n${n} built e2e tests passed`);
 } finally { await browser.close(); server.close(); pg.stop(); }

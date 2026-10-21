@@ -48,10 +48,10 @@ try {
 
   // ---- 1. ランクごとの『来るたびに使える特典』(文字だけ) ----
   assert.deepEqual(rankPerks("white_opal"), []);
-  assert.deepEqual(rankPerks("amber").map((p) => p.text), ["ディナーの五巡茶 無料"]);
-  assert.deepEqual(rankPerks("emerald").map((p) => p.text), ["ディナーの五巡茶 無料", "季節の豆花チケット(季節ごとに1枚)", "薬日本堂のご優待(準備中)"]);
-  assert.deepEqual(rankPerks("ruby").map((p) => p.text), ["ディナーの五巡茶 無料", "季節の豆花チケット(季節ごとに1枚)", "あなたの体質の五巡茶(持ち帰り用)チケット(季節ごとに1枚)", "薬日本堂のご優待(準備中)"]);
-  assert.deepEqual(rankPerks("onyx").map((p) => p.text), ["ディナーの五巡茶 無料", "季節の豆花チケット(季節ごとに1枚)", "あなたの体質の五巡茶(持ち帰り用)チケット(季節ごとに1枚)", "新メニュー試食会へご招待", "薬日本堂のご優待(準備中)"]);
+  assert.deepEqual(rankPerks("amber").map((p) => p.text), ["ディナーの五巡茶 飲み放題 無料"]);
+  assert.deepEqual(rankPerks("emerald").map((p) => p.text), ["ディナーの五巡茶 飲み放題 無料", "季節の豆花チケット(季節ごとに1枚)", "薬日本堂のご優待(準備中)"]);
+  assert.deepEqual(rankPerks("ruby").map((p) => p.text), ["ディナーの五巡茶 飲み放題 無料", "季節の豆花チケット(季節ごとに1枚)", "あなたの体質の五巡茶(持ち帰り用)チケット(季節ごとに1枚)", "薬日本堂のご優待(準備中)"]);
+  assert.deepEqual(rankPerks("onyx").map((p) => p.text), ["ディナーの五巡茶 飲み放題 無料", "季節の豆花チケット(季節ごとに1枚)", "あなたの体質の五巡茶(持ち帰り用)チケット(季節ごとに1枚)", "新メニュー試食会へご招待", "薬日本堂のご優待(準備中)"]);
   assert.equal(rankPerks("onyx").find((p) => p.text.includes("薬日本堂")).small, true); assert.deepEqual(rankPerks("unknown"), []);
   for (const r of ["white_opal", "amber", "emerald", "ruby", "onyx"]) assert.ok(!rankPerks(r).some((p) => /5%|OFF/.test(p.text)));
   // 102 が未適用の応答(tickets などがない)でも表示用データは成立する
